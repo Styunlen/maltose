@@ -87,6 +87,7 @@ class MaltoseAdminSettings {
                             />
                             <p class="description">
                                 保存文章时向此地址的 <code>/api/cache-purge</code> 发送缓存失效请求。
+                                开发环境请留空（本机 localhost 服务器无法访问），改用手动清缓存。
                             </p>
                         </td>
                     </tr>

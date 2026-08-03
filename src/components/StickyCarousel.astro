@@ -1,0 +1,228 @@
+---
+import dayjs from "dayjs";
+import { LAZY_PLACEHOLDER }  from "@lib/lazy"
+
+interface StickyPost {
+  title: string;
+  uri: string;
+  date: string;
+  excerpt: string;
+  content?: string;
+  commentCount?: number;
+  viewCount?: number;
+  categories?: { nodes: Array<{ name: string; uri: string }> };
+  tags?: { nodes: Array<{ name: string; uri: string }> };
+  featuredImage?: {
+    node: {
+      sourceUrl: string;
+      srcSet: string;
+      altText: string;
+    };
+  };
+}
+
+interface Props {
+  posts: StickyPost[];
+}
+
+const { posts } = Astro.props;
+const hasPosts = posts.length > 0;
+
+// Helper: extract first image from content
+function firstImageFromContent(content?: string): string {
+  if (!content) return "";
+  const m = content.match(/<img[^>]+src=["']([^"']+)["']/i);
+  return m?.[1] ?? "";
+}
+
+// Pre-compute display image URL for each post
+const enrichedPosts = posts.map((p) => ({
+  ...p,
+  _imgUrl: p.featuredImage?.node?.sourceUrl || firstImageFromContent(p.content) || "",
+}));
+---
+
+{
+  hasPosts ? (
+    <section class="carousel-section">
+      <div class="carousel-header">
+        <span class="pin-badge" aria-hidden="true">📌</span>
+        <h2 class="carousel-title">置顶推荐</h2>
+      </div>
+
+      <div class="carousel-track" id="sticky-carousel">
+        {enrichedPosts.map((post, i) => (
+          <a href={post.uri} class="carousel-slide">
+            <div class="carousel-image-wrap">
+              {post._imgUrl ? (
+                <img
+                  src={LAZY_PLACEHOLDER}
+                  data-src={post._imgUrl}
+                  data-srcset={post.featuredImage?.node?.srcSet}
+                  class="carousel-image lazy-img" />
+              ) : (
+                <div class="carousel-placeholder" />
+              )}
+
+              <!-- Static overlay: title, category, date -->
+              <div class="carousel-overlay">
+                <div class="carousel-content">
+                  {post.categories?.nodes?.[0] && (
+                    <span class="carousel-cat">{post.categories.nodes[0].name}</span>
+                  )}
+                  <h3 class="carousel-slide-title">{post.title}</h3>
+                  <time class="carousel-date">{dayjs(post.date).format("YYYY-MM-DD")}</time>
+                </div>
+              </div>
+
+              <!-- Hover overlay: comment count + tags (like PostCard) -->
+              <div class="hover-overlay">
+                <div class="hover-content">
+                  <div class="hover-stats">
+                    <span class="hover-stat">
+                      <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                      </svg>
+                      {post.commentCount ?? 0} 评论
+                    </span>
+                    <span class="hover-stat">
+                      <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
+                      </svg>
+                      <span data-view-dbid={post.databaseId}>{post.viewCount ?? 0}</span> 浏览
+                    </span>
+                  </div>
+                  {post.tags?.nodes?.length > 0 && (
+                    <div class="hover-tags">
+                      {post.tags.nodes.map((tag) => (
+                        <span class="tag-pill">{tag.name}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </a>
+        ))}
+      </div>
+
+      <div class="carousel-dots" id="carousel-dots">
+        {posts.map((_, i) => (
+          <button
+            class={`carousel-dot${i === 0 ? " active" : ""}`}
+            data-index={i}
+            aria-label={`Slide ${i + 1}`}
+          />
+        ))}
+      </div>
+    </section>
+  ) : null
+}
+
+<script>
+  const track = document.getElementById("sticky-carousel");
+  const dots = document.querySelectorAll("#carousel-dots .carousel-dot");
+  if (track && dots.length) {
+    let current = 0;
+    const total = dots.length;
+    const goTo = (index) => {
+      if (index < 0) index = total - 1;
+      if (index >= total) index = 0;
+      current = index;
+      track.style.transform = `translateX(-${current * 100}%)`;
+      dots.forEach((d, i) => d.classList.toggle("active", i === current));
+    };
+    dots.forEach((dot) => {
+      dot.addEventListener("click", () => goTo(parseInt(( dot as any)?.dataset.index || "0")));
+    });
+    let interval = setInterval(() => goTo(current + 1), 5000);
+    track.addEventListener("mouseenter", () => clearInterval(interval));
+    track.addEventListener("mouseleave", () => {
+      interval = setInterval(() => goTo(current + 1), 5000);
+    });
+  }
+</script>
+
+<style>
+  .carousel-section { margin-bottom: 2.5rem; }
+  .carousel-header { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 1rem; }
+  .pin-badge { font-size: 1.1rem; }
+  .carousel-title { font-size: 1.25rem; font-weight: 700; color: var(--foreground); margin: 0; }
+
+  .carousel-track {
+    display: flex; overflow: hidden; border-radius: var(--radius);
+    transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .carousel-slide {
+    min-width: 100%; display: block; text-decoration: none; color: inherit; position: relative;
+  }
+
+  /* ─── Image ─── */
+  .carousel-image-wrap {
+    position: relative; aspect-ratio: 21 / 9; overflow: hidden; background: var(--muted);
+  }
+  .carousel-image {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+    transition: transform 0.4s ease;
+  }
+  .carousel-slide:hover .carousel-image { transform: scale(1.05); }
+  .carousel-placeholder { width: 100%; height: 100%; background: var(--bg-gradient); }
+
+  /* ─── Static overlay (title/category/date) ─── */
+  .carousel-overlay {
+    position: absolute; inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.35) 50%, rgba(0,0,0,0.1) 100%);
+    display: flex; align-items: flex-end; padding: 1.5rem;
+    transition: opacity 0.5s ease;
+  }
+  .carousel-slide:hover .carousel-overlay { opacity: 0; transition: opacity 0.5s ease; }
+  .carousel-content { max-width: 80%; }
+  .carousel-cat {
+    display: inline-block; padding: 0.2rem 0.65rem; font-size: 0.7rem; font-weight: 600;
+    background: var(--primary); color: #000; border-radius: 9999px; margin-bottom: 0.5rem;
+  }
+  .carousel-slide-title {
+    margin: 0; font-size: 1.4rem; font-weight: 700; color: #fff;
+    line-height: 1.3; text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .carousel-date {
+    display: inline-block; margin-top: 0.4rem; font-size: 0.8rem; color: rgba(255,255,255,0.75);
+  }
+
+  /* ─── Hover overlay (comment count + tags, appears on hover) ─── */
+  .hover-overlay {
+    position: absolute; inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 60%, rgba(0,0,0,0.15) 100%);
+    display: flex; align-items: flex-end; padding: 1.5rem;
+    opacity: 0; transition: opacity 0.25s ease;
+  }
+  .carousel-slide:hover .hover-overlay { opacity: 1; }
+  .hover-content { width: 100%; display: flex; flex-direction: column; gap: 0.6rem; }
+  .hover-stats { display: flex; gap: 1.25rem; }
+  .hover-stat {
+    display: inline-flex; align-items: center; gap: 0.3rem;
+    font-size: 0.8rem; font-weight: 500; color: #fff;
+  }
+  .stat-icon { width: 0.9rem; height: 0.9rem; flex-shrink: 0; }
+  .hover-tags { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .tag-pill {
+    display: inline-block; padding: 0.15rem 0.55rem; font-size: 0.7rem; font-weight: 500;
+    color: #fff; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 9999px;
+  }
+
+  /* ─── Dots ─── */
+  .carousel-dots { display: flex; justify-content: center; gap: 0.5rem; margin-top: 0.75rem; }
+  .carousel-dot {
+    width: 8px; height: 8px; border-radius: 9999px; background: var(--border);
+    border: none; cursor: pointer; padding: 0; transition: all 0.3s ease;
+  }
+  .carousel-dot.active { background: var(--primary); width: 24px; }
+  .carousel-dot:hover { background: var(--primary-color-60); }
+
+  @media (max-width: 640px) {
+    .carousel-slide-title { font-size: 1.1rem; }
+    .carousel-overlay, .hover-overlay { padding: 1rem; }
+    .carousel-image-wrap { aspect-ratio: 16 / 9; }
+  }
+</style>

@@ -1,0 +1,91 @@
+---
+import PostCard from "../components/PostCard.astro";
+import PopularPosts from "../components/PopularPosts.astro";
+import StickyCarousel from "../components/StickyCarousel.astro";
+import Pagination from "../components/Pagination.astro";
+import MaintenancePage from "../components/MaintenancePage.astro";
+import MainLayout from "../layouts/MainLayout.astro";
+import ViewCountsProvider from "../components/ViewCountsProvider";
+import {
+  homePagePostsQuery,
+  getStickyPosts,
+  getRandomPosts,
+} from "@api/api";
+
+const perPage = 10;
+
+// Get current page from URL query param
+const url = Astro.url;
+const pageParam = url.searchParams.get("page");
+const currentPage = Math.max(1, parseInt(pageParam || "1", 10) || 1);
+const offset = (currentPage - 1) * perPage;
+
+let posts: any[] = [];
+let stickyPosts: any[] = [];
+let popularPosts: any[] = [];
+let total = 0;
+let hasError = false;
+
+try {
+  const result = await Promise.all([
+    homePagePostsQuery(perPage, offset),
+    getStickyPosts(),
+    getRandomPosts(8, 50),
+  ]);
+  const data = result[0];
+  posts = data.posts.nodes;
+  total = data.posts.pageInfo?.offsetPagination?.total ?? 0;
+  stickyPosts = result[1];
+  popularPosts = result[2];
+} catch (err) {
+  console.warn("Failed to fetch homepage data:", err);
+  hasError = true;
+}
+
+const totalPages = Math.max(1, Math.ceil(total / perPage));
+
+// Collect every post whose view count should refresh live (posts + sticky + popular).
+const viewCountTargets = [...posts, ...stickyPosts, ...popularPosts].map((p, i) => ({
+  databaseId: p.databaseId,
+  elementId: `home-view-${p.databaseId ?? i}`,
+}));
+
+// Homepage contains live view counts, so it must not be cached by proxies.
+Astro.response.headers.set("Cache-Control", "no-cache, must-revalidate");
+---
+
+{
+  hasError ? (
+    <MaintenancePage />
+  ) : (
+    <MainLayout
+      title="Home Page"
+    >
+      <ViewCountsProvider targets={viewCountTargets} client:load />
+      <main style="margin-top: 1.5rem;">
+        <StickyCarousel posts={stickyPosts} />
+
+        <PopularPosts first={8} posts={popularPosts} />
+
+        <h2 style="font-weight: 700; font-size: 1.25rem; color: var(--foreground); margin-top: 2.5rem; margin-bottom: 1rem; letter-spacing: 0.02em;">
+          {currentPage === 1 ? "Recent Posts" : `Page ${currentPage}`}
+        </h2>
+
+        <div>
+          {posts.map((post) => (
+            <PostCard post={post} />
+          ))}
+        </div>
+
+        {totalPages > 1 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            hasNextPage={currentPage < totalPages}
+            hasPreviousPage={currentPage > 1}
+          />
+        )}
+      </main>
+    </MainLayout>
+  )
+}

@@ -1,0 +1,99 @@
+---
+import "@/styles/tailwind.css";
+import "@/styles/global.scss";
+import SiteFooter from "../components/SiteFooter.astro";
+import LayoutShell from "./LayoutShell";
+import {
+  navQuery,
+  getRecentPosts,
+  getAllTags,
+  getRecentComments,
+} from "@api/api.ts";
+
+let primaryMenu: any = null;
+let generalSettings: any = { title: "AstroPress", url: "", description: "" };
+let sidebarData: any = null;
+
+try {
+  const { menus, generalSettings: gs } = await navQuery();
+  primaryMenu = menus.nodes[0];
+  if (gs) generalSettings = gs;
+} catch (err) {
+  console.warn("navQuery failed, using fallback:", err);
+}
+
+try {
+  const [sp, st, sc] = await Promise.all([
+    getRecentPosts(5),
+    getAllTags(),
+    getRecentComments(5),
+  ]);
+  sidebarData = { posts: sp, tags: st, comments: sc };
+} catch (err) {
+  console.warn("Sidebar data fetch failed:", err);
+}
+
+const { title, description } = Astro.props;
+const pageTitle = `${title} | ${generalSettings.title}`;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{`${title} | ${generalSettings.title}`}</title>
+    <meta name="description" content={description} />
+  </head>
+  <body>
+    <LayoutShell
+      menu={primaryMenu}
+      generalSettings={generalSettings}
+      sidebarData={sidebarData}
+      client:load
+    >
+      <slot />
+      <SiteFooter />
+    </LayoutShell>
+  </body>
+</html>
+
+<script>
+  import LazyLoad from "vanilla-lazyload";
+
+  const instance = new LazyLoad({
+    elements_selector: ".lazy-img",
+  });
+
+  // Watch for dynamically added content
+  const observer = new MutationObserver(() => instance.update());
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  // Live view-count refresh: ViewCountsProvider dispatches fresh counts,
+  // and every [data-view-dbid] element updates in place.
+  window.addEventListener("maltose:view-count", (e) => {
+    const detail = e.detail;
+    if (!detail?.counts) return;
+    const counts = detail.counts;
+    document.querySelectorAll("[data-view-dbid]").forEach((el) => {
+      const dbid = el.getAttribute("data-view-dbid");
+      const fresh = dbid ? counts.get(dbid) : undefined;
+      if (typeof fresh === "number") {
+        el.textContent = String(fresh);
+      }
+    });
+  });
+</script>
+
+<style>
+  /* @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap'); */
+
+  body {
+    /* font-family: "Nunito", "Open Sans", sans-serif; */
+    font-family: "Nunito", "Open Sans", sans-serif;
+    font-size: 18px;
+    background-image: radial-gradient(var(--border) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+</style>

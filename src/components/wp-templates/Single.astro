@@ -1,0 +1,395 @@
+---
+import WordPressBlocks from "@components/WordPressBlocks";
+import wpBlocks from "@components/wp-blocks";
+import { gql } from "@apollo/client/core";
+const { node } = Astro.props;
+import { LiquidButton } from "@components/animate-ui/buttons/liquid.tsx";
+import dayjs from "dayjs";
+import { getQuery } from "@api/api";
+import { renderCommentMd } from "@lib/markdown";
+import CommentSection from "../CommentSection";
+import ArticlePagination from "../ArticlePagination";
+import PostViewCounter from "../PostViewCounter";
+export const prerender = false;
+
+// console.log(node.id)
+const isPost = node.__typename === "Post";
+const isPage = node.__typename === "Page";
+
+// Render comment markdown to HTML during SSR, preserve raw for editing
+const renderedComments = (node.comments?.nodes ?? []).map((c: any) => ({
+  ...c,
+  rawContent: c.content || "",
+  content: renderCommentMd(c.content || ""),
+  children: (c.children || []).map((child: any) => ({
+    ...child,
+    rawContent: child.content || "",
+    content: renderCommentMd(child.content || ""),
+  })),
+}));
+
+// Fetch editor blocks for both Post and Page
+let rootBlocks: any[] = [];
+
+if(!isPost && !isPage) {
+  return 
+}
+
+if (isPost || isPage) {
+  const contentNodeId = node.id;
+  const fragmentEntries = Object.values(wpBlocks)
+    .filter((item: any) => item?.fragments)
+    .map((block: any) => block.fragments.entry)
+    .join("");
+
+const fragmentKeys = Object.values(wpBlocks)
+  .filter((item:any) => item.fragments)
+  .map((block:any) => `...${block.fragments.key}`)
+  .join("  \n");
+
+const queryString = `
+  ${fragmentEntries}
+  query GetPost($databaseId: ID!, $asPreview: Boolean!) {
+    ${node.__typename.toLowerCase()}(id: $databaseId, asPreview: $asPreview) {
+        editorBlocks {
+          name
+          clientId
+          parentClientId
+          renderedHtml
+          type
+          cssClassNames
+          ${fragmentKeys}
+      }
+    }
+  }
+`;
+  // console.log(queryString)
+const queryResult = 
+  (await getQuery(gql(queryString), {
+    databaseId: node.id,
+    asPreview: false,
+  })) as any
+// console.log("GraphQL query result for post ID", node.id, ":", JSON.stringify(queryResult, null, 2));
+  const rawBlocks = (queryResult as any)?.[node.__typename.toLowerCase()]?.editorBlocks || [];
+
+// console.log("Fetched raw blocks for post ID", node.id, ":", JSON.stringify(rawBlocks, null, 2));
+// Transform raw blocks to our supported block format
+const postBlocks = rawBlocks.map((block) => {
+  let attributes = {};
+  if (block.attributes) {
+    attributes = block.attributes;
+  }
+  if (!(attributes as any).content && block.renderedHtml) {
+    (attributes as any).content = block.renderedHtml;
+  }
+  return {
+    name: block.name,
+    renderedHtml: block.renderedHtml,
+    clientId: block.clientId,
+    parentClientId: block.parentClientId,
+    attributes,
+    cssClassNames: block.cssClassNames,
+    type: block.type,
+    innerBlocks: [],
+  };
+});
+
+// Build block tree
+const blockMap = new Map();
+postBlocks.forEach((block) => blockMap.set(block.clientId, block));
+postBlocks.forEach((block) => {
+  if (block.parentClientId && blockMap.has(block.parentClientId)) {
+    const parent = blockMap.get(block.parentClientId);
+    parent.innerBlocks.push(block);
+  } else {
+    rootBlocks.push(block);
+  }
+});
+}
+// Split blocks into pages at CoreNextpage markers
+const pageBlocks: any[][] = [];
+let currentPage: any[] = [];
+rootBlocks.forEach((block) => {
+  if (block.type === "CoreNextpage" || block.name === "core/nextpage") {
+    if (currentPage.length > 0) {
+      currentPage.push(block);
+      pageBlocks.push(currentPage);
+      currentPage = [];
+    }
+  } else {
+    currentPage.push(block);
+  }
+});
+if (currentPage.length > 0) pageBlocks.push(currentPage);
+
+const hasPages = pageBlocks.length > 1;
+const totalPages = pageBlocks.length;
+---
+
+<div class="page-header">
+  <h1>{node.title}</h1>
+</div>
+
+<!-- Post-specific: categories, date, featured image -->
+{
+  isPost ? (
+    <>
+      <!-- Category links -->
+      <div class="term-links">
+        {
+          node.categories?.nodes?.length > 0
+            ? node.categories.nodes.map((category) => (
+                <LiquidButton className="term-link" href={category.uri}>
+                  {category.name}
+                </LiquidButton>
+              ))
+            : null
+        }
+      </div>
+
+      <div class="post-meta">
+        <span class="meta-item">
+          <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M20 6L9 17l-5-5" />
+          </svg>
+          <time datetime={node.date}>{dayjs(node.date).format("YYYY-MM-DD HH:mm")}</time>
+        </span>
+        <span class="meta-item meta-item-muted" title="最后修改">
+          <svg class="meta-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M1 4v6h6" />
+            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+          </svg>
+          <time datetime={node.modified}>{dayjs(node.modified).format("YYYY-MM-DD HH:mm")}</time>
+        </span>
+        {isPost && (
+          <PostViewCounter
+            postId={node.databaseId}
+            initialCount={node.viewCount ?? 0}
+            client:load
+          />
+        )}
+      </div>
+
+      <div class="divider" aria-hidden="true">✿ ✿ ✿</div>
+
+      <article class="post-content">
+        <img
+          class="featured-image"
+          src={node.featuredImage?.node?.mediaItemUrl}
+          srcset={node.featuredImage?.node?.srcSet}
+          alt={node.featuredImage?.node?.altText}
+          loading="lazy"
+          width={node.featuredImage?.node?.mediaDetails?.width}
+          height={node.featuredImage?.node?.mediaDetails?.height}
+        />
+
+        {
+          hasPages ? (
+            <div class="article-pages" id="article-pages">
+              {pageBlocks.map((blocks, i) => (
+                <div id={`page-${i + 1}`} class="article-page">
+                  <WordPressBlocks blocks={blocks} client:load />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <WordPressBlocks blocks={rootBlocks || []} client:load />
+          )
+        }
+
+        {hasPages && (
+          <ArticlePagination totalPages={totalPages} client:load />
+        )} 
+        <CommentSection 
+          client:load
+          comments={renderedComments}
+          commentCount={node.commentCount ?? 0}
+          commentStatus={node.commentStatus ?? "closed"}
+          postUri={node.uri}
+          postDatabaseId={node.databaseId}
+          user={Astro.locals.user}
+          currentUserId={Astro.locals.wpUserId}
+        />
+      </article>
+
+
+      <script
+        type="application/json"
+        id="article-comment-data"
+        set:html={JSON.stringify({
+          comments: renderedComments,
+          commentCount: node.commentCount ?? 0,
+          commentStatus: node.commentStatus ?? "closed",
+          postUri: node.uri,
+        })}
+      ></script>
+    </>
+  ) : (
+    <>
+      <article class="page-content">
+        {
+          hasPages ? (
+            <div class="article-pages" id="article-pages">
+              {pageBlocks.map((blocks, i) => (
+                <div id={`page-${i + 1}`} class="article-page">
+                  <WordPressBlocks blocks={blocks} client:load />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <WordPressBlocks blocks={rootBlocks || []} client:load />
+          )
+        }
+        {hasPages && (
+          <ArticlePagination totalPages={totalPages} client:load />
+        )} 
+        <CommentSection 
+          client:load
+          comments={renderedComments}
+          commentCount={node.commentCount ?? 0}
+          commentStatus={node.commentStatus ?? "closed"}
+          postUri={node.uri}
+          postDatabaseId={node.databaseId}
+          user={Astro.locals.user}
+          currentUserId={Astro.locals.wpUserId}
+        />
+      </article>
+
+      <script
+        type="application/json"
+        id="article-comment-data"
+        set:html={JSON.stringify({
+          comments: renderedComments,
+          commentCount: node.commentCount ?? 0,
+          commentStatus: node.commentStatus ?? "closed",
+          postUri: node.uri,
+        })}
+      ></script>
+    </>
+  )
+}
+
+
+<style>
+  .page-header {
+    text-align: center;
+    margin-bottom: 1.25rem;
+  }
+
+  .page-header h1 {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--foreground);
+    line-height: 1.25;
+    margin: 0;
+  }
+
+  .page-content {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem;
+    font-size: 1.05rem;
+    line-height: 1.8;
+    color: var(--foreground);
+  }
+
+  .post-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--muted-foreground);
+    white-space: nowrap;
+  }
+
+  .meta-item-muted {
+    opacity: 0.75;
+  }
+
+  .meta-icon {
+    width: 0.85rem;
+    height: 0.85rem;
+    flex-shrink: 0;
+  }
+
+  .post-view-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--muted-foreground);
+    white-space: nowrap;
+  }
+
+  .post-view-count svg {
+    width: 0.85rem;
+    height: 0.85rem;
+    flex-shrink: 0;
+  }
+
+  .post-content {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem;
+  }
+
+  .divider {
+    text-align: center;
+    font-size: 1.3rem;
+    margin: 0.5rem 0 1.5rem;
+    opacity: 0.5;
+    letter-spacing: 0.8rem;
+    animation: sparkle 2s ease-in-out infinite;
+  }
+
+  @keyframes sparkle {
+    0%,
+    100% {
+      opacity: 0.5;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.1);
+    }
+  }
+
+  img.featured-image {
+    width: 100%;
+    height: auto;
+    margin-bottom: 2rem;
+    border: 3px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 6px 6px 0px var(--border);
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  }
+
+  img.featured-image:hover {
+    transform: translateY(-4px) translateX(-2px);
+    box-shadow: 10px 10px 0px var(--border);
+  }
+
+  .term-links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.3rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .term-link {
+    display: inline-block;
+    margin: 0;
+  }
+</style>

@@ -1,0 +1,460 @@
+//// WordPress Block Styles ////
+@use "sass:list";
+@import url("https://styunlen.cn/wp-includes/css/dist/block-library/style.min.css");
+// ─── CoreHeading ───
+.h1,
+.h2,
+.h3,
+.h4,
+.h5,
+.h6,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: inherit;
+  font-weight: 700;
+  line-height: 1.4;
+  margin-bottom: 0.5rem;
+  color: var(--foreground);
+}
+
+$heading-sizes: (
+  1: (
+    2.5rem,
+    var(--primary),
+  ),
+  2: (
+    2rem,
+    var(--foreground),
+  ),
+  3: (
+    1.75rem,
+    var(--foreground),
+  ),
+  4: (
+    1.5rem,
+    null,
+  ),
+  5: (
+    1.25rem,
+    null,
+  ),
+  6: (
+    1rem,
+    null,
+  ),
+);
+
+@each $level, $props in $heading-sizes {
+  .h#{$level},
+  h#{$level} {
+    font-size: list.nth($props, 1);
+    @if list.nth($props, 2) {
+      color: list.nth($props, 2);
+    }
+  }
+}
+
+// Decorative bars before headings in articles
+article {
+  h1,
+  h2,
+  h3 {
+    &::before {
+      content: "";
+      display: inline-block;
+      background: var(--primary);
+      border-radius: 9999px;
+      width: 8px;
+      vertical-align: middle;
+      margin-right: 12px;
+    }
+  }
+  h1::before {
+    height: 28px;
+    transform: translateY(-2px);
+  }
+  h2::before {
+    height: 22px;
+    transform: translateY(-2px);
+  }
+  h3::before {
+    height: 18px;
+    transform: translateY(-1px);
+  }
+}
+
+// ─── CoreParagraph ───
+.wp-block-paragraph {
+  font-size: 1.1rem;
+  line-height: 1.8;
+  margin-bottom: 1.25rem;
+  color: var(--foreground);
+}
+
+// ─── Link styles ───
+.post-content .wp-block a,
+.page-content .wp-block a {
+  color: var(--primary-color);
+  font-weight: 600;
+  text-decoration: none;
+  background-image: linear-gradient(currentColor, currentColor);
+  background-position: 50% 100%;
+  background-size: 0 2px;
+  background-repeat: no-repeat;
+  transition:
+    background-size 0.3s ease,
+    color 0.2s ease;
+
+  &:hover {
+    background-size: 100% 2px;
+  }
+}
+
+// ─── CoreImage ───
+.wp-block-image {
+  margin: 2rem 0;
+  width: 100%;
+
+  .aligncenter {
+    display: table;
+    margin-left: auto;
+    margin-right: auto;
+    width: fit-content;
+  }
+
+  a:hover {
+    background-size: 0;
+  }
+
+  img {
+    display: block;
+    margin: 0;
+    border-radius: var(--radius);
+    box-shadow: 4px 4px 0px var(--border);
+    transition:
+      box-shadow 0.2s ease,
+      transform 0.2s ease;
+
+    &:hover {
+      box-shadow: 6px 6px 0px var(--primary);
+      transform: translate(-2px, -2px);
+    }
+  }
+}
+
+// ─── CoreEmbed ───
+.wp-block-embed {
+  margin: 2rem 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 3px solid var(--border);
+  box-shadow: 6px 6px 0px var(--border);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+
+  &:hover {
+    transform: translateY(-4px) translateX(-2px);
+    box-shadow: 10px 10px 0px var(--border);
+  }
+
+  &__wrapper iframe {
+    width: 100%;
+    height: 400px;
+    display: block;
+  }
+}
+
+// ─── CoreList ───
+.wp-block-list {
+  padding-left: 1.5rem;
+  margin-bottom: 1.25rem;
+  line-height: 1.8;
+  color: var(--foreground);
+
+  li {
+    margin-bottom: 0.35rem;
+
+    span .wp-block-list {
+      display: none;
+    }
+  }
+}
+
+ul.wp-block-list {
+  list-style: none;
+
+  > li {
+    position: relative;
+    padding-left: 0.5rem;
+
+    &::before {
+      content: "✦";
+      position: absolute;
+      left: -1.25rem;
+      color: var(--primary);
+      font-size: 0.7rem;
+      top: 0.15em;
+    }
+  }
+}
+
+ol.wp-block-list {
+  list-style: none;
+  counter-reset: anime-counter;
+
+  > li {
+    counter-increment: anime-counter;
+    position: relative;
+    padding-left: 0.5rem;
+
+    &::before {
+      content: counter(anime-counter);
+      position: absolute;
+      left: -1.75rem;
+      top: 0.1em;
+      width: 1.25rem;
+      height: 1.25rem;
+      background: var(--secondary);
+      color: white;
+      font-size: 0.7rem;
+      font-weight: 700;
+      border-radius: 9999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+  }
+}
+
+// ─── CoreColumn ───
+.is-vertically-aligned-top {
+  align-self: flex-start;
+}
+.is-vertically-aligned-center {
+  align-self: center;
+}
+.is-vertically-aligned-bottom {
+  align-self: flex-end;
+}
+.is-vertically-aligned-stretch {
+  align-self: stretch;
+}
+
+// ─── CoreGroup ───
+.wp-block-group {
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--card);
+
+  @media (min-width: 768px) {
+    padding: 1.75rem;
+  }
+}
+
+// ─── CoreTable ───
+.wp-block-table {
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+
+  table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  thead {
+    tr {
+      background: var(--secondary);
+      color: white;
+    }
+
+    th {
+      font-weight: 700;
+      padding: 0.75rem 1rem;
+      font-size: 0.9rem;
+      letter-spacing: 0.02em;
+
+      &:first-child {
+        border-radius: var(--radius) 0 0 0;
+      }
+      &:last-child {
+        border-radius: 0 var(--radius) 0 0;
+      }
+    }
+  }
+
+  tbody {
+    tr {
+      transition: background-color 0.2s ease;
+
+      &:nth-child(even) {
+        background-color: var(--muted);
+      }
+      &:hover {
+        background-color: oklch(0.85 0.15 100 / 0.25);
+      }
+
+      &:last-child td {
+        &:first-child {
+          border-radius: 0 0 0 var(--radius);
+        }
+        &:last-child {
+          border-radius: 0 0 var(--radius) 0;
+        }
+      }
+    }
+  }
+
+  td {
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .alignleft {
+    float: left;
+    margin-right: 1.5em;
+  }
+  .alignright {
+    float: right;
+    margin-left: 1.5em;
+  }
+  .aligncenter {
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .has-text-align-left {
+    text-align: left;
+  }
+  .has-text-align-center {
+    text-align: center;
+  }
+  .has-text-align-right {
+    text-align: right;
+  }
+  .is-style-stripes tbody tr:nth-child(odd) {
+    background-color: var(--accent);
+  }
+}
+
+// ─── CoreVideo / CoreGallery ───
+.wp-block-video {
+  display: flex;
+  flex-direction: column;
+}
+.wp-block-gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+// ─── CoreCode (Shiki Container) ───
+.shiki-container {
+  pre {
+    margin: 0;
+    background: transparent !important;
+    padding: 0;
+    white-space: inherit !important;
+    word-break: inherit !important;
+    overflow-x: visible !important;
+  }
+
+  code {
+    display: grid;
+    min-width: 100%;
+    white-space: inherit !important;
+    word-break: inherit !important;
+  }
+
+  .shiki-line {
+    min-height: 1.5em;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    position: relative;
+    white-space: inherit !important;
+    word-break: inherit !important;
+    transition-property: padding-left, word-break;
+    transition-duration: 0.3s;
+    transition-timing-function: ease;
+
+    &:hover {
+      background-color: rgba(255, 255, 255, 0.05);
+    }
+
+    &::before {
+      content: attr(data-line);
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 2.5rem;
+      text-align: right;
+      color: #565f89;
+      font-size: 0.75rem;
+      line-height: inherit;
+      user-select: none;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateX(-10px);
+      transition:
+        opacity 0.3s ease,
+        transform 0.3s ease;
+    }
+  }
+}
+
+.show-line-numbers .shiki-line {
+  padding-left: 3.5rem;
+
+  &::before {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.hide-line-numbers .shiki-line {
+  padding-left: 1rem;
+
+  &::before {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+}
+
+// ─── Global Block Styles ───
+.wp-block {
+  max-width: 64rem;
+}
+
+body > .wp-block,
+body > .wp-block-wrapper,
+body > .wp-block-no-wrapper {
+  display: none;
+}
+
+// ─── Article Pagination ───
+.article-pages {
+  .article-page {
+    display: none;
+    scroll-margin-top: calc(var(--header-height, 3.5rem) + 1rem);
+
+    &:first-child {
+      display: block;
+    }
+    &.active {
+      display: block;
+    }
+  }
+
+  &:has(.article-page.active) {
+    .article-page:first-child:not(.active) {
+      display: none;
+    }
+  }
+}

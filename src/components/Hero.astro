@@ -1,0 +1,46 @@
+---
+
+---
+
+<section>
+    <h1>Hello, web friend! 🌎 Thanks for visiting</h1>
+    <p></p>
+</section>
+
+<style>
+    section {
+        box-sizing: border-box;
+        min-height: 400px;
+        background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+        border: 4px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: 8px 8px 0px var(--border);
+        color: white;
+        font-size: 2.5rem;
+        padding: 4rem 3rem;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        position: relative;
+        overflow: hidden;
+    }
+    section::after {
+        content: '✨';
+        position: absolute;
+        top: 20px;
+        right: 30px;
+        font-size: 3rem;
+        animation: float 3s ease-in-out infinite;
+    }
+    @keyframes float {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
+    }
+    h1 {
+       text-align: center;
+       margin: auto;
+       font-weight: 800;
+       text-shadow: 3px 3px 0px var(--border);
+    }
+</style>

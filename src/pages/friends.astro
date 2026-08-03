@@ -1,0 +1,78 @@
+---
+import { getFriends } from "@lib/friends";
+import FriendCard from "@/components/FriendCard";
+
+const { active, dead, lastCheckAt } = await getFriends();
+const total = active.length + dead.length;
+const checkedTime = new Date(lastCheckAt).toLocaleString("zh-CN");
+---
+
+<meta charset="utf-8" />
+<div style="max-width: 800px; margin: 1.5rem auto 0;">
+  <h1 style="font-size: 1.5rem; font-weight: 800; margin-bottom: 0.25rem;">
+    🌐 友情链接
+  </h1>
+  <p
+    style="font-size: 0.85rem; color: var(--muted-foreground); margin-bottom: 1rem;"
+  >
+    共 {total} 个站点 · 上次检查 {checkedTime}
+  </p>
+
+  {
+    active.length > 0 && (
+      <>
+        <h2 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.4rem;">
+          <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #22c55e;" />
+          活跃中 ({active.length})
+        </h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.75rem; margin-bottom: 2rem;">
+          {active.map((f, i) => (
+            <FriendCard friend={f} key={i} />
+          ))}
+        </div>
+      </>
+    )
+  }
+
+  {
+    dead.length > 0 && (
+      <>
+        <h2 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.4rem;">
+          <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #a0a0a0;" />
+          暂时失联 ({dead.length})
+        </h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.75rem; margin-bottom: 2rem;">
+          {dead.map((f, i) => (
+            <FriendCard friend={f} key={i} dead />
+          ))}
+        </div>
+      </>
+    )
+  }
+
+  <div
+    style="text-align: center; padding: 2rem 1rem; border-top: 1px solid var(--border); margin-top: 1rem;"
+  >
+    <p
+      style="font-size: 0.85rem; color: var(--muted-foreground); margin-bottom: 0.6rem;"
+    >
+      想要交换友情链接？请先在网站上添加本站链接，然后在 WordPress 后台申请。
+    </p>
+    <a
+      href="https://styunlen.cn/wp-admin"
+      target="_blank"
+      rel="noopener noreferrer"
+      style="display: inline-block; padding: 0.4rem 1.2rem; font-size: 0.85rem; font-weight: 700; color: #000; background: var(--primary); border-radius: 9999px; text-decoration: none;"
+    >
+      申请友链
+    </a>
+  </div>
+</div>
+
+<style>
+  .friend-card:hover {
+    border-color: var(--primary) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  }
+</style>

@@ -1,0 +1,156 @@
+---
+interface Props {
+  currentPage: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+const {
+  currentPage,
+  totalPages,
+  hasNextPage,
+  hasPreviousPage,
+} = Astro.props;
+
+function getPageUrl(page: number): string {
+  if (page <= 1) return "/";
+  return `/?page=${page}`;
+}
+
+// Build visible page numbers
+const visiblePages: number[] = [];
+const maxVisible = Math.min(totalPages, 7);
+if (totalPages <= 7) {
+  for (let i = 1; i <= totalPages; i++) visiblePages.push(i);
+} else if (currentPage <= 4) {
+  for (let i = 1; i <= 7; i++) visiblePages.push(i);
+} else if (currentPage >= totalPages - 3) {
+  for (let i = 0; i < 7; i++) visiblePages.push(totalPages - 6 + i);
+} else {
+  for (let i = -3; i <= 3; i++) visiblePages.push(currentPage + i);
+}
+---
+
+<nav class="pagination" aria-label="Pagination">
+  <!-- Previous -->
+  <a
+    href={hasPreviousPage ? getPageUrl(currentPage - 1) : undefined}
+    class={`pagination-btn${!hasPreviousPage ? " disabled" : ""}`}
+    aria-disabled={!hasPreviousPage}
+    tabindex={hasPreviousPage ? undefined : -1}
+  >
+    <svg class="pagination-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M15 18l-6-6 6-6" />
+    </svg>
+    Prev
+  </a>
+
+  <!-- Page numbers -->
+  <div class="pagination-pages">
+    {
+      visiblePages.map((pageNum) => (
+        <a
+          href={getPageUrl(pageNum)}
+          class={`pagination-page${pageNum === currentPage ? " active" : ""}`}
+          aria-current={pageNum === currentPage ? "page" : undefined}
+        >
+          {pageNum}
+        </a>
+      ))
+    }
+  </div>
+
+  <!-- Next -->
+  <a
+    href={hasNextPage ? getPageUrl(currentPage + 1) : undefined}
+    class={`pagination-btn${!hasNextPage ? " disabled" : ""}`}
+    aria-disabled={!hasNextPage}
+    tabindex={hasNextPage ? undefined : -1}
+  >
+    Next
+    <svg class="pagination-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9 18l6-6-6-6" />
+    </svg>
+  </a>
+</nav>
+
+<style>
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 2.5rem;
+    padding: 1rem 0;
+  }
+
+  .pagination-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.45rem 0.9rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--foreground);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    text-decoration: none;
+    transition: all 0.2s ease;
+  }
+
+  .pagination-btn:hover:not(.disabled) {
+    background: var(--primary);
+    color: #000;
+    border-color: var(--primary);
+    transform: translateY(-1px);
+  }
+
+  .pagination-btn.disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  .pagination-icon {
+    width: 0.85rem;
+    height: 0.85rem;
+    flex-shrink: 0;
+  }
+
+  .pagination-pages {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .pagination-page {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.2rem;
+    height: 2.2rem;
+    padding: 0 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--foreground);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: calc(var(--radius) - 2px);
+    text-decoration: none;
+    transition: all 0.2s ease;
+  }
+
+  .pagination-page:hover:not(.active) {
+    background: var(--muted);
+    border-color: var(--border);
+  }
+
+  .pagination-page.active {
+    background: var(--primary);
+    color: #000;
+    border-color: var(--primary);
+    cursor: default;
+  }
+</style>

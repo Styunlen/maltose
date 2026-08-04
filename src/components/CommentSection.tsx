@@ -257,7 +257,7 @@ function ChatBubble({
               }
             >
               <span>↳</span>
-              <span>{comment.children.length} 条回复</span>
+              <span>{comment.children.length}</span>
             </BubbleReactions>
           )}
         </Bubble>

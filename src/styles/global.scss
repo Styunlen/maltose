@@ -130,9 +130,9 @@ img.lazy-img[data-ll-status="loading"] {
     .reply-link-trigger {
       display: inline-flex;
       align-items: center;
-      gap: 0.25rem;
-      padding: 0.15rem 0.6rem;
-      font-size: 0.72rem;
+      gap: 0.15rem;
+      padding: 0.1rem 0.45rem;
+      font-size: 0.7rem;
       font-weight: 600;
       color: var(--primary);
       background: color-mix(in oklch, var(--primary) 12%, transparent);
@@ -147,7 +147,7 @@ img.lazy-img[data-ll-status="loading"] {
     }
   }
   .chat-parent-mention:hover {
-    color: #00cc80;
+    color: var(--primary);
     text-decoration: underline;
   }
   .reply-link-trigger:hover {
@@ -172,7 +172,7 @@ img.lazy-img[data-ll-status="loading"] {
     margin: 0.2rem 0;
   }
   .chat-content a {
-    color: var(--primary-color);
+    color: var(--primary);
     font-weight: 600;
     text-decoration: none;
   }

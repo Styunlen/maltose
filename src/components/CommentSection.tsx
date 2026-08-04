@@ -224,7 +224,10 @@ function ChatBubble({
             </span>
           )}
         </MessageHeader>
-        <Bubble variant={isOwn ? "default" : "secondary"}>
+        <Bubble
+          variant={isOwn ? "default" : "secondary"}
+          className={comment.children.length > 0 ? "mb-4" : ""}
+        >
           <BubbleContent
             className="chat-content"
             style={{

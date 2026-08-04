@@ -68,14 +68,24 @@
 
 ### 2b. 头像对齐决策（playwright 实测验证）
 
-`MessageAvatar` 使用 shadcn 原始实现：`self-end` + `group-has-data-[slot=message-footer]/message:-translate-y-8`。
+`MessageAvatar` 使用 `self-start`（顶部对齐），移除 `self-end` + `-translate-y-8`。
 
 **行为**（经 playwright 对 9 条评论实测）：
-- 头像底部相对气泡底部偏移**恒为 4px**（对齐气泡底部，即 end）
+- 头像顶部相对气泡顶部偏移**恒为 -26px**（对齐消息行顶部/header 区域），所有评论完全一致
 - 与气泡高度（47px/72px）、是否有回复标签**完全无关**
-- 原因：footer 高度（26px）和气泡-footer 间距（10px）对所有评论恒定，`-translate-y-8`（32px）补偿恰好使头像底对齐气泡底
+- 头像在 **start**（顶部对齐），不依赖 footer/气泡动态高度
 
-**否决项**：`self-start`（顶部对齐）虽然位置恒定，但头像在顶部，不符合"end"需求。
+### 2c. 悬垂 reaction 与 footer 防重叠（playwright 实测验证）
+
+`BubbleReactions` 的 `absolute + translate-y-3/4` 会悬垂到气泡底部之外。当评论内容短（气泡矮）时，悬垂标签会侵入 `MessageFooter` 区域。
+
+**修复**：有回复的 Bubble 加 `mb-4`（16px 底部 margin），为悬垂标签预留空间：
+
+```tsx
+<Bubble className={comment.children.length > 0 ? "mb-4" : ""}>
+```
+
+**行为**（经 playwright 实测，内容最短的评论）：`reactionBottom - footerTop = -8`（悬垂标签底部比 footer 顶部高 8px，不重叠）。`self-start` 头像不受此 margin 影响。
 
 ### 3. 主评论区 MessageGroup 分组
 

@@ -93,10 +93,10 @@
   --popover-foreground: var(--base-color-black);
   --primary: var(--primary-color);
   --primary-foreground: var(--base-color-blackbtn);
-  --secondary: var(--base-color-lightgreen);
+  --secondary: var(--base-color-tertiarybg);
   --secondary-foreground: var(--base-color-black);
   --muted: var(--base-color-secondbg);
-  --muted-foreground: #666;
+  --muted-foreground: color-mix(in oklch, var(--foreground) 60%, transparent);
   --accent: var(--base-color-lightgreen);
   --accent-foreground: var(--base-color-black);
   --destructive: var(--base-color-red);
@@ -116,34 +116,77 @@
   --sidebar-ring: var(--primary-color);
 }
 
-.dark {
-  --background: #1a1b1e;
-  --foreground: #f0f0f0;
-  --card: #25262b;
-  --card-foreground: #f0f0f0;
-  --popover: #25262b;
-  --popover-foreground: #f0f0f0;
-  --primary: var(--primary-color);
-  --primary-foreground: #000;
-  --secondary: #1a3d2e;
-  --secondary-foreground: #f0f0f0;
-  --muted: #2c2e33;
-  --muted-foreground: #999;
-  --accent: #1a3d2e;
-  --accent-foreground: #f0f0f0;
-  --destructive: #ff465a;
-  --destructive-foreground: #fff;
-  --border: #ffffff1a;
-  --input: #ffffff26;
-  --ring: var(--primary-color);
+:root.dark {
+  --primary-color: #00f0a0;
+  --primary-color-10: #00f0a01a;
+  --primary-color-25: #00f0a040;
+  --primary-color-40: #00f0a066;
+  --primary-color-60: #00f0a099;
+  --base-color-primarybg: #232424;
+  --base-color-secondbg: #1f2020;
+  --base-color-tertiarybg: #1a1b1b;
+  --base-color-whiteboth: #ffffff;
+  --base-color-whitebtn: #272828;
+  --base-color-white: #ffffff0a;
+  --base-color-white-30: #232424;
+  --base-color-white-65: #ffffff05;
+  --base-color-white-80: #232424cc;
+  --base-color-grey: #ffffff0a;
+  --base-color-lightgrey: #ffffff0a;
+  --base-color-deepgrey: #ffffff0a;
+  --base-color-black: #d6d8d8;
+  --base-color-blackbtn: #ffffff26;
+  --base-color-blackboth: #000000;
+  --base-color-black-4: #ffffff0a;
+  --base-color-black-10: #ffffff0f;
+  --base-color-black-45: #d6d8d873;
+  --base-color-mask: #1e2024a6;
 
-  --sidebar: #1a1b1e;
-  --sidebar-foreground: #f0f0f0;
+  --base-color-red: #ff465a;
+  --base-color-red-10: #ff465a1a;
+  --base-color-yellow: #fda700;
+  --base-color-yellow-10: #fda7001a;
+  --base-color-blue: #14c8f0;
+  --base-color-blue-10: #14c8f01a;
+  --base-color-deepblue: #3c96fa;
+  --base-color-deepblue-10: #3c96fa33;
+  --base-color-green: #28c86e;
+  --base-color-green-10: #28c86e;
+  --base-color-purple: #8c78ff;
+  --base-color-purple-10: #8c78ff33;
+  --base-color-lightgreen: #326450;
+
+  --bg-gradient: linear-gradient(85.89deg, rgba(70,160,70,0.4), rgba(0,240,160,0.25));
+
+  /* shadcn / radix compatible theme mapping */
+  --background: var(--base-color-primarybg);
+  --foreground: var(--base-color-black);
+  --card: var(--base-color-white);
+  --card-foreground: var(--base-color-black);
+  --popover: var(--base-color-white);
+  --popover-foreground: var(--base-color-black);
+  --primary: var(--primary-color);
+  --primary-foreground: var(--base-color-blackbtn);
+  --secondary: var(--base-color-tertiarybg);
+  --secondary-foreground: var(--base-color-black);
+  --muted: var(--base-color-secondbg);
+  --muted-foreground: color-mix(in oklch, var(--foreground) 60%, transparent);
+  --accent: var(--base-color-lightgreen);
+  --accent-foreground: var(--base-color-black);
+  --destructive: var(--base-color-red);
+  --destructive-foreground: var(--base-color-whiteboth);
+  --border: var(--base-color-black-10);
+  --input: var(--base-color-deepgrey);
+  --ring: var(--primary-color);
+  --radius: 0.75rem;
+
+  --sidebar: var(--base-color-primarybg);
+  --sidebar-foreground: var(--base-color-black);
   --sidebar-primary: var(--primary-color);
-  --sidebar-primary-foreground: #000;
-  --sidebar-accent: #2c2e33;
-  --sidebar-accent-foreground: #f0f0f0;
-  --sidebar-border: #ffffff1a;
+  --sidebar-primary-foreground: var(--base-color-blackbtn);
+  --sidebar-accent: var(--base-color-secondbg);
+  --sidebar-accent-foreground: var(--base-color-black);
+  --sidebar-border: var(--base-color-black-10);
   --sidebar-ring: var(--primary-color);
 }
 

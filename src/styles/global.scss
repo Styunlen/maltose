@@ -97,6 +97,55 @@ img.lazy-img[data-ll-status="loading"] {
   .chat-bubble:hover {
     background: var(--muted);
   }
+  .chat-bubble [data-slot="message-footer"] {
+    .chat-reply-btn,
+    .chat-edit-btn,
+    .chat-delete-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      height: 26px;
+      padding: 0 0.5rem;
+      border: none;
+      border-radius: 9999px;
+      background: transparent;
+      color: var(--muted-foreground);
+      cursor: pointer;
+      font-size: 0.72rem;
+      font-weight: 500;
+      transition: background 0.2s ease, color 0.2s ease;
+      &:hover {
+        background: var(--border);
+        color: var(--foreground);
+      }
+    }
+    .chat-delete-btn {
+      color: var(--destructive);
+      &:hover {
+        background: color-mix(in oklch, var(--destructive) 12%, transparent);
+      }
+    }
+  }
+  .chat-bubble [data-slot="bubble-reactions"] {
+    .reply-link-trigger {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.15rem 0.6rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--primary);
+      background: color-mix(in oklch, var(--primary) 12%, transparent);
+      border: 1px solid color-mix(in oklch, var(--primary) 25%, transparent);
+      border-radius: 9999px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+      &:hover {
+        background: var(--primary);
+        color: #000;
+      }
+    }
+  }
   .chat-parent-mention:hover {
     color: #00cc80;
     text-decoration: underline;
@@ -139,28 +188,5 @@ img.lazy-img[data-ll-status="loading"] {
   #chat-scroll::-webkit-scrollbar-thumb {
     background: var(--border);
     border-radius: 9999px;
-  }
-  .popup-parent {
-    pointer-events: none;
-  }
-  .popup-divider {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0.75rem 0;
-    gap: 0.5rem;
-  }
-  .popup-divider::before,
-  .popup-divider::after {
-    content: "";
-    flex: 1;
-    height: 1px;
-    background: var(--border);
-  }
-  .popup-divider span {
-    font-size: 0.7rem;
-    color: var(--muted-foreground);
-    font-weight: 600;
-    white-space: nowrap;
   }
 }

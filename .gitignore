@@ -23,3 +23,6 @@ pnpm-debug.log*
 .opencode/
 .astro/
 skills-lock.json
+
+# playwright artifacts
+.playwright-mcp/

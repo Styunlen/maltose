@@ -19,6 +19,16 @@ import IconApple from "virtual:icons/tabler/brand-apple";
 import IconAndroid from "virtual:icons/tabler/brand-android";
 import IconLinux from "virtual:icons/tabler/brand-ubuntu";
 import { Edit2, Trash2, MessageSquare } from "lucide-react";
+import {
+  Message,
+  MessageGroup,
+  MessageAvatar,
+  MessageContent,
+  MessageHeader,
+  MessageFooter,
+} from "@/components/ui/message";
+import { Bubble, BubbleContent, BubbleReactions } from "@/components/ui/bubble";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 function UaBrowser({ name }: { name: string }) {
   if (name.startsWith("Chrome")) return <IconChrome className="size-3" />;
@@ -31,7 +41,8 @@ function UaBrowser({ name }: { name: string }) {
 
 function UaOs({ name }: { name: string }) {
   if (name.startsWith("Windows")) return <IconWindows className="size-3" />;
-  if (name.startsWith("macOS") || name === "iOS") return <IconApple className="size-3" />;
+  if (name.startsWith("macOS") || name === "iOS")
+    return <IconApple className="size-3" />;
   if (name.startsWith("Android")) return <IconAndroid className="size-3" />;
   if (name.startsWith("Linux")) return <IconLinux className="size-3" />;
   return null;
@@ -110,6 +121,20 @@ function buildCommentMap(flat: any[]): Map<number, FlatComment> {
 }
 
 /* ─── Chat Bubble ─── */
+// Group strictly consecutive comments by the same author into message groups.
+function groupByAuthor(sorted: FlatComment[]): FlatComment[][] {
+  const groups: FlatComment[][] = [];
+  for (const c of sorted) {
+    const last = groups[groups.length - 1];
+    if (last && last[last.length - 1].author.node.name === c.author.node.name) {
+      last.push(c);
+    } else {
+      groups.push([c]);
+    }
+  }
+  return groups;
+}
+
 function ChatBubble({
   comment,
   onReply,
@@ -118,6 +143,7 @@ function ChatBubble({
   isOwn = false,
   onEdit,
   onDelete,
+  showAvatar = true,
 }: {
   comment: FlatComment;
   onReply: (id: number, name: string, ids: number[]) => void;
@@ -126,394 +152,179 @@ function ChatBubble({
   isOwn?: boolean;
   onEdit?: (commentId: string) => void;
   onDelete?: (commentId: string) => void;
+  showAvatar?: boolean;
 }) {
   return (
-    <div
+    <Message
+      align={isOwn ? "end" : "start"}
       className="chat-bubble"
       id={`chat-comment-${comment.databaseId}`}
-      style={{
-        display: "flex",
-        gap: "0.75rem",
-        padding: "0.5rem 0.75rem",
-        borderRadius: "calc(var(--radius) - 2px)",
-        transition: "all 0.3s ease",
-      }}
     >
-      {/* Avatar */}
-      <div style={{ flexShrink: 0, width: 36, height: 36, marginTop: 2 }}>
-        {comment.author.node.avatar?.url ? (
-          <img
-            src={comment.author.node.avatar.url}
-            alt={comment.author.node.name}
-            loading="lazy"
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: "50%",
-              objectFit: "cover",
-              display: "block",
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: "50%",
-              background: "var(--primary)",
-              color: "#000",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontWeight: 700,
-              fontSize: "0.85rem",
-            }}
-          >
-            {comment.author.node.name.charAt(0).toUpperCase()}
-          </div>
-        )}
-      </div>
-
-      {/* Body */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-            gap: "0.5rem",
-            marginBottom: "0.15rem",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "baseline",
-              gap: "0.5rem",
-              flexWrap: "wrap",
-            }}
-          >
-            <span
-              data-author={comment.author.node.name}
-              style={{
-                fontSize: "0.85rem",
-                fontWeight: 700,
-                color: "var(--foreground)",
-              }}
-            >
-              {comment.author.node.name}
-            </span>
-            {comment.parentAuthorName && (
-              <span
-                className="chat-parent-mention"
-                data-target={`chat-comment-${comment.parentDatabaseId}`}
-                role="button"
-                tabIndex={0}
-                onClick={() =>
-                  onMention(`chat-comment-${comment.parentDatabaseId}`)
-                }
-                onMouseEnter={() =>
-                  document
-                    .getElementById(`chat-comment-${comment.parentDatabaseId}`)
-                    ?.classList.add("chat-highlight-hover")
-                }
-                onMouseLeave={() =>
-                  document
-                    .getElementById(`chat-comment-${comment.parentDatabaseId}`)
-                    ?.classList.remove("chat-highlight-hover")
-                }
-                style={{
-                  fontSize: "0.75rem",
-                  fontWeight: 600,
-                  color: "var(--primary)",
-                  cursor: "pointer",
-                }}
-              >
-                @{comment.parentAuthorName}
-              </span>
+      <MessageAvatar>
+        {showAvatar ? (
+          <Avatar style={{ width: 36, height: 36 }}>
+            {comment.author.node.avatar?.url ? (
+              <AvatarImage
+                src={comment.author.node.avatar.url}
+                alt={comment.author.node.name}
+              />
+            ) : (
+              <AvatarFallback>
+                {comment.author.node.name.charAt(0).toUpperCase()}
+              </AvatarFallback>
             )}
-            <time
-              style={{
-                fontSize: "0.7rem",
-                color: "var(--muted-foreground)",
-                fontWeight: 500,
-              }}
-              dateTime={comment.date}
-            >
-              {dayjs(comment.date).format("YYYY-MM-DD HH:mm")}
-            </time>
-            {comment.ua && (
-              <span
-                title={comment.ua.browser + " / " + comment.ua.os + " / " + comment.ua.device}
-                style={{
-                  fontSize: "0.65rem",
-                  color: "var(--muted-foreground)",
-                  opacity: 0.6,
-                  fontWeight: 400,
-                  marginLeft: "0.15rem",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.2rem",
-                }}
-              >
-                <UaBrowser name={comment.ua.browser} />
-                {comment.ua.browser} · <UaOs name={comment.ua.os} /> {comment.ua.os}
-              </span>
-            )}
-          </div>
-          <div
-            style={{
-              display: "flex",
-              gap: "0.2rem",
-              flexShrink: 0,
-              marginTop: "0.1rem",
-            }}
-          >
-            <button
-              type="button"
-              className="chat-reply-btn"
-              title="回复"
-              onClick={() =>
-                onStartReply
-                  ? onStartReply(comment.databaseId, comment.author.node.name)
-                  : onReply(
-                      comment.databaseId,
-                      comment.author.node.name,
-                      (comment.children || []).map((c: any) => c.databaseId),
-                    )
-              }
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 24,
-                height: 24,
-                border: "none",
-                borderRadius: 6,
-                background: "transparent",
-                color: "var(--muted-foreground)",
-                cursor: "pointer",
-                fontSize: "0.7rem",
-              }}
-            >
-              <MessageSquare className="size-3.5" />
-            </button>
-            {isOwn && (
-              <>
-                <button
-                  type="button"
-                  className="chat-edit-btn"
-                  title="编辑"
-                  onClick={() => onEdit?.(comment.id)}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: 24,
-                    height: 24,
-                    border: "none",
-                    borderRadius: 6,
-                    background: "transparent",
-                    color: "var(--muted-foreground)",
-                    cursor: "pointer",
-                    fontSize: "0.7rem",
-                  }}
-                >
-                  <Edit2 className="size-3.5" />
-                </button>
-                <button
-                  type="button"
-                  className="chat-delete-btn"
-                  title="删除"
-                  onClick={() => onDelete?.(comment.id)}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: 24,
-                    height: 24,
-                    border: "none",
-                    borderRadius: 6,
-                    background: "transparent",
-                    color: "var(--destructive)",
-                    cursor: "pointer",
-                    fontSize: "0.7rem",
-                  }}
-                >
-                  <Trash2 className="size-3.5" />
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div
-          className="chat-content"
-          style={{
-            fontSize: "0.9rem",
-            lineHeight: 1.55,
-            color: "var(--foreground)",
-            wordBreak: "break-word",
-          }}
-          dangerouslySetInnerHTML={{ __html: comment.content }}
-        />
-
-        {comment.children.length > 0 && (
-          <span
-            className="reply-link-trigger"
-            data-comment-id={comment.databaseId}
-            data-parent-name={comment.author.node.name}
-            data-children={comment.children.map((c) => c.databaseId).join(",")}
-            onClick={() =>
-              onReply(
-                comment.databaseId,
-                comment.author.node.name,
-                comment.children.map((c) => c.databaseId),
-              )
-            }
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "0.35rem",
-              marginTop: "0.35rem",
-              padding: "0.2rem 0.65rem",
-              fontSize: "0.75rem",
-              fontWeight: 600,
-              color: "var(--primary)",
-              background:
-                "color-mix(in oklch, var(--primary) 10%, transparent)",
-              border:
-                "1px solid color-mix(in oklch, var(--primary) 20%, transparent)",
-              borderRadius: 9999,
-              cursor: "pointer",
-            }}
-          >
-            <span style={{ fontSize: "0.7rem" }}>↳</span>
-            {comment.children.length} 条回复
+          </Avatar>
+        ) : null}
+      </MessageAvatar>
+      <MessageContent>
+        <MessageHeader>
+          <span data-author={comment.author.node.name} className="font-bold">
+            {comment.author.node.name}
           </span>
-        )}
-      </div>
-    </div>
+          {comment.parentAuthorName && (
+            <span
+              className="chat-parent-mention text-primary cursor-pointer font-semibold"
+              data-target={`chat-comment-${comment.parentDatabaseId}`}
+              role="button"
+              tabIndex={0}
+              onClick={() =>
+                onMention(`chat-comment-${comment.parentDatabaseId}`)
+              }
+              onMouseEnter={() =>
+                document
+                  .getElementById(`chat-comment-${comment.parentDatabaseId}`)
+                  ?.classList.add("chat-highlight-hover")
+              }
+              onMouseLeave={() =>
+                document
+                  .getElementById(`chat-comment-${comment.parentDatabaseId}`)
+                  ?.classList.remove("chat-highlight-hover")
+              }
+            >
+              @{comment.parentAuthorName}
+            </span>
+          )}
+          <time dateTime={comment.date}>
+            {dayjs(comment.date).format("YYYY-MM-DD HH:mm")}
+          </time>
+          {comment.ua && (
+            <span
+              title={
+                comment.ua.browser +
+                " / " +
+                comment.ua.os +
+                " / " +
+                comment.ua.device
+              }
+              className="inline-flex items-center gap-0.5 opacity-60"
+            >
+              <UaBrowser name={comment.ua.browser} />
+              {comment.ua.browser} · <UaOs name={comment.ua.os} />{" "}
+              {comment.ua.os}
+            </span>
+          )}
+        </MessageHeader>
+        <Bubble variant={isOwn ? "default" : "secondary"}>
+          <BubbleContent
+            className="chat-content"
+            style={{
+              fontSize: "0.9rem",
+              lineHeight: 1.55,
+              wordBreak: "break-word",
+            }}
+            dangerouslySetInnerHTML={{ __html: comment.content }}
+          />
+          {comment.children.length > 0 && (
+            <BubbleReactions
+              side="bottom"
+              align={isOwn ? "start" : "end"}
+              className="reply-link-trigger"
+              data-comment-id={comment.databaseId}
+              data-parent-name={comment.author.node.name}
+              data-children={comment.children
+                .map((c) => c.databaseId)
+                .join(",")}
+              aria-label={`${comment.children.length} 条回复`}
+              onClick={() =>
+                onReply(
+                  comment.databaseId,
+                  comment.author.node.name,
+                  comment.children.map((c) => c.databaseId),
+                )
+              }
+            >
+              <span>↳</span>
+              <span>{comment.children.length} 条回复</span>
+            </BubbleReactions>
+          )}
+        </Bubble>
+        <MessageFooter>
+          <button
+            type="button"
+            className="chat-reply-btn"
+            title="回复"
+            onClick={() =>
+              onStartReply
+                ? onStartReply(comment.databaseId, comment.author.node.name)
+                : onReply(
+                    comment.databaseId,
+                    comment.author.node.name,
+                    (comment.children || []).map((c: any) => c.databaseId),
+                  )
+            }
+            aria-label="回复"
+          >
+            <MessageSquare className="size-3.5" />
+            <span>回复</span>
+          </button>
+          {isOwn && (
+            <>
+              <button
+                type="button"
+                className="chat-edit-btn"
+                title="编辑"
+                onClick={() => onEdit?.(comment.id)}
+                aria-label="编辑"
+              >
+                <Edit2 className="size-3.5" />
+                <span>编辑</span>
+              </button>
+              <button
+                type="button"
+                className="chat-delete-btn"
+                title="删除"
+                onClick={() => onDelete?.(comment.id)}
+                aria-label="删除"
+              >
+                <Trash2 className="size-3.5" />
+                <span>删除</span>
+              </button>
+            </>
+          )}
+        </MessageFooter>
+      </MessageContent>
+    </Message>
   );
 }
 
 /* ─── Reply Popup Modal ─── */
 function ReplyPopupModal({
   parentDbId,
-  childrenIds,
+  children,
   onClose,
   onReplyToComment,
   onMentionClick,
-  onNavigateTo,
   onEditComment,
   onDeleteComment,
 }: {
   parentDbId: number;
-  childrenIds: number[];
+  children: FlatComment[];
   onClose: () => void;
   onReplyToComment: (id: number, name: string) => void;
   onMentionClick: (targetId: string) => void;
-  onNavigateTo: (id: number, name: string, childrenIds: number[]) => void;
   onEditComment: (dbId: string) => void;
   onDeleteComment: (dbId: string) => void;
 }) {
-  const bodyRef = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    if (!bodyRef.current) return;
-    let html = "";
-    // Parent comment (dimmed, at top)
-    const parentEl = document.getElementById(`chat-comment-${parentDbId}`);
-    if (parentEl) {
-      const parentClone = parentEl.cloneNode(true) as HTMLElement;
-      parentClone.querySelector(".reply-link-trigger")?.remove();
-      html += `<div class="popup-parent">${parentClone.outerHTML}</div>`;
-    }
-    // Separator
-    html += '<div class="popup-divider"><span>—— 回复 ——</span></div>';
-    // Child comments (clone only, reply button uses .chat-reply-btn)
-    childrenIds.forEach((id) => {
-      const el = document.getElementById(`chat-comment-${id}`);
-      if (el) html += `<div class="popup-item">${el.outerHTML}</div>`;
-    });
-    bodyRef.current.innerHTML =
-      html ||
-      '<p style="text-align:center;color:var(--muted-foreground);padding:1rem;">暂无回复</p>';
-  }, [parentDbId, childrenIds]);
-
-  React.useEffect(() => {
-    const h = (e: MouseEvent) => {
-      const t = e.target as HTMLElement;
-      const mention = t.closest(".chat-parent-mention") as HTMLElement | null;
-      if (mention) {
-        e.preventDefault();
-        const id = mention.getAttribute("data-target");
-        if (id) onMentionClick(id);
-        return;
-      }
-      const link = t.closest(".reply-link-trigger") as HTMLElement | null;
-      if (link) {
-        e.preventDefault();
-        const cid = link.getAttribute("data-comment-id");
-        const pn = link.getAttribute("data-parent-name") || "";
-        const cids = link.getAttribute("data-children");
-        if (cid && cids) {
-          const ids = cids.split(",").map(Number);
-          if (ids.length > 0) {
-            onNavigateTo(Number(cid), pn, ids);
-          }
-        }
-        return;
-      }
-      const replyBtn = t.closest(".chat-reply-btn") as HTMLElement | null;
-      if (replyBtn) {
-        e.preventDefault();
-        const bubble = replyBtn.closest(".chat-bubble") as HTMLElement | null;
-        if (!bubble) return;
-        const idStr = bubble.id.replace("chat-comment-", "");
-        const cid = parseInt(idStr, 10);
-        const authorEl = bubble.querySelector("[data-author]");
-        const pn = authorEl?.getAttribute("data-author") || "";
-        if (cid) {
-          onClose();
-          onReplyToComment(cid, pn);
-        }
-        return;
-      }
-      const editBtn = t.closest(".chat-edit-btn") as HTMLElement | null;
-      if (editBtn) {
-        e.preventDefault();
-        const bubble = editBtn.closest(".chat-bubble") as HTMLElement | null;
-        if (!bubble) return;
-        const dbId = parseInt(bubble.id.replace("chat-comment-", ""), 10);
-        onClose();
-        onEditComment(String(dbId));
-        return;
-      }
-      const delBtn = t.closest(".chat-delete-btn") as HTMLElement | null;
-      if (delBtn) {
-        e.preventDefault();
-        const bubble = delBtn.closest(".chat-bubble") as HTMLElement | null;
-        if (!bubble) return;
-        const dbId = parseInt(bubble.id.replace("chat-comment-", ""), 10);
-        onClose();
-        onDeleteComment(String(dbId));
-        return;
-      }
-    };
-    const body = bodyRef.current;
-    body?.addEventListener("click", h);
-    return () => body?.removeEventListener("click", h);
-  }, [
-    onMentionClick,
-    onReplyToComment,
-    onClose,
-    onNavigateTo,
-    onEditComment,
-    onDeleteComment,
-    childrenIds,
-  ]);
-
   return (
     <div
       style={{
@@ -579,10 +390,48 @@ function ReplyPopupModal({
             ✕
           </button>
         </div>
-        <div
-          ref={bodyRef}
-          style={{ flex: 1, overflowY: "auto", padding: "0.75rem 1rem" }}
-        />
+        <div style={{ flex: 1, overflowY: "auto", padding: "0.75rem 1rem" }}>
+          {children.length === 0 ? (
+            <p
+              style={{
+                textAlign: "center",
+                color: "var(--muted-foreground)",
+                padding: "1rem",
+              }}
+            >
+              暂无回复
+            </p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {groupByAuthor(children).map((group, gi) => (
+                <MessageGroup key={`popup-group-${gi}`}>
+                  {group.map((c, ci) => (
+                    <ChatBubble
+                      key={c.id}
+                      comment={c}
+                      onReply={() => {}}
+                      onStartReply={(id, name) => {
+                        onClose();
+                        onReplyToComment(id, name);
+                      }}
+                      onMention={onMentionClick}
+                      showAvatar={ci === 0}
+                      isOwn={false}
+                      onEdit={(id) => {
+                        onClose();
+                        onEditComment(id);
+                      }}
+                      onDelete={(id) => {
+                        onClose();
+                        onDeleteComment(id);
+                      }}
+                    />
+                  ))}
+                </MessageGroup>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -824,128 +673,151 @@ export default function CommentSection({
           <div
             style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}
           >
-            {sorted.map((c) =>
-              editingId === c.id ? (
-                <div
-                  key={c.id}
-                  style={{
-                    padding: "1rem",
-                    background:
-                      "color-mix(in oklch, var(--primary) 5%, transparent)",
-                    border: "1px solid var(--primary)",
-                    borderRadius: "var(--radius)",
-                    marginBottom: "0.5rem",
-                  }}
-                >
+            {sorted.find((c) => editingId === c.id) &&
+              (() => {
+                const c = sorted.find((cc) => editingId === cc.id)!;
+                return (
                   <div
+                    key={c.id}
                     style={{
-                      fontSize: "0.8rem",
-                      fontWeight: 600,
-                      color: "var(--primary)",
-                      marginBottom: "0.4rem",
+                      padding: "1rem",
+                      background:
+                        "color-mix(in oklch, var(--primary) 5%, transparent)",
+                      border: "1px solid var(--primary)",
+                      borderRadius: "var(--radius)",
+                      marginBottom: "0.5rem",
                     }}
                   >
-                    编辑评论
-                  </div>
-                  <MarkdownEditor ref={editCommentRef} minHeight={120} />
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "0.5rem",
-                      justifyContent: "flex-end",
-                      marginTop: "0.5rem",
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setEditingId(null)}
+                    <div
                       style={{
-                        padding: "0.35rem 1rem",
                         fontSize: "0.8rem",
                         fontWeight: 600,
-                        color: "var(--muted-foreground)",
-                        background: "var(--muted)",
-                        border: "1px solid var(--border)",
-                        borderRadius: 9999,
-                        cursor: "pointer",
+                        color: "var(--primary)",
+                        marginBottom: "0.4rem",
                       }}
                     >
-                      取消
-                    </button>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const md = editCommentRef.current?.getMarkdown()?.trim();
-                        if (!md) return;
-                        const res = await fetch("/api/comments/update", {
+                      编辑评论
+                    </div>
+                    <MarkdownEditor ref={editCommentRef} minHeight={120} />
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "0.5rem",
+                        justifyContent: "flex-end",
+                        marginTop: "0.5rem",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setEditingId(null)}
+                        style={{
+                          padding: "0.35rem 1rem",
+                          fontSize: "0.8rem",
+                          fontWeight: 600,
+                          color: "var(--muted-foreground)",
+                          background: "var(--muted)",
+                          border: "1px solid var(--border)",
+                          borderRadius: 9999,
+                          cursor: "pointer",
+                        }}
+                      >
+                        取消
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const md = editCommentRef.current
+                            ?.getMarkdown()
+                            ?.trim();
+                          if (!md) return;
+                          const res = await fetch("/api/comments/update", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              commentId: c.id,
+                              content: md,
+                            }),
+                          });
+                          if (res.ok) {
+                            const data = await res.json();
+                            const updatedContent = renderMd(
+                              data?.comment?.content || md,
+                            );
+                            setLocalComments((prev) =>
+                              prev.map((cc: any) =>
+                                cc.id === c.id
+                                  ? { ...cc, content: updatedContent }
+                                  : cc,
+                              ),
+                            );
+                            setEditingId(null);
+                          } else {
+                            const d = await res.json();
+                            setFormError(d?.error || "保存失败");
+                          }
+                        }}
+                        style={{
+                          padding: "0.35rem 1rem",
+                          fontSize: "0.8rem",
+                          fontWeight: 600,
+                          color: "#fff",
+                          background: "var(--primary)",
+                          border: "none",
+                          borderRadius: 9999,
+                          cursor: "pointer",
+                        }}
+                      >
+                        保存
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+            {sorted.filter((c) => editingId !== c.id).filter(Boolean).length >
+              0 &&
+              groupByAuthor(
+                sorted.filter((c) => editingId !== c.id).filter(Boolean),
+              ).map((group, gi) => (
+                <MessageGroup key={`group-${gi}`}>
+                  {group.map((c, ci) => (
+                    <ChatBubble
+                      key={c.id}
+                      comment={c}
+                      onReply={openPopup}
+                      onStartReply={startReply}
+                      onMention={scrollTo}
+                      showAvatar={ci === 0}
+                      isOwn={
+                        (currentUserId != null &&
+                          c.author?.node?.databaseId === currentUserId) ||
+                        (!!user?.email && c.author?.node?.email === user.email)
+                      }
+                      onEdit={(commentId) => {
+                        setEditingId(commentId);
+                        fetch("/api/comments/raw", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({
-                            commentId: c.id,
-                            content: md,
+                            commentDatabaseId: c.databaseId,
                           }),
-                        });
-                        if (res.ok) {
-                          const data = await res.json();
-                          const updatedContent = renderMd(
-                            data?.comment?.content || md,
-                          );
-                          setLocalComments((prev) =>
-                            prev.map((cc: any) =>
-                              cc.id === c.id
-                                ? { ...cc, content: updatedContent }
-                                : cc,
-                            ),
-                          );
-                          setEditingId(null);
-                        }
+                        })
+                          .then((r) => r.json())
+                          .then((data) => {
+                            editCommentRef.current?.setMarkdown(
+                              data.content || "",
+                            );
+                          })
+                          .catch(() => {
+                            editCommentRef.current?.setMarkdown(
+                              c.rawContent || "",
+                            );
+                          });
                       }}
-                      style={{
-                        padding: "0.35rem 1rem",
-                        fontSize: "0.8rem",
-                        fontWeight: 700,
-                        color: "#000",
-                        background: "var(--primary)",
-                        border: "none",
-                        borderRadius: 9999,
-                        cursor: "pointer",
-                      }}
-                    >
-                      保存
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <ChatBubble
-                  key={c.id}
-                  comment={c}
-                  onReply={openPopup}
-                  onStartReply={startReply}
-                  onMention={scrollTo}
-                  isOwn={
-                    (currentUserId != null &&
-                      c.author?.node?.databaseId === currentUserId) ||
-                    (!!user?.email && c.author?.node?.email === user.email)
-                  }
-                  onEdit={(commentId) => {
-                    setEditingId(commentId);
-                    fetch("/api/comments/raw", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ commentDatabaseId: c.databaseId }),
-                    })
-                      .then((r) => r.json())
-                      .then((data) => {
-                        editCommentRef.current?.setMarkdown(data.content || "");
-                      })
-                      .catch(() => {
-                        editCommentRef.current?.setMarkdown(c.rawContent || "");
-                      });
-                  }}
-                  onDelete={(commentId) => setDeleteTarget(commentId)}
-                />
-              ),
-            )}
+                      onDelete={(commentId) => setDeleteTarget(commentId)}
+                    />
+                  ))}
+                </MessageGroup>
+              ))}
           </div>
         </div>
       ) : (
@@ -1035,7 +907,8 @@ export default function CommentSection({
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
-                const text = newCommentRef.current?.getMarkdown?.()?.trim() || "";
+                const text =
+                  newCommentRef.current?.getMarkdown?.()?.trim() || "";
                 if (!text || !postDatabaseId) return;
                 setSubmitting(true);
                 setFormError("");
@@ -1180,21 +1053,17 @@ export default function CommentSection({
       {popup && (
         <ReplyPopupModal
           parentDbId={popup.parentDbId}
-          childrenIds={popup.childrenIds}
+          children={
+            popup.childrenIds
+              .map((id) => commentMap.get(id))
+              .filter(Boolean) as FlatComment[]
+          }
           onClose={() => setPopup(null)}
           onReplyToComment={(id, name) => {
             setPopup(null);
             startReply(id, name);
           }}
           onMentionClick={scrollTo}
-          onNavigateTo={(id, name, ids) => {
-            setPopup({
-              commentDbId: id,
-              parentDbId: id,
-              parentName: name,
-              childrenIds: ids,
-            });
-          }}
           onEditComment={(dbId) => {
             const c = localComments.find(
               (cc: any) => String(cc.databaseId) === dbId,

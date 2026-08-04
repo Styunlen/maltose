@@ -180,29 +180,6 @@ function ChatBubble({
           <span data-author={comment.author.node.name} className="font-bold">
             {comment.author.node.name}
           </span>
-          {comment.parentAuthorName && (
-            <span
-              className="chat-parent-mention text-primary cursor-pointer font-semibold"
-              data-target={`chat-comment-${comment.parentDatabaseId}`}
-              role="button"
-              tabIndex={0}
-              onClick={() =>
-                onMention(`chat-comment-${comment.parentDatabaseId}`)
-              }
-              onMouseEnter={() =>
-                document
-                  .getElementById(`chat-comment-${comment.parentDatabaseId}`)
-                  ?.classList.add("chat-highlight-hover")
-              }
-              onMouseLeave={() =>
-                document
-                  .getElementById(`chat-comment-${comment.parentDatabaseId}`)
-                  ?.classList.remove("chat-highlight-hover")
-              }
-            >
-              @{comment.parentAuthorName}
-            </span>
-          )}
           <time dateTime={comment.date}>
             {dayjs(comment.date).format("YYYY-MM-DD HH:mm")}
           </time>
@@ -234,8 +211,34 @@ function ChatBubble({
               lineHeight: 1.55,
               wordBreak: "break-word",
             }}
-            dangerouslySetInnerHTML={{ __html: comment.content }}
-          />
+          >
+            {comment.parentAuthorName && (
+              <span
+                className="chat-parent-mention text-primary cursor-pointer font-semibold"
+                data-target={`chat-comment-${comment.parentDatabaseId}`}
+                role="button"
+                tabIndex={0}
+                onClick={() =>
+                  onMention(`chat-comment-${comment.parentDatabaseId}`)
+                }
+                onMouseEnter={() =>
+                  document
+                    .getElementById(`chat-comment-${comment.parentDatabaseId}`)
+                    ?.classList.add("chat-highlight-hover")
+                }
+                onMouseLeave={() =>
+                  document
+                    .getElementById(`chat-comment-${comment.parentDatabaseId}`)
+                    ?.classList.remove("chat-highlight-hover")
+                }
+              >
+                @{comment.parentAuthorName}
+              </span>
+            )}
+            <span
+              dangerouslySetInnerHTML={{ __html: comment.content }}
+            />
+          </BubbleContent>
           {comment.children.length > 0 && (
             <BubbleReactions
               side="bottom"
@@ -333,7 +336,10 @@ function ReplyPopupModal({
   // The bottom entry is the original parent from the main list; clicking a
   // reply's reaction pushes that reply and its children onto the stack.
   const [stack, setStack] = React.useState<{ parent: FlatComment; children: FlatComment[] }[]>([
-    { parent: { databaseId: parentDbId } as FlatComment, children },
+    {
+      parent: commentMap.get(parentDbId) ?? ({ databaseId: parentDbId } as FlatComment),
+      children,
+    },
   ]);
 
   const current = stack[stack.length - 1];

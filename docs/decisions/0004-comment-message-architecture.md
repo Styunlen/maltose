@@ -99,6 +99,14 @@
    - 面包屑导航（回复 / A / A→B）→ 点击返回对应层级
    - 弹窗新增 `commentMap` prop（全局评论索引）
 
+### 2e. 弹窗头部与评论排版调整（playwright 实测验证）
+
+1. **弹窗头部显示被回复作者**：初始层 parent 从 `commentMap.get(parentDbId)` 取真实评论（含作者名），面包屑显示「回复/被回复作者」而非「回复/回复」。实测 `回复/Zzzz`。
+
+2. **@提及移到 content 开头**：`@被回复作者` 从 `MessageHeader` 移到 `BubbleContent` 内部、评论内容之前，实测 content 子元素顺序为 `[@Zzzz, 评论内容]`。
+
+3. **头部间距**：通过 `.chat-bubble [data-slot="message-header"]` 设置 `gap: 0.75rem`（不改 message.tsx），作者名/时间/UA 之间 12px 间距。@提及加 `margin-right: 0.25rem` 与内容分隔。
+
 ### 3. 主评论区 MessageGroup 分组
 
 `sorted` 数组按**严格连续同发送者**分组：

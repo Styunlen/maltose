@@ -98,6 +98,15 @@ img.lazy-img[data-ll-status="loading"] {
     padding: 0.35rem 0.5rem;
     border-radius: calc(var(--radius) - 2px);
   }
+  .chat-bubble [data-slot="message-header"] {
+    gap: 0.75rem;
+  }
+  .chat-bubble [data-slot="message-content"] {
+    gap: 0.5rem;
+  }
+  .chat-bubble [data-slot="bubble-content"] .chat-parent-mention {
+    margin-right: 0.25rem;
+  }
   .chat-bubble:hover {
     background: var(--muted);
   }

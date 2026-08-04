@@ -94,6 +94,10 @@ img.lazy-img[data-ll-status="loading"] {
 }
 
 #comments-section {
+  .chat-bubble {
+    padding: 0.35rem 0.5rem;
+    border-radius: calc(var(--radius) - 2px);
+  }
   .chat-bubble:hover {
     background: var(--muted);
   }

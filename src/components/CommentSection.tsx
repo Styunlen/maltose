@@ -163,16 +163,15 @@ function ChatBubble({
       <MessageAvatar>
         {showAvatar ? (
           <Avatar style={{ width: 36, height: 36 }}>
-            {comment.author.node.avatar?.url ? (
+            {comment.author.node.avatar?.url && (
               <AvatarImage
                 src={comment.author.node.avatar.url}
                 alt={comment.author.node.name}
               />
-            ) : (
-              <AvatarFallback>
-                {comment.author.node.name.charAt(0).toUpperCase()}
-              </AvatarFallback>
             )}
+            <AvatarFallback>
+              {comment.author.node.name.charAt(0).toUpperCase()}
+            </AvatarFallback>
           </Avatar>
         ) : null}
       </MessageAvatar>
@@ -314,6 +313,7 @@ function ChatBubble({
 function ReplyPopupModal({
   parentDbId,
   children,
+  commentMap,
   onClose,
   onReplyToComment,
   onMentionClick,
@@ -322,12 +322,30 @@ function ReplyPopupModal({
 }: {
   parentDbId: number;
   children: FlatComment[];
+  commentMap: Map<number, FlatComment>;
   onClose: () => void;
   onReplyToComment: (id: number, name: string) => void;
   onMentionClick: (targetId: string) => void;
   onEditComment: (dbId: string) => void;
   onDeleteComment: (dbId: string) => void;
 }) {
+  // Navigation stack: each entry is a focused comment plus its direct replies.
+  // The bottom entry is the original parent from the main list; clicking a
+  // reply's reaction pushes that reply and its children onto the stack.
+  const [stack, setStack] = React.useState<{ parent: FlatComment; children: FlatComment[] }[]>([
+    { parent: { databaseId: parentDbId } as FlatComment, children },
+  ]);
+
+  const current = stack[stack.length - 1];
+  const canGoBack = stack.length > 1;
+
+  const pushLevel = (comment: FlatComment) => {
+    const grandChildren = commentMap.get(comment.databaseId)?.children ?? [];
+    if (grandChildren.length > 0) {
+      setStack((prev) => [...prev, { parent: comment, children: grandChildren }]);
+    }
+  };
+
   return (
     <div
       style={{
@@ -372,7 +390,35 @@ function ReplyPopupModal({
             borderBottom: "1px solid var(--border)",
           }}
         >
-          <span style={{ fontSize: "0.95rem", fontWeight: 700 }}>回复</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "0.95rem", fontWeight: 700 }}>回复</span>
+            {stack.map((lvl, i) => (
+              <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
+                <span style={{ color: "var(--muted-foreground)" }}>/</span>
+                {i < stack.length - 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => setStack((prev) => prev.slice(0, i + 1))}
+                    style={{
+                      border: "none",
+                      background: "transparent",
+                      cursor: "pointer",
+                      fontSize: "0.8rem",
+                      fontWeight: 600,
+                      color: "var(--primary)",
+                      padding: 0,
+                    }}
+                  >
+                    {lvl.parent?.author?.node?.name || "回复"}
+                  </button>
+                ) : (
+                  <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--muted-foreground)" }}>
+                    {lvl.parent?.author?.node?.name || "回复"}
+                  </span>
+                )}
+              </span>
+            ))}
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -394,7 +440,7 @@ function ReplyPopupModal({
           </button>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: "0.75rem 1rem" }}>
-          {children.length === 0 ? (
+          {current.children.length === 0 ? (
             <p
               style={{
                 textAlign: "center",
@@ -406,13 +452,13 @@ function ReplyPopupModal({
             </p>
           ) : (
             <div className="flex flex-col gap-3">
-              {groupByAuthor(children).map((group, gi) => (
+              {groupByAuthor(current.children).map((group, gi) => (
                 <MessageGroup key={`popup-group-${gi}`}>
                   {group.map((c, ci) => (
                     <ChatBubble
                       key={c.id}
                       comment={c}
-                      onReply={() => {}}
+                      onReply={(id) => pushLevel(c)}
                       onStartReply={(id, name) => {
                         onClose();
                         onReplyToComment(id, name);
@@ -1061,6 +1107,7 @@ export default function CommentSection({
               .map((id) => commentMap.get(id))
               .filter(Boolean) as FlatComment[]
           }
+          commentMap={commentMap}
           onClose={() => setPopup(null)}
           onReplyToComment={(id, name) => {
             setPopup(null);

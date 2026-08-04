@@ -87,6 +87,18 @@
 
 **行为**（经 playwright 实测，内容最短的评论）：`reactionBottom - footerTop = -8`（悬垂标签底部比 footer 顶部高 8px，不重叠）。`self-start` 头像不受此 margin 影响。
 
+### 2d. 评论区体验修复
+
+1. **AvatarFallback**：`Avatar` 同时渲染 `AvatarImage`（有 url 时）+ `AvatarFallback`（始终渲染），Radix 自动在图片加载失败时隐藏 Image 显示 Fallback。
+
+2. **评论内边距**：`.chat-bubble`（`data-slot="message"`）加 `padding: 0.35rem 0.5rem`，hover 背景不再贴边界。通过 global.scss 修改，不改 message.tsx。
+
+3. **弹窗层级导航**：弹窗内部用栈（`stack`）管理层级：
+   - 初始层 = 主区父评论 + 直接子回复
+   - 弹窗内子评论的 reaction 点击 → `pushLevel` 用 `commentMap` 查该子评论的子回复并 push 新层
+   - 面包屑导航（回复 / A / A→B）→ 点击返回对应层级
+   - 弹窗新增 `commentMap` prop（全局评论索引）
+
 ### 3. 主评论区 MessageGroup 分组
 
 `sorted` 数组按**严格连续同发送者**分组：

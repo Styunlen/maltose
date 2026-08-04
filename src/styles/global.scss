@@ -104,25 +104,11 @@ img.lazy-img[data-ll-status="loading"] {
   .chat-bubble [data-slot="message-content"] {
     gap: 0.5rem;
   }
-  .chat-bubble [data-slot="bubble-content"] {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 0.25rem;
-  }
   .chat-bubble [data-slot="bubble-content"] .chat-parent-mention {
-    margin-right: 0.25rem;
     color: var(--primary);
   }
   .chat-bubble[data-align="end"] [data-slot="bubble-content"] .chat-parent-mention {
     color: var(--primary-foreground);
-  }
-  .chat-bubble [data-slot="bubble-content"] .chat-parent-mention + span {
-    flex: 1;
-    min-width: 0;
-  }
-  .chat-bubble [data-slot="bubble-content"] .chat-parent-mention + span > :first-child {
-    display: inline;
   }
   .chat-bubble:hover {
     background: var(--muted);

@@ -91,6 +91,27 @@ interface Props {
 }
 
 /* ─── Helpers ─── */
+// Inject the "@author" mention into the start of the first <p> of the comment
+// HTML, producing <p><span class="mention">@author</span> content...</p>.
+// This keeps the mention inline with the first line of the body so long text
+// wraps naturally with the mention staying at the start of line 1.
+function injectMention(html: string, mentionHtml: string): string {
+  const firstP = html.match(/<p[^>]*>/i);
+  if (!firstP) {
+    return mentionHtml + html;
+  }
+  const idx = html.indexOf(firstP[0]);
+  const end = idx + firstP[0].length;
+  return html.slice(0, end) + mentionHtml + html.slice(end);
+}
+
+function buildMentionHtml(parentAuthorName: string, parentDbId: number, isOwn: boolean): string {
+  const cls = isOwn
+    ? "chat-parent-mention font-semibold cursor-pointer"
+    : "chat-parent-mention font-semibold cursor-pointer text-primary";
+  return `<span class="${cls}" data-mention-target="chat-comment-${parentDbId}" role="button" tabindex="0">@${parentAuthorName}</span> `;
+}
+
 function buildCommentMap(flat: any[]): Map<number, FlatComment> {
   const map = new Map<number, FlatComment>();
   const nameMap = new Map<number, string>();
@@ -212,36 +233,20 @@ function ChatBubble({
               wordBreak: "break-word",
             }}
           >
-            {comment.parentAuthorName && (
-              <span
-                className={
-                  isOwn
-                    ? "chat-parent-mention font-semibold cursor-pointer"
-                    : "chat-parent-mention font-semibold cursor-pointer text-primary"
-                }
-                data-target={`chat-comment-${comment.parentDatabaseId}`}
-                role="button"
-                tabIndex={0}
-                onClick={() =>
-                  onMention(`chat-comment-${comment.parentDatabaseId}`)
-                }
-                onMouseEnter={() =>
-                  document
-                    .getElementById(`chat-comment-${comment.parentDatabaseId}`)
-                    ?.classList.add("chat-highlight-hover")
-                }
-                onMouseLeave={() =>
-                  document
-                    .getElementById(`chat-comment-${comment.parentDatabaseId}`)
-                    ?.classList.remove("chat-highlight-hover")
-                }
-              >
-                @{comment.parentAuthorName}
-              </span>
-            )}
             <span
-              className="inline-block min-w-0 flex-1"
-              dangerouslySetInnerHTML={{ __html: comment.content }}
+              dangerouslySetInnerHTML={{
+                __html:
+                  comment.parentAuthorName && comment.parentDatabaseId
+                    ? injectMention(
+                        comment.content,
+                        buildMentionHtml(
+                          comment.parentAuthorName,
+                          comment.parentDatabaseId,
+                          isOwn,
+                        ),
+                      )
+                    : comment.content,
+              }}
             />
           </BubbleContent>
           {comment.children.length > 0 && (
@@ -680,6 +685,47 @@ export default function CommentSection({
     t.classList.add("chat-highlight");
     setTimeout(() => t.classList.remove("chat-highlight"), 2000);
   }, []);
+
+  // Event delegation for @mentions injected into comment HTML. Handles click
+  // (scroll to the mentioned comment) and hover highlight for both the main
+  // list and the reply popup.
+  React.useEffect(() => {
+    const findMention = (t: EventTarget | null): HTMLElement | null => {
+      const el = t as HTMLElement;
+      return el?.closest?.("[data-mention-target]") ?? null;
+    };
+    const onDocClick = (e: MouseEvent) => {
+      const m = findMention(e.target);
+      if (m) {
+        e.preventDefault();
+        scrollTo(m.getAttribute("data-mention-target") || "");
+      }
+    };
+    const onDocEnter = (e: MouseEvent) => {
+      const m = findMention(e.target);
+      if (m) {
+        document
+          .getElementById(m.getAttribute("data-mention-target") || "")
+          ?.classList.add("chat-highlight-hover");
+      }
+    };
+    const onDocLeave = (e: MouseEvent) => {
+      const m = findMention(e.target);
+      if (m) {
+        document
+          .getElementById(m.getAttribute("data-mention-target") || "")
+          ?.classList.remove("chat-highlight-hover");
+      }
+    };
+    document.addEventListener("click", onDocClick);
+    document.addEventListener("mouseover", onDocEnter);
+    document.addEventListener("mouseout", onDocLeave);
+    return () => {
+      document.removeEventListener("click", onDocClick);
+      document.removeEventListener("mouseover", onDocEnter);
+      document.removeEventListener("mouseout", onDocLeave);
+    };
+  }, [scrollTo]);
 
   return (
     <section

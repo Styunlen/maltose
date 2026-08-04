@@ -214,7 +214,11 @@ function ChatBubble({
           >
             {comment.parentAuthorName && (
               <span
-                className="chat-parent-mention text-primary cursor-pointer font-semibold"
+                className={
+                  isOwn
+                    ? "chat-parent-mention font-semibold cursor-pointer"
+                    : "chat-parent-mention font-semibold cursor-pointer text-primary"
+                }
                 data-target={`chat-comment-${comment.parentDatabaseId}`}
                 role="button"
                 tabIndex={0}
@@ -236,6 +240,7 @@ function ChatBubble({
               </span>
             )}
             <span
+              className="inline-block min-w-0 flex-1"
               dangerouslySetInnerHTML={{ __html: comment.content }}
             />
           </BubbleContent>

@@ -116,6 +116,9 @@ importers:
       marked:
         specifier: ^18.0.7
         version: 18.0.7
+      minecraft-skin-viewer:
+        specifier: ^0.0.24
+        version: 0.0.24
       mitt:
         specifier: ^3.0.1
         version: 3.0.1
@@ -4786,6 +4789,9 @@ packages:
     resolution: {integrity: sha512-OqbOk5oEQeAZ8WXWydlu9HJjz9WVdEIvamMCcXmuqUYjTknH/sqsWvhQ3vgwKFRR1HpjvNBKQ37nbJgYzGqGcg==}
     engines: {node: '>=6'}
 
+  minecraft-skin-viewer@0.0.24:
+    resolution: {integrity: sha512-5XtGow6+E+gG56XKpYfAK5SsD79GgD/zwG7HXw5kvJCa/DztbktGjeV5YNn4m+s6fLje9S9VWR+wagf9JqXz/Q==}
+
   minimatch@10.2.5:
     resolution: {integrity: sha512-MULkVLfKGYDFYejP07QOurDLLQpcjk7Fw+7jXS2R2czRQzR56yHRveU5NDJEOviH+hETZKSkIk5c+T23GjFUMg==}
     engines: {node: 18 || 20 || >=22}
@@ -5448,6 +5454,9 @@ packages:
   tapable@2.3.3:
     resolution: {integrity: sha512-uxc/zpqFg6x7C8vOE7lh6Lbda8eEL9zmVm/PLeTPBRhh1xCgdWaQ+J1CUieGpIfm2HdtsUpRv+HshiasBMcc6A==}
     engines: {node: '>=6'}
+
+  three@0.185.1:
+    resolution: {integrity: sha512-5aojFCXKwnjBRZvUnt3WFfEcvUJgkN5LlijRFN95hMy8WVkG4I0QNcJE+OuWvuJ0bOdStrbfXn0pkd6/QyiAlg==}
 
   through@2.3.8:
     resolution: {integrity: sha512-w89qg7PI8wAdvX60bMDP+bFoD5Dvhm9oLheFp5O4a2QF0cSBGsBX4qZmadPMvVqlLJBBci+WqGGOAPvcDeNSVg==}
@@ -11090,6 +11099,10 @@ snapshots:
 
   mimic-fn@2.1.0: {}
 
+  minecraft-skin-viewer@0.0.24:
+    dependencies:
+      three: 0.185.1
+
   minimatch@10.2.5:
     dependencies:
       brace-expansion: 5.0.6
@@ -11892,6 +11905,8 @@ snapshots:
   tailwindcss@4.3.3: {}
 
   tapable@2.3.3: {}
+
+  three@0.185.1: {}
 
   through@2.3.8: {}
 

@@ -32,6 +32,13 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { emitter } from "@/lib/mitt";
 import dayjs from "dayjs";
 
@@ -42,14 +49,23 @@ interface SidebarRightProps {
     };
   };
   generalSettings?: { title: string; url: string; description: string };
-  sidebarData?: { posts?: any[]; tags?: any[]; comments?: any[] } | null;
+  sidebarData?: {
+    posts?: any[];
+    tags?: any[];
+    comments?: any[];
+    categories?: { name: string; uri: string; count: number }[];
+    archivePosts?: { date: string }[];
+  } | null;
 }
 
 import { useAuth } from "@/components/AuthProvider";
 
-function getPageType(): "home" | "article" | "other" | "" {
-  if (typeof window === "undefined") return "";
-  const path = window.location.pathname;
+function getPageType(pathname?: string): "home" | "article" | "other" | "" {
+  // SSR can't see window.location, so the pathname comes from Astro props.
+  // Falling back to "" made SSR render the skeleton while the client picked a
+  // real sidebar — a hydration mismatch (ul vs div) every page load.
+  const path = pathname ?? (typeof window !== "undefined" ? window.location.pathname : "");
+  if (!path) return "";
   if (/^(\/?$|\/index\.html$|\/archives\/post-tag\/)/.test(path)) return "home";
   if (path.match(/^\/[^/]+\/[^/]+/)) return "article";
   return "other";
@@ -162,7 +178,6 @@ function NavUser() {
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{userId}</span>
-                <span className="truncate text-xs">{displayEmail}</span>
               </div>
               <ChevronsUpDown className="ml-auto size-4" />
             </SidebarMenuButton>
@@ -431,40 +446,165 @@ function TabsSection({ posts, comments }: { posts: any[]; comments: any[] }) {
   );
 }
 
-function ArticleDirectory({ menu }: { menu?: SidebarRightProps["menu"] }) {
-  if (!menu?.menuItems?.nodes?.length) {
-    return (
-      <SidebarGroup>
-        <SidebarGroupLabel className="font-bold tracking-wider uppercase text-[0.65rem] text-sidebar-foreground/60">
-          文章目录
-        </SidebarGroupLabel>
-        <p className="text-[0.7rem] text-sidebar-foreground/40 px-2 py-3 text-center">
-          暂无菜单数据
-        </p>
-      </SidebarGroup>
-    );
+function CategoryList({
+  categories,
+}: {
+  categories: {
+    name: string;
+    uri: string;
+    count: number;
+    parent?: { node?: { name?: string } };
+    children?: { nodes?: { name: string }[] };
+  }[];
+}) {
+  const [collapsed, setCollapsed] = React.useState<Set<string>>(new Set());
+  if (!categories.length) return null;
+
+  const parentMap = new Map<string, typeof categories>();
+  const all = new Map<string, (typeof categories)[number]>();
+  for (const c of categories) {
+    all.set(c.name, c);
+    const parentName = c.parent?.node?.name;
+    if (parentName) {
+      if (!parentMap.has(parentName)) parentMap.set(parentName, []);
+      parentMap.get(parentName)!.push(c);
+    }
   }
+  // Parent categories (those that have children in the data)
+  const parents = categories.filter((c) => (c.children?.nodes?.length ?? 0) > 0);
+  // Top-level categories without children (leaf roots)
+  const roots = categories.filter(
+    (c) => !c.parent?.node?.name && (c.children?.nodes?.length ?? 0) === 0,
+  );
+
+  const toggle = (name: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const renderItem = (c: (typeof categories)[number]) => (
+    <SidebarMenuItem key={c.name}>
+      <SidebarMenuButton asChild tooltip={c.name} size="sm">
+        <a href={c.uri || "/"}>
+          <span className="text-[0.7rem] flex-1">{c.name}</span>
+          <span className="text-[0.65rem] text-sidebar-foreground/40">
+            {c.count}
+          </span>
+        </a>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+
+  const sortedParents = parents.sort((a, b) => b.count - a.count);
 
   return (
     <SidebarGroup>
       <SidebarGroupLabel className="font-bold tracking-wider uppercase text-[0.65rem] text-sidebar-foreground/60">
-        文章目录
+        文章分类
       </SidebarGroupLabel>
       <SidebarMenu>
-        {menu.menuItems.nodes
-          .sort((a, b) => a.order - b.order)
-          .map((item) => (
-            <SidebarMenuItem key={item.label}>
-              <SidebarMenuButton asChild tooltip={item.label} size="sm">
-                <a href={item.uri || "/"}>
-                  <span className="text-[0.7rem]">{item.label}</span>
-                </a>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
+        {sortedParents.map((p) => {
+          const children = (parentMap.get(p.name) || []).sort(
+            (a, b) => b.count - a.count,
+          );
+          const isOpen = !collapsed.has(p.name);
+          return (
+            <div key={p.name}>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  tooltip={p.name}
+                  size="sm"
+                  className="cursor-pointer"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    toggle(p.name);
+                  }}
+                >
+                  <a href={p.uri || "/"}>
+                    <span className="text-[0.65rem] text-sidebar-foreground/40">
+                      {isOpen ? "▾" : "▸"}
+                    </span>
+                    <span className="text-[0.7rem] flex-1">{p.name}</span>
+                    <span className="text-[0.65rem] text-sidebar-foreground/40">
+                      {p.count}
+                    </span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              {isOpen && (
+                <div style={{ paddingLeft: "0.75rem" }}>
+                  {children.map(renderItem)}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {roots.map(renderItem)}
       </SidebarMenu>
     </SidebarGroup>
   );
+}
+
+function ArchiveList({
+  posts,
+}: {
+  posts: { date: string }[];
+}) {
+  const archives = React.useMemo(() => buildArchive(posts), [posts]);
+  if (archives.length === 0) return null;
+  return (
+    <SidebarGroup>
+      <SidebarGroupLabel className="font-bold tracking-wider uppercase text-[0.65rem] text-sidebar-foreground/60">
+        文章归档
+      </SidebarGroupLabel>
+      <div className="px-2 pb-2">
+        <Select
+          value=""
+          onValueChange={(v) => {
+            const [y, mo] = v.split("-");
+            window.location.href = `/archives/post-date/${y}/${mo}`;
+          }}
+        >
+          <SelectTrigger className="w-full justify-between text-[0.7rem]">
+            <SelectValue placeholder="选择月份" />
+          </SelectTrigger>
+          <SelectContent>
+            {archives.map((a) => (
+              <SelectItem key={a.month} value={a.month}>
+                <span className="flex items-center justify-between w-full gap-2">
+                  <span>{formatMonth(a.month)}</span>
+                  <span className="text-sidebar-foreground/40">
+                    ({a.count})
+                  </span>
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </SidebarGroup>
+  );
+}
+
+function buildArchive(posts: { date: string }[]) {
+  const months = new Map<string, number>();
+  for (const p of posts) {
+    const m = p.date.slice(0, 7);
+    months.set(m, (months.get(m) || 0) + 1);
+  }
+  return [...months.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([month, count]) => ({ month, count }));
+}
+
+function formatMonth(month: string): string {
+  const [y, m] = month.split("-");
+  return `${y}年${Number(m)}月`;
 }
 
 function TagCloud({
@@ -825,8 +965,9 @@ function HomepageSidebar({
           posts={sidebarData?.posts || []}
           comments={sidebarData?.comments || []}
         />
-        <ArticleDirectory menu={menu} />
+        <CategoryList categories={sidebarData?.categories || []} />
         <TagCloud tags={sidebarData?.tags || []} />
+        <ArchiveList posts={sidebarData?.archivePosts || []} />
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border p-2">
         <p className="text-center text-[0.65rem] text-sidebar-foreground/40">
@@ -857,8 +998,9 @@ export default function SidebarRight({
   menu,
   generalSettings,
   sidebarData,
-}: SidebarRightProps) {
-  const pageType = getPageType();
+  pathname,
+}: SidebarRightProps & { pathname?: string }) {
+  const pageType = getPageType(pathname);
 
   return (
     <Sidebar

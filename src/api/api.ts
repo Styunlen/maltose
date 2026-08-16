@@ -91,6 +91,8 @@ const TTL_CONFIG: Record<string, number> = {
   HomePosts: 60,
   GetNodeByURI: 30,
   GetPost: 30,
+  PreviewByUri: 300,
+  MaltoseSettings: 300,
 };
 
 const STRONG_CONSISTENCY = new Set<string>(["GetNodeByURI", "GetPost"]);
@@ -730,4 +732,102 @@ export async function getTimelineStats(): Promise<any[]> {
     if (offset >= total) break;
   }
   return all;
+}
+
+// ── Hover link preview (ADR-0025) ──────────────────────────────────────────
+
+// Lightweight preview payloads for the hover card. Uses nodeByUri so any
+// same-site URI (post/page/category/tag) resolves in one query. Term cards
+// optionally carry the most recent post titles; `recent` of 0 means total
+// only. Low-volatility data → SWR cache (TTL 300s), no STRONG_CONSISTENCY.
+export async function previewByUriQuery(
+  uri: string,
+  recent = 3,
+  includeRecent = true,
+) {
+  const query = gql`
+    query PreviewByUri($uri: String!, $recent: Int!, $includeRecent: Boolean!) {
+      nodeByUri(uri: $uri) {
+        __typename
+        ... on Post {
+          title
+          uri
+          date
+          excerpt
+          content
+          commentCount
+          viewCount
+          featuredImage {
+            node {
+              sourceUrl
+            }
+          }
+        }
+        ... on Page {
+          title
+          uri
+          date
+          excerpt
+          content
+          commentCount
+          featuredImage {
+            node {
+              sourceUrl
+            }
+          }
+        }
+        ... on Category {
+          name
+          uri
+          taxonomyName
+          description
+          count
+          posts(first: $recent) @include(if: $includeRecent) {
+            nodes {
+              title
+              uri
+              date
+            }
+          }
+        }
+        ... on Tag {
+          name
+          uri
+          taxonomyName
+          description
+          count
+          posts(first: $recent) @include(if: $includeRecent) {
+            nodes {
+              title
+              uri
+              date
+            }
+          }
+        }
+      }
+    }
+  `;
+  const { data } = await client.query({
+    query,
+    variables: { uri, recent, includeRecent },
+  });
+  return data;
+}
+
+// Theme "阅读增强" settings bridged from WP options via RootQuery.maltoseSettings.
+export async function maltoseSettingsQuery() {
+  const query = gql`
+    query MaltoseSettings {
+      maltoseSettings {
+        previewEnabled
+        previewDelay
+        previewExcerptLen
+        previewWpm
+        previewCacheTtl
+        previewRecent
+      }
+    }
+  `;
+  const { data } = await client.query({ query, variables: {} });
+  return data;
 }

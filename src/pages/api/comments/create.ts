@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { getProxyUrl } from "@lib/graphql-proxy";
 import { sanitizeMarkdownSource } from "@lib/markdown";
+import { __internalLruCache } from "@api/api";
 
 export const POST: APIRoute = async ({ request, cookies }) => {
   try {
@@ -85,6 +86,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         },
       );
     }
+
+    // Comments are embedded in GetNodeByURI responses — drop those cache
+    // entries so the next read revalidates with the new comment (ADR-0024).
+    __internalLruCache.deleteByPrefix("GetNodeByURI:");
 
     return new Response(JSON.stringify(data?.data?.createComment || data), {
       status: 200,

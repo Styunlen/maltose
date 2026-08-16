@@ -14,6 +14,7 @@ import {
   CombinedProtocolErrors,
 } from "@apollo/client/errors";
 import { RetryLink } from "@apollo/client/link/retry";
+import { LruLink, attachLruCacheApi, makeCacheKey } from "@/lib/lru-link";
 
 const loggerLink = new ApolloLink((operation, forward) => {
   console.log(`Starting request for ${operation.operationName}`);
@@ -74,66 +75,53 @@ if (import.meta.env.DEV) {
   loadErrorMessages();
 }
 
+/*
+ * In-process LRU cache link (SWR, ADR-0024). All queries flow through it:
+ * low-volatility data serves from cache with background revalidation, and
+ * read-after-write operations (articles/comments) wait for the network once
+ * their entry has expired (STRONG_CONSISTENCY).
+ */
+const TTL_CONFIG: Record<string, number> = {
+  LayoutQuery: 300,
+  MegaQuery: 300,
+  TimelinePosts: 300,
+  TimelineStats: 300,
+  PostsByMonth: 300,
+  RandomPosts: 180,
+  HomePosts: 60,
+  GetNodeByURI: 30,
+  GetPost: 30,
+};
+
+const STRONG_CONSISTENCY = new Set<string>(["GetNodeByURI", "GetPost"]);
+
+export const lruLink = new LruLink({
+  ttlConfig: TTL_CONFIG,
+  defaultTtl: 60,
+  revalidateThreshold: 0.5,
+  strongConsistency: STRONG_CONSISTENCY,
+  maxEntries: 1000,
+});
+
+/** In-process cache handles for post-mutation invalidation. */
+export const __internalLruCache = attachLruCacheApi(lruLink);
+
 export const client = new ApolloClient({
   link: ApolloLink.from(
     import.meta.env.DEV
-      ? [loggerLink, errorLink, httpLink]
-      : [errorLink, httpLink],
+      ? [lruLink, loggerLink, errorLink, httpLink]
+      : [lruLink, errorLink, httpLink],
   ),
   cache: new InMemoryCache(),
+  ssrMode: true,
   defaultOptions: {
     query: {
-      // Default to cache-first so low-volatility data (nav/sidebar/popular)
-      // hits Apollo's normalized cache. Real-time queries (articles/comments)
-      // explicitly override to network-only (see ADR-0015).
+      // Cache-first lets Apollo's InMemoryCache short-circuit identical
+      // in-request repeats; cross-request caching is owned by LruLink.
       fetchPolicy: "cache-first",
     },
   },
 });
-
-// ── 60s TTL cache for low-volatility queries (ADR-0015) ─────────────────────
-// Apollo's InMemoryCache has no built-in TTL. This module-level Map adds a
-// time-based cache on top for the merged site-wide query, so it isn't
-// re-fetched on every request. Survives across SSR requests (like ADR-0012's
-// refreshInFlight). Real-time queries bypass this entirely. Bounded by
-// MAX_CACHE_ENTRIES so dynamic query keys can never grow it unbounded.
-const queryCache = new Map<string, { data: any; expiresAt: number }>();
-const MAX_CACHE_ENTRIES = 50;
-
-function pruneQueryCache(now: number): void {
-  if (queryCache.size < MAX_CACHE_ENTRIES) return;
-  // Drop expired entries first (cheap scan); if still over the cap, evict
-  // the oldest entries by insertion order (Map preserves it).
-  for (const [k, v] of queryCache) {
-    if (now >= v.expiresAt) queryCache.delete(k);
-  }
-  while (queryCache.size >= MAX_CACHE_ENTRIES) {
-    const oldest = queryCache.keys().next().value;
-    if (oldest === undefined) break;
-    queryCache.delete(oldest);
-  }
-}
-
-export async function cachedQuery<T>(
-  key: string,
-  query: DocumentNode,
-  variables?: Record<string, unknown>,
-  ttlMs = 60 * 1000,
-): Promise<T> {
-  const now = Date.now();
-  pruneQueryCache(now);
-  const hit = queryCache.get(key);
-  if (hit && now < hit.expiresAt) {
-    return hit.data as T;
-  }
-  const { data } = await client.query({
-    query,
-    variables,
-    fetchPolicy: "network-only",
-  });
-  queryCache.set(key, { data, expiresAt: now + ttlMs });
-  return data as T;
-}
 
 export async function getQuery(query, variables = {}) {
   const { data } = await client.query({
@@ -150,9 +138,9 @@ export async function getQuery(query, variables = {}) {
 // Combined query for all site-wide shared data (nav + sidebar + popular).
 // Merging into one HTTP request avoids per-query connection overhead
 // (~300ms each); measured 3 parallel sidebar queries at 1099ms vs 446ms
-// merged (see ADR-0013). Cached 60s via cachedQuery since this data is
-// low-volatility; real-time data (articles/comments) stays network-only
-// (see ADR-0015).
+// merged (see ADR-0013). Cached in-process via LruLink (SWR, ADR-0024)
+// since this data is low-volatility; real-time data (articles/comments)
+// is handled by STRONG_CONSISTENCY in the same link.
 // Layout-level query: only the site-wide chrome (menu + site identity) that
 // every page needs. Kept separate from megaQuery (page data) so that article
 // / timeline / utility pages never fetch homepage-only sidebar content (see
@@ -180,7 +168,8 @@ export async function layoutQuery() {
       }
     }
   `;
-  return cachedQuery<any>("layout", query, {});
+  const { data } = await client.query({ query, variables: {} });
+  return data;
 }
 
 // Homepage data query: sidebar widgets (recent posts / comments / tags /
@@ -306,8 +295,8 @@ export async function megaQuery(opts: {
     }
   `;
   const variables = { sidebarPosts, recentComments, randomFirst, includeSticky };
-  const key = `mega:${sidebarPosts}:${recentComments}:${randomFirst}:${includeSticky}`;
-  return cachedQuery<any>(key, query, variables);
+  const { data } = await client.query({ query, variables });
+  return data;
 }
 
 export async function homePagePostsQuery(first = 10, offset = 0) {
@@ -604,8 +593,9 @@ export async function getNodeByURI(uri, wpToken) {
       uri: uri,
     },
     context,
-    // Article pages (incl. comments) must stay real-time — never cache
-    // (see ADR-0015 layered caching).
+    // Read-after-write data (article + comments): LruLink caches it but
+    // treats it as STRONG_CONSISTENCY — expired entries wait for the network
+    // instead of serving stale (see ADR-0024).
     fetchPolicy: "network-only",
   });
   return data;
@@ -687,8 +677,7 @@ export async function getTimelinePosts(
     }
   `;
   const variables = { first: perPage, offset: (page - 1) * perPage };
-  const key = `timelinePosts:${page}:${perPage}`;
-  const data = await cachedQuery<any>(key, query, variables);
+  const { data } = await client.query({ query, variables });
   return {
     nodes: data.posts.nodes,
     total: data.posts.pageInfo?.offsetPagination?.total ?? 0,
@@ -728,10 +717,9 @@ export async function getTimelineStats(): Promise<any[]> {
   `;
   let offset = 0;
   for (;;) {
-    const key = `timelineStats:${offset}`;
-    const data = await cachedQuery<any>(key, query, {
-      first: PAGE,
-      offset,
+    const { data } = await client.query({
+      query,
+      variables: { first: PAGE, offset },
     });
     const nodes = data.posts.nodes || [];
     all.push(...nodes);

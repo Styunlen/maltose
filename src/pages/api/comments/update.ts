@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { getProxyUrl } from "@lib/graphql-proxy";
 import { sanitizeMarkdownSource } from "@lib/markdown";
+import { __internalLruCache } from "@api/api";
 
 export const POST: APIRoute = async ({ request, cookies }) => {
   try {
@@ -61,6 +62,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
         { status: 400, headers: { "Content-Type": "application/json" } },
       );
     }
+
+    // Edited content is embedded in GetNodeByURI responses — invalidate.
+    __internalLruCache.deleteByPrefix("GetNodeByURI:");
 
     return new Response(JSON.stringify(data?.data?.updateComment || data), {
       status: 200,

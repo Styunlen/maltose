@@ -6,6 +6,7 @@ class MaltoseAdminSettings {
         'maltose_secret_key'  => '',
         'maltose_sign_expire' => 60,
         'maltose_debug_mode'  => 0,
+        'maltose_site_birthday' => '',
     ];
 
     public static function init(): void {
@@ -38,6 +39,20 @@ class MaltoseAdminSettings {
             'sanitize_callback' => 'absint',
             'default' => 0,
         ]);
+        register_setting('maltose_group', 'maltose_site_birthday', [
+            'type' => 'string',
+            'sanitize_callback' => [self::class, 'sanitizeDate'],
+            'default' => '',
+        ]);
+    }
+
+    /** 校验建站日期格式（YYYY-MM-DD），非法值置空（ADR-0026 决策 4）。 */
+    public static function sanitizeDate($value): string {
+        $value = trim((string) $value);
+        if ($value !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) && strtotime($value) !== false) {
+            return $value;
+        }
+        return '';
     }
 
     public static function renderPage(): void {
@@ -101,13 +116,29 @@ class MaltoseAdminSettings {
                             </label>
                         </td>
                     </tr>
+                    <tr>
+                        <th scope="row">
+                            <label for="maltose_site_birthday">建站日期</label>
+                        </th>
+                        <td>
+                            <input
+                                type="date"
+                                id="maltose_site_birthday"
+                                name="maltose_site_birthday"
+                                value="<?php echo esc_attr(get_option('maltose_site_birthday', '')); ?>"
+                            />
+                            <p class="description">
+                                站点数据看板的「已运行天数」优先取此值；未填写时回落到首篇文章发布日期。
+                            </p>
+                        </td>
+                    </tr>
                 </table>
                 <?php submit_button('保存设置'); ?>
             </form>
 
             <hr />
             <h2>数据清理</h2>
-            <p>删除所有 Maltose 主题保存在数据库中的配置项（<code>maltose_secret_key</code>、<code>maltose_sign_expire</code>）。</p>
+            <p>删除所有 Maltose 主题保存在数据库中的配置项（<code>maltose_secret_key</code>、<code>maltose_sign_expire</code>、<code>maltose_debug_mode</code>、<code>maltose_site_birthday</code>）。</p>
             <form method="post" action="<?php echo admin_url('admin-post.php'); ?>" onsubmit="return confirm('确定要清除所有 Maltose 配置吗？');">
                 <input type="hidden" name="action" value="maltose_cleanup" />
                 <?php wp_nonce_field('maltose_cleanup_action', 'maltose_cleanup_nonce'); ?>
@@ -126,6 +157,7 @@ class MaltoseAdminSettings {
         delete_option('maltose_secret_key');
         delete_option('maltose_sign_expire');
         delete_option('maltose_debug_mode');
+        delete_option('maltose_site_birthday');
 
         wp_redirect(add_query_arg('page', 'maltose', admin_url('options-general.php')));
         exit;

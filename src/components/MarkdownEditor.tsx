@@ -6,12 +6,14 @@ import "cherry-markdown/dist/cherry-markdown.css";
 export interface MarkdownEditorHandle {
   getMarkdown: () => string;
   setMarkdown: (md: string) => void;
+  setDisabled: (disabled: boolean) => void;
 }
 
 const MarkdownEditor = React.forwardRef<MarkdownEditorHandle, {
   disabled?: boolean;
   minHeight?: number;
-}>(({ disabled, minHeight }, ref) => {
+  onReady?: () => void;
+}>(({ disabled, minHeight, onReady }, ref) => {
   const uid = React.useId();
   const containerRef = React.useRef<HTMLDivElement>(null);
   const cherryRef = React.useRef<any>(null);
@@ -59,7 +61,11 @@ const MarkdownEditor = React.forwardRef<MarkdownEditorHandle, {
         });
 
         cherryRef.current = cherryInstance;
-        if (!cancelled) setReady(true);
+        if (!cancelled) {
+          setReady(true);
+          // Notify parent that the editor instance is ready for setMarkdown
+          onReady?.();
+        }
       } catch (err) {
         console.error("Cherry Markdown init failed:", err);
       }
@@ -75,6 +81,17 @@ const MarkdownEditor = React.forwardRef<MarkdownEditorHandle, {
   React.useImperativeHandle(ref, () => ({
     getMarkdown: () => cherryRef.current?.getMarkdown?.() || "",
     setMarkdown: (md: string) => cherryRef.current?.setMarkdown?.(md),
+    // Toggle read-only by flipping contentEditable on CodeMirror's content
+    // DOM. Cherry's EditorState.readOnly is a facet (not a StateEffect), so
+    // dispatching it directly breaks the view; DOM-level toggling is safe and
+    // sufficient for blocking input during the raw-content load window.
+    setDisabled: (d: boolean) => {
+      const view = cherryRef.current?.getCodeMirror?.();
+      const dom = view?.contentDOM;
+      if (dom) {
+        dom.contentEditable = d ? "false" : "true";
+      }
+    },
   }));
 
   return (

@@ -29,6 +29,12 @@ import {
 } from "@/components/ui/message";
 import { Bubble, BubbleContent, BubbleReactions } from "@/components/ui/bubble";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import {
+  useEditStore,
+  startEdit,
+  cancelEdit,
+  type EditScope,
+} from "@/stores/edit-store";
 
 function UaBrowser({ name }: { name: string }) {
   if (name.startsWith("Chrome")) return <IconChrome className="size-3" />;
@@ -91,27 +97,6 @@ interface Props {
 }
 
 /* ─── Helpers ─── */
-// Inject the "@author" mention into the start of the first <p> of the comment
-// HTML, producing <p><span class="mention">@author</span> content...</p>.
-// This keeps the mention inline with the first line of the body so long text
-// wraps naturally with the mention staying at the start of line 1.
-function injectMention(html: string, mentionHtml: string): string {
-  const firstP = html.match(/<p[^>]*>/i);
-  if (!firstP) {
-    return mentionHtml + html;
-  }
-  const idx = html.indexOf(firstP[0]);
-  const end = idx + firstP[0].length;
-  return html.slice(0, end) + mentionHtml + html.slice(end);
-}
-
-function buildMentionHtml(parentAuthorName: string, parentDbId: number, isOwn: boolean): string {
-  const cls = isOwn
-    ? "chat-parent-mention font-semibold cursor-pointer"
-    : "chat-parent-mention font-semibold cursor-pointer text-primary";
-  return `<span class="${cls}" data-mention-target="chat-comment-${parentDbId}" role="button" tabindex="0">@${parentAuthorName}</span> `;
-}
-
 function buildCommentMap(flat: any[]): Map<number, FlatComment> {
   const map = new Map<number, FlatComment>();
   const nameMap = new Map<number, string>();
@@ -165,6 +150,9 @@ function ChatBubble({
   onEdit,
   onDelete,
   showAvatar = true,
+  editing = false,
+  onEditSave,
+  onEditCancel,
 }: {
   comment: FlatComment;
   onReply: (id: number, name: string, ids: number[]) => void;
@@ -174,6 +162,9 @@ function ChatBubble({
   onEdit?: (commentId: string) => void;
   onDelete?: (commentId: string) => void;
   showAvatar?: boolean;
+  editing?: boolean;
+  onEditSave?: (commentId: string, md: string) => void;
+  onEditCancel?: () => void;
 }) {
   return (
     <Message
@@ -221,104 +212,331 @@ function ChatBubble({
             </span>
           )}
         </MessageHeader>
-        <Bubble
-          variant={isOwn ? "default" : "secondary"}
-          className={comment.children.length > 0 ? "mb-4" : ""}
-        >
-          <BubbleContent
-            className="chat-content"
-            style={{
-              fontSize: "0.9rem",
-              lineHeight: 1.55,
-              wordBreak: "break-word",
-            }}
+        {!editing && (
+          <Bubble
+            variant={isOwn ? "default" : "secondary"}
+            className={comment.children.length > 0 ? "mb-4" : ""}
           >
-            <span
-              dangerouslySetInnerHTML={{
-                __html:
-                  comment.parentAuthorName && comment.parentDatabaseId
-                    ? injectMention(
-                        comment.content,
-                        buildMentionHtml(
-                          comment.parentAuthorName,
-                          comment.parentDatabaseId,
-                          isOwn,
-                        ),
-                      )
-                    : comment.content,
+            <BubbleContent
+              className="chat-content cherry-markdown"
+              style={{
+                fontSize: "0.9rem",
+                lineHeight: 1.55,
+                wordBreak: "break-word",
               }}
-            />
-          </BubbleContent>
-          {comment.children.length > 0 && (
-            <BubbleReactions
-              side="bottom"
-              align={isOwn ? "start" : "end"}
-              className="reply-link-trigger"
-              data-comment-id={comment.databaseId}
-              data-parent-name={comment.author.node.name}
-              data-children={comment.children
-                .map((c) => c.databaseId)
-                .join(",")}
-              aria-label={`${comment.children.length} 条回复`}
-              onClick={() =>
-                onReply(
-                  comment.databaseId,
-                  comment.author.node.name,
-                  comment.children.map((c) => c.databaseId),
-                )
-              }
             >
-              <span>↳</span>
-              <span>{comment.children.length}</span>
-            </BubbleReactions>
-          )}
-        </Bubble>
-        <MessageFooter>
-          <button
-            type="button"
-            className="chat-reply-btn"
-            title="回复"
-            onClick={() =>
-              onStartReply
-                ? onStartReply(comment.databaseId, comment.author.node.name)
-                : onReply(
+              <span className="chat-body-inline">
+                {comment.parentAuthorName && comment.parentDatabaseId && (
+                  <span
+                    className={
+                      isOwn
+                        ? "chat-parent-mention font-semibold cursor-pointer"
+                        : "chat-parent-mention font-semibold cursor-pointer text-primary"
+                    }
+                    onClick={() =>
+                      onMention(`chat-comment-${comment.parentDatabaseId}`)
+                    }
+                    onMouseEnter={() =>
+                      document
+                        .getElementById(
+                          `chat-comment-${comment.parentDatabaseId}`,
+                        )
+                        ?.classList.add("chat-highlight-hover")
+                    }
+                    onMouseLeave={() =>
+                      document
+                        .getElementById(
+                          `chat-comment-${comment.parentDatabaseId}`,
+                        )
+                        ?.classList.remove("chat-highlight-hover")
+                    }
+                  >
+                    @{comment.parentAuthorName}
+                  </span>
+                )}
+                <span
+                  dangerouslySetInnerHTML={{ __html: comment.content }}
+                />
+              </span>
+            </BubbleContent>
+            {comment.children.length > 0 && (
+              <BubbleReactions
+                side="bottom"
+                align={isOwn ? "start" : "end"}
+                className="reply-link-trigger"
+                data-comment-id={comment.databaseId}
+                data-parent-name={comment.author.node.name}
+                data-children={comment.children
+                  .map((c) => c.databaseId)
+                  .join(",")}
+                aria-label={`${comment.children.length} 条回复`}
+                onClick={() =>
+                  onReply(
                     comment.databaseId,
                     comment.author.node.name,
-                    (comment.children || []).map((c: any) => c.databaseId),
+                    comment.children.map((c) => c.databaseId),
                   )
-            }
-            aria-label="回复"
-          >
-            <MessageSquare className="size-3.5" />
-            <span>回复</span>
-          </button>
-          {isOwn && (
-            <>
-              <button
-                type="button"
-                className="chat-edit-btn"
-                title="编辑"
-                onClick={() => onEdit?.(comment.id)}
-                aria-label="编辑"
+                }
               >
-                <Edit2 className="size-3.5" />
-                <span>编辑</span>
-              </button>
-              <button
-                type="button"
-                className="chat-delete-btn"
-                title="删除"
-                onClick={() => onDelete?.(comment.id)}
-                aria-label="删除"
-              >
-                <Trash2 className="size-3.5" />
-                <span>删除</span>
-              </button>
-            </>
-          )}
-        </MessageFooter>
+                <span>↳</span>
+                <span>{comment.children.length}</span>
+              </BubbleReactions>
+            )}
+          </Bubble>
+        )}
+        {!editing && (
+          <MessageFooter>
+            <button
+              type="button"
+              className="chat-reply-btn"
+              title="回复"
+              onClick={() =>
+                onStartReply
+                  ? onStartReply(comment.databaseId, comment.author.node.name)
+                  : onReply(
+                      comment.databaseId,
+                      comment.author.node.name,
+                      (comment.children || []).map((c: any) => c.databaseId),
+                    )
+              }
+              aria-label="回复"
+            >
+              <MessageSquare className="size-3.5" />
+              <span>回复</span>
+            </button>
+            {isOwn && (
+              <>
+                <button
+                  type="button"
+                  className="chat-edit-btn"
+                  title="编辑"
+                  onClick={() => onEdit?.(comment.id)}
+                  aria-label="编辑"
+                >
+                  <Edit2 className="size-3.5" />
+                  <span>编辑</span>
+                </button>
+                <button
+                  type="button"
+                  className="chat-delete-btn"
+                  title="删除"
+                  onClick={() => onDelete?.(comment.id)}
+                  aria-label="删除"
+                >
+                  <Trash2 className="size-3.5" />
+                  <span>删除</span>
+                </button>
+              </>
+            )}
+          </MessageFooter>
+        )}
+        {editing && (
+          <InlineEditBox
+            comment={comment}
+            onSave={(md) => onEditSave?.(comment.id, md)}
+            onCancel={() => onEditCancel?.()}
+          />
+        )}
       </MessageContent>
     </Message>
+  );
+}
+
+/* ─── Inline Edit Box ─── */
+// Renders in place below the comment's collapsed bubble. Fetches the raw
+// markdown on mount, then lets the user edit and save/cancel.
+// The editor stays read-only until both the Cherry instance is ready and the
+// raw content has been filled in (see ADR-0006).
+function InlineEditBox({
+  comment,
+  onSave,
+  onCancel,
+}: {
+  comment: FlatComment;
+  onSave: (md: string) => void;
+  onCancel: () => void;
+}) {
+  const ref = React.useRef<MarkdownEditorHandle>(null);
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState("");
+  // 编辑器实例就绪前缓存 raw 内容，onReady 后一次性填充
+  const rawRef = React.useRef<string | null>(null);
+  const [editorReady, setEditorReady] = React.useState(false);
+  const [rawLoaded, setRawLoaded] = React.useState(false);
+  const loadingDone = editorReady && rawLoaded;
+
+  const fillRaw = React.useCallback((md: string) => {
+    rawRef.current = md;
+    if (ref.current) {
+      ref.current.setMarkdown(md);
+      ref.current.setDisabled(false);
+    }
+    setRawLoaded(true);
+  }, []);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch("/api/comments/raw", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commentDatabaseId: comment.databaseId }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        fillRaw(data.content || comment.rawContent || "");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        fillRaw(comment.rawContent || "");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [comment.databaseId, comment.rawContent, fillRaw]);
+
+  const handleEditorReady = React.useCallback(() => {
+    setEditorReady(true);
+    // Cherry 就绪后立即使编辑框只读，防止 raw 填充前的输入被 setMarkdown 覆盖
+    ref.current?.setDisabled(true);
+    if (rawRef.current !== null) {
+      ref.current?.setMarkdown(rawRef.current);
+      ref.current?.setDisabled(false);
+      setRawLoaded(true);
+    }
+  }, []);
+
+  const handleSave = async () => {
+    const md = ref.current?.getMarkdown()?.trim();
+    if (!md || saving) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/comments/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commentId: comment.id, content: md }),
+      });
+      if (res.ok) {
+        onSave(md);
+      } else {
+        const d = await res.json();
+        setError(d?.error || "保存失败");
+      }
+    } catch {
+      setError("保存失败，请重试");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="inline-edit-box"
+      style={{
+        padding: "0.75rem 1rem",
+        background:
+          "color-mix(in oklch, var(--primary) 5%, transparent)",
+        border: "1px solid var(--primary)",
+        borderRadius: "var(--radius)",
+        marginTop: "0.5rem",
+        position: "relative",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "0.8rem",
+          fontWeight: 600,
+          color: "var(--primary)",
+          marginBottom: "0.4rem",
+        }}
+      >
+        编辑评论
+      </div>
+      <MarkdownEditor ref={ref} minHeight={120} onReady={handleEditorReady} />
+      {!loadingDone && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 5,
+            background:
+              "color-mix(in oklch, var(--card) 60%, transparent)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.5rem",
+            borderRadius: "var(--radius)",
+            fontSize: "0.85rem",
+            color: "var(--muted-foreground)",
+          }}
+        >
+          <span
+            style={{
+              width: 14,
+              height: 14,
+              border: "2px solid var(--border)",
+              borderTopColor: "var(--primary)",
+              borderRadius: "50%",
+              animation: "chat-spin 0.8s linear infinite",
+            }}
+          />
+          正在加载评论内容…
+        </div>
+      )}
+      {error && (
+        <p style={{ color: "var(--destructive)", fontSize: "0.8rem", marginTop: "0.4rem" }}>
+          {error}
+        </p>
+      )}
+      <div
+        style={{
+          display: "flex",
+          gap: "0.5rem",
+          justifyContent: "flex-end",
+          marginTop: "0.5rem",
+        }}
+      >
+        <button
+          type="button"
+          onClick={onCancel}
+          style={{
+            padding: "0.35rem 1rem",
+            fontSize: "0.8rem",
+            fontWeight: 600,
+            color: "var(--muted-foreground)",
+            background: "var(--muted)",
+            border: "1px solid var(--border)",
+            borderRadius: 9999,
+            cursor: "pointer",
+          }}
+        >
+          取消
+        </button>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving || !loadingDone}
+          style={{
+            padding: "0.35rem 1rem",
+            fontSize: "0.8rem",
+            fontWeight: 600,
+            color: "#fff",
+            background: "var(--primary)",
+            border: "none",
+            borderRadius: 9999,
+            cursor: "pointer",
+            opacity: saving || !loadingDone ? 0.6 : 1,
+          }}
+        >
+          {saving ? "保存中…" : "保存"}
+        </button>
+      </div>
+      <style>{`
+        @keyframes chat-spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
   );
 }
 
@@ -330,8 +548,12 @@ function ReplyPopupModal({
   onClose,
   onReplyToComment,
   onMentionClick,
-  onEditComment,
   onDeleteComment,
+  onEditSave,
+  onEditCancel,
+  isEditing,
+  onEditRequest,
+  currentUserId,
 }: {
   parentDbId: number;
   children: FlatComment[];
@@ -339,8 +561,12 @@ function ReplyPopupModal({
   onClose: () => void;
   onReplyToComment: (id: number, name: string) => void;
   onMentionClick: (targetId: string) => void;
-  onEditComment: (dbId: string) => void;
   onDeleteComment: (dbId: string) => void;
+  onEditSave: (commentId: string, md: string) => void;
+  onEditCancel: () => void;
+  isEditing: (id: string, scope: EditScope) => boolean;
+  onEditRequest: (id: string, scope: EditScope) => void;
+  currentUserId?: number | null;
 }) {
   // Navigation stack: each entry is a focused comment plus its direct replies.
   // The bottom entry is the original parent from the main list; clicking a
@@ -456,6 +682,69 @@ function ReplyPopupModal({
           </button>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: "0.75rem 1rem" }}>
+          {current.parent?.databaseId && (
+            <div
+              className="reply-popup-context"
+              style={{
+                display: "flex",
+                gap: "0.6rem",
+                padding: "0.6rem 0.75rem",
+                marginBottom: "0.75rem",
+                background: "var(--muted)",
+                borderLeft: "3px solid var(--primary)",
+                borderRadius: "calc(var(--radius) - 2px)",
+              }}
+            >
+              <Avatar style={{ width: 24, height: 24, flexShrink: 0 }}>
+                {current.parent.author?.node?.avatar?.url && (
+                  <AvatarImage
+                    src={current.parent.author.node.avatar.url}
+                    alt={current.parent.author.node.name}
+                  />
+                )}
+                <AvatarFallback>
+                  {current.parent.author?.node?.name?.charAt(0)?.toUpperCase() || "?"}
+                </AvatarFallback>
+              </Avatar>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                    color: "var(--muted-foreground)",
+                    marginBottom: "0.2rem",
+                  }}
+                >
+                  回复 {current.parent.author?.node?.name || "匿名"}
+                </div>
+                <div
+                  className="chat-content cherry-markdown"
+                  style={{
+                    fontSize: "0.82rem",
+                    lineHeight: 1.5,
+                    color: "var(--muted-foreground)",
+                    wordBreak: "break-word",
+                    display: "-webkit-box",
+                    WebkitLineClamp: 3,
+                    WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                  }}
+                >
+                  {current.parent.parentAuthorName &&
+                    current.parent.parentDatabaseId && (
+                      <span className="chat-parent-mention">
+                        @{current.parent.parentAuthorName}
+                      </span>
+                    )}
+                  <span
+                    dangerouslySetInnerHTML={{
+                      __html: current.parent.content,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
           {current.children.length === 0 ? (
             <p
               style={{
@@ -481,11 +770,14 @@ function ReplyPopupModal({
                       }}
                       onMention={onMentionClick}
                       showAvatar={ci === 0}
-                      isOwn={false}
-                      onEdit={(id) => {
-                        onClose();
-                        onEditComment(id);
-                      }}
+                      isOwn={
+                        currentUserId != null &&
+                        c.author?.node?.databaseId === currentUserId
+                      }
+                      editing={isEditing(c.id, "popup")}
+                      onEdit={(id) => onEditRequest(id, "popup")}
+                      onEditSave={onEditSave}
+                      onEditCancel={onEditCancel}
                       onDelete={(id) => {
                         onClose();
                         onDeleteComment(id);
@@ -520,13 +812,19 @@ export default function CommentSection({
     childrenIds: number[];
   } | null>(null);
   const newCommentRef = React.useRef<MarkdownEditorHandle>(null);
-  const editCommentRef = React.useRef<MarkdownEditorHandle>(null);
   const [submitting, setSubmitting] = React.useState(false);
   const [formError, setFormError] = React.useState("");
   const [parentId, setParentId] = React.useState<number | null>(null);
   const [replyingTo, setReplyingTo] = React.useState<string | null>(null);
   const [replyQuote, setReplyQuote] = React.useState("");
-  const [editingId, setEditingId] = React.useState<string | null>(null);
+  // 待确认的编辑切换目标（当前有编辑态时点其他评论的编辑按钮 → 弹确认）
+  const [pendingEdit, setPendingEdit] = React.useState<{
+    id: string;
+    scope: EditScope;
+  } | null>(null);
+  // 待确认的弹窗关闭（弹窗内有编辑态时点关闭 → 弹确认）
+  const [pendingPopupClose, setPendingPopupClose] = React.useState(false);
+  const { editingId, scope, isEditing } = useEditStore();
   const [localComments, setLocalComments] = React.useState(rawComments);
   // Live comment count, adjusted on add/delete so the badge matches the list.
   const [liveCount, setLiveCount] = React.useState(commentCount);
@@ -621,6 +919,12 @@ export default function CommentSection({
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [sorted.length]);
 
+  // Reset the global edit store on unmount so an in-progress edit never
+  // leaks into the next page's comment section (see review #9).
+  React.useEffect(() => {
+    return () => cancelEdit();
+  }, []);
+
   const openPopup = React.useCallback((id, n, ids) => {
     const t = document.getElementById(`chat-comment-${id}`);
     if (!t) return;
@@ -633,6 +937,43 @@ export default function CommentSection({
     t.classList.add("chat-highlight");
     setTimeout(() => t.classList.remove("chat-highlight"), 2000);
   }, []);
+
+  // 请求进入编辑态。若已有其他评论处于编辑态（不同 id/scope），先弹确认
+  // 丢弃草稿再切换，避免未保存的编辑被静默丢弃。
+  const onEditRequest = React.useCallback(
+    (id: string, nextScope: EditScope) => {
+      if (editingId && editingId !== id) {
+        setPendingEdit({ id, scope: nextScope });
+        return;
+      }
+      startEdit(id, nextScope);
+      // 编辑框渲染在气泡下方，若不在可视区则平滑滚动到编辑框
+      setTimeout(() => {
+        const c = scrollRef.current;
+        if (!c) return;
+        const box = document.querySelector(".inline-edit-box");
+        if (!box) return;
+        const containerRect = c.getBoundingClientRect();
+        const boxRect = box.getBoundingClientRect();
+        const visible =
+          boxRect.top >= containerRect.top &&
+          boxRect.bottom <= containerRect.bottom;
+        if (!visible) {
+          box.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 150);
+    },
+    [editingId],
+  );
+
+  // 关闭弹窗。若弹窗内有编辑态，先弹确认：确认则清编辑态并关闭，取消则阻止。
+  const requestClosePopup = React.useCallback(() => {
+    if (scope === "popup" && editingId) {
+      setPendingPopupClose(true);
+      return;
+    }
+    setPopup(null);
+  }, [scope, editingId]);
 
   const startReply = React.useCallback((id, n) => {
     setParentId(id);
@@ -686,47 +1027,6 @@ export default function CommentSection({
     setTimeout(() => t.classList.remove("chat-highlight"), 2000);
   }, []);
 
-  // Event delegation for @mentions injected into comment HTML. Handles click
-  // (scroll to the mentioned comment) and hover highlight for both the main
-  // list and the reply popup.
-  React.useEffect(() => {
-    const findMention = (t: EventTarget | null): HTMLElement | null => {
-      const el = t as HTMLElement;
-      return el?.closest?.("[data-mention-target]") ?? null;
-    };
-    const onDocClick = (e: MouseEvent) => {
-      const m = findMention(e.target);
-      if (m) {
-        e.preventDefault();
-        scrollTo(m.getAttribute("data-mention-target") || "");
-      }
-    };
-    const onDocEnter = (e: MouseEvent) => {
-      const m = findMention(e.target);
-      if (m) {
-        document
-          .getElementById(m.getAttribute("data-mention-target") || "")
-          ?.classList.add("chat-highlight-hover");
-      }
-    };
-    const onDocLeave = (e: MouseEvent) => {
-      const m = findMention(e.target);
-      if (m) {
-        document
-          .getElementById(m.getAttribute("data-mention-target") || "")
-          ?.classList.remove("chat-highlight-hover");
-      }
-    };
-    document.addEventListener("click", onDocClick);
-    document.addEventListener("mouseover", onDocEnter);
-    document.addEventListener("mouseout", onDocLeave);
-    return () => {
-      document.removeEventListener("click", onDocClick);
-      document.removeEventListener("mouseover", onDocEnter);
-      document.removeEventListener("mouseout", onDocLeave);
-    };
-  }, [scrollTo]);
-
   return (
     <section
       id="comments-section"
@@ -779,118 +1079,13 @@ export default function CommentSection({
           <div
             style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}
           >
-            {sorted.find((c) => editingId === c.id) &&
-              (() => {
-                const c = sorted.find((cc) => editingId === cc.id)!;
-                return (
-                  <div
-                    key={c.id}
-                    style={{
-                      padding: "1rem",
-                      background:
-                        "color-mix(in oklch, var(--primary) 5%, transparent)",
-                      border: "1px solid var(--primary)",
-                      borderRadius: "var(--radius)",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: "0.8rem",
-                        fontWeight: 600,
-                        color: "var(--primary)",
-                        marginBottom: "0.4rem",
-                      }}
-                    >
-                      编辑评论
-                    </div>
-                    <MarkdownEditor ref={editCommentRef} minHeight={120} />
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "0.5rem",
-                        justifyContent: "flex-end",
-                        marginTop: "0.5rem",
-                      }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setEditingId(null)}
-                        style={{
-                          padding: "0.35rem 1rem",
-                          fontSize: "0.8rem",
-                          fontWeight: 600,
-                          color: "var(--muted-foreground)",
-                          background: "var(--muted)",
-                          border: "1px solid var(--border)",
-                          borderRadius: 9999,
-                          cursor: "pointer",
-                        }}
-                      >
-                        取消
-                      </button>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const md = editCommentRef.current
-                            ?.getMarkdown()
-                            ?.trim();
-                          if (!md) return;
-                          const res = await fetch("/api/comments/update", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              commentId: c.id,
-                              content: md,
-                            }),
-                          });
-                          if (res.ok) {
-                            const data = await res.json();
-                            const updatedContent = renderMd(
-                              data?.comment?.content || md,
-                            );
-                            setLocalComments((prev) =>
-                              prev.map((cc: any) =>
-                                cc.id === c.id
-                                  ? { ...cc, content: updatedContent }
-                                  : cc,
-                              ),
-                            );
-                            setEditingId(null);
-                          } else {
-                            const d = await res.json();
-                            setFormError(d?.error || "保存失败");
-                          }
-                        }}
-                        style={{
-                          padding: "0.35rem 1rem",
-                          fontSize: "0.8rem",
-                          fontWeight: 600,
-                          color: "#fff",
-                          background: "var(--primary)",
-                          border: "none",
-                          borderRadius: 9999,
-                          cursor: "pointer",
-                        }}
-                      >
-                        保存
-                      </button>
-                    </div>
-                  </div>
-                );
-              })()}
-            {sorted.filter((c) => editingId !== c.id).filter(Boolean).length >
-              0 &&
-              groupByAuthor(
-                sorted.filter((c) => editingId !== c.id).filter(Boolean),
-              ).map((group, gi) => (
+            {groupByAuthor(sorted).map((group, gi) => (
                 <MessageGroup key={`group-${gi}`}>
                   {group.map((c, ci) => (
                     <ChatBubble
                       key={c.id}
                       comment={c}
                       onReply={openPopup}
-                      onStartReply={startReply}
                       onMention={scrollTo}
                       showAvatar={ci === 0}
                       isOwn={
@@ -898,27 +1093,19 @@ export default function CommentSection({
                           c.author?.node?.databaseId === currentUserId) ||
                         (!!user?.email && c.author?.node?.email === user.email)
                       }
-                      onEdit={(commentId) => {
-                        setEditingId(commentId);
-                        fetch("/api/comments/raw", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            commentDatabaseId: c.databaseId,
-                          }),
-                        })
-                          .then((r) => r.json())
-                          .then((data) => {
-                            editCommentRef.current?.setMarkdown(
-                              data.content || "",
-                            );
-                          })
-                          .catch(() => {
-                            editCommentRef.current?.setMarkdown(
-                              c.rawContent || "",
-                            );
-                          });
+                      editing={isEditing(c.id, "main")}
+                      onEdit={(commentId) => onEditRequest(commentId, "main")}
+                      onEditSave={(commentId, md) => {
+                        setLocalComments((prev) =>
+                          prev.map((cc: any) =>
+                            cc.id === commentId
+                              ? { ...cc, content: renderMd(md) }
+                              : cc,
+                          ),
+                        );
+                        cancelEdit();
                       }}
+                      onEditCancel={cancelEdit}
                       onDelete={(commentId) => setDeleteTarget(commentId)}
                     />
                   ))}
@@ -1165,32 +1352,27 @@ export default function CommentSection({
               .filter(Boolean) as FlatComment[]
           }
           commentMap={commentMap}
-          onClose={() => setPopup(null)}
+          onClose={requestClosePopup}
           onReplyToComment={(id, name) => {
+            cancelEdit();
             setPopup(null);
             startReply(id, name);
           }}
           onMentionClick={scrollTo}
-          onEditComment={(dbId) => {
-            const c = localComments.find(
-              (cc: any) => String(cc.databaseId) === dbId,
+          isEditing={isEditing}
+          onEditRequest={onEditRequest}
+          onEditSave={(commentId, md) => {
+            setLocalComments((prev) =>
+              prev.map((cc: any) =>
+                cc.id === commentId
+                  ? { ...cc, content: renderMd(md) }
+                  : cc,
+              ),
             );
-            if (c) {
-              setEditingId(c.id);
-              fetch("/api/comments/raw", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ commentDatabaseId: Number(dbId) }),
-              })
-                .then((r) => r.json())
-                .then((data) => {
-                  editCommentRef.current?.setMarkdown(data.content || "");
-                })
-                .catch(() => {
-                  editCommentRef.current?.setMarkdown(c.rawContent || "");
-                });
-            }
+            cancelEdit();
           }}
+          onEditCancel={cancelEdit}
+          currentUserId={currentUserId}
           onDeleteComment={(dbId) => {
             const c = localComments.find(
               (cc: any) => String(cc.databaseId) === dbId,
@@ -1199,6 +1381,41 @@ export default function CommentSection({
           }}
         />
       )}
+
+      {/* 编辑切换确认（主区/弹窗跨作用域丢弃草稿） */}
+      <ConfirmDialog
+        open={pendingEdit !== null}
+        onOpenChange={(o) => {
+          if (!o) setPendingEdit(null);
+        }}
+        title="丢弃未保存的编辑？"
+        description="当前有一条评论正在编辑中。切换编辑目标将丢弃其未保存的内容。"
+        confirmLabel="丢弃并切换"
+        cancelLabel="取消"
+        onConfirm={() => {
+          if (!pendingEdit) return;
+          const { id, scope } = pendingEdit;
+          setPendingEdit(null);
+          startEdit(id, scope);
+        }}
+      />
+
+      {/* 弹窗关闭确认（弹窗内有编辑态） */}
+      <ConfirmDialog
+        open={pendingPopupClose}
+        onOpenChange={(o) => {
+          if (!o) setPendingPopupClose(false);
+        }}
+        title="关闭弹窗？"
+        description="当前有正在编辑的评论，关闭弹窗将丢弃未保存的内容。"
+        confirmLabel="关闭并丢弃"
+        cancelLabel="取消"
+        onConfirm={() => {
+          setPendingPopupClose(false);
+          cancelEdit();
+          setPopup(null);
+        }}
+      />
 
       <ConfirmDialog
         open={deleteTarget !== null}

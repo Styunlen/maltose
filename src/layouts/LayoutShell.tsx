@@ -5,6 +5,7 @@ import SiteHeader from "@/components/SiteHeader";
 import AuthProvider from "@/components/AuthProvider";
 import AuthErrorToast from "@/components/AuthErrorToast";
 import ExternalLinkGuard from "@/components/ExternalLinkGuard";
+import HoverPreviewProvider from "@/components/HoverPreviewProvider";
 import SidebarLeft from "./SidebarLeft";
 import SidebarRight from "./SidebarRight";
 import {
@@ -47,6 +48,7 @@ export default function LayoutShell({
     <AuthProvider initialUser={initialUser}>
     <AuthErrorToast />
     <ExternalLinkGuard />
+    <HoverPreviewProvider />
     <div className="[--header-height:calc(--spacing(14))]">
       <SiteHeader menu={menu} generalSettings={generalSettings} />
       <SidebarProvider>

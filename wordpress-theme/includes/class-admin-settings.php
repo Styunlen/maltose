@@ -6,7 +6,6 @@ class MaltoseAdminSettings {
         'maltose_secret_key'  => '',
         'maltose_sign_expire' => 60,
         'maltose_debug_mode'  => 0,
-        'maltose_astro_url'   => '',
     ];
 
     public static function init(): void {
@@ -39,10 +38,6 @@ class MaltoseAdminSettings {
             'sanitize_callback' => 'absint',
             'default' => 0,
         ]);
-        register_setting('maltose_group', 'maltose_astro_url', [
-            'type' => 'string',
-            'default' => '',
-        ]);
     }
 
     public static function renderPage(): void {
@@ -69,25 +64,6 @@ class MaltoseAdminSettings {
                             />
                             <p class="description">
                                 与 Astro 端 <code>.env</code> 中的 <code>WP_GRAPHQL_SECRET_KEY</code> 保持一致。
-                            </p>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row">
-                            <label for="maltose_astro_url">Astro 前端地址</label>
-                        </th>
-                        <td>
-                            <input
-                                type="text"
-                                id="maltose_astro_url"
-                                name="maltose_astro_url"
-                                value="<?php echo esc_attr(get_option('maltose_astro_url', '')); ?>"
-                                class="regular-text"
-                                placeholder="https://example.com"
-                            />
-                            <p class="description">
-                                保存文章时向此地址的 <code>/api/cache-purge</code> 发送缓存失效请求。
-                                开发环境请留空（本机 localhost 服务器无法访问），改用手动清缓存。
                             </p>
                         </td>
                     </tr>
@@ -150,7 +126,6 @@ class MaltoseAdminSettings {
         delete_option('maltose_secret_key');
         delete_option('maltose_sign_expire');
         delete_option('maltose_debug_mode');
-        delete_option('maltose_astro_url');
 
         wp_redirect(add_query_arg('page', 'maltose', admin_url('options-general.php')));
         exit;

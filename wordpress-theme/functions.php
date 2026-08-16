@@ -15,13 +15,11 @@ require_once $theme_dir . '/includes/class-agent-public.php';
 require_once $theme_dir . '/includes/class-admin-settings.php';
 require_once $theme_dir . '/includes/class-sticky-posts.php';
 require_once $theme_dir . '/includes/class-post-views.php';
-require_once $theme_dir . '/includes/class-cache-purge.php';
 
 add_action('init', [AstroPressSignatureVerifier::class, 'init']);
 add_action('graphql_register_types', [AstroPressAgentPublic::class, 'register']);
 add_action('graphql_register_types', [MaltoseStickyPosts::class, 'register']);
 add_action('graphql_register_types', [MaltosePostViews::class, 'register']);
 add_action('save_post', [MaltosePostViews::class, 'onSavePost']);
-add_action('save_post', [MaltoseCachePurge::class, 'onSavePost']);
 add_action('admin_menu', [MaltoseAdminSettings::class, 'addAdminMenu']);
 add_action('admin_init', [MaltoseAdminSettings::class, 'init']);

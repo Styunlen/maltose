@@ -8,16 +8,22 @@ export default function ConfirmDialog({
   description,
   confirmLabel = "确定",
   cancelLabel = "取消",
+  confirmVariant = "destructive",
   onConfirm,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
-  description: string;
+  description: string | React.ReactNode;
   confirmLabel?: string;
   cancelLabel?: string;
+  confirmVariant?: "primary" | "destructive";
   onConfirm: () => void;
 }) {
+  const confirmClass =
+    confirmVariant === "primary"
+      ? "bg-primary text-primary-foreground hover:bg-primary/90"
+      : "bg-destructive text-destructive-foreground hover:bg-destructive/90";
   return (
     <AlertDialog.Root open={open} onOpenChange={onOpenChange}>
       <AlertDialog.Portal>
@@ -42,7 +48,7 @@ export default function ConfirmDialog({
               <button
                 type="button"
                 onClick={onConfirm}
-                className="inline-flex items-center justify-center rounded-lg bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 transition-colors"
+                className={`inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-colors ${confirmClass}`}
               >
                 {confirmLabel}
               </button>

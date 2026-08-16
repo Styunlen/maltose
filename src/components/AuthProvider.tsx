@@ -32,12 +32,17 @@ export function useAuth(): AuthContextValue {
 
 export default function AuthProvider({
   children,
+  initialUser = null,
 }: {
   children: React.ReactNode;
+  initialUser?: AuthUser | null;
 }) {
   const [{ user, loading }, setState] = React.useState<AuthState>({
-    user: null,
-    loading: true,
+    // Prefill from SSR session so the first client render matches the
+    // server HTML (avoids hydration mismatch where SSR shows the loading
+    // skeleton but the client immediately swaps to login/user info).
+    user: initialUser,
+    loading: false,
   });
 
   React.useEffect(() => {

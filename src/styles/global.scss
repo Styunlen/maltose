@@ -1,4 +1,5 @@
 @import url("wordpress.scss");
+@import "cherry-markdown/dist/cherry-markdown.markdown.css";
 
 .hljs-ln-numbers {
   -webkit-touch-callout: none;
@@ -106,9 +107,19 @@ img.lazy-img[data-ll-status="loading"] {
   }
   .chat-bubble [data-slot="bubble-content"] .chat-parent-mention {
     color: var(--primary);
+    margin-right: 0.3rem;
   }
   .chat-bubble[data-align="end"] [data-slot="bubble-content"] .chat-parent-mention {
     color: var(--primary-foreground);
+  }
+  // 自己发的评论（data-align="end"）背景是 primary 亮绿，
+  // 链接若用 var(--primary) 会与背景同色融合，覆盖为深色前景。
+  // 注意 .chat-content 与 [data-slot="bubble-content"] 是同一元素（BubbleContent）。
+  .chat-bubble[data-align="end"] [data-slot="bubble-content"] a {
+    color: var(--primary-foreground);
+    &:hover {
+      text-decoration: underline;
+    }
   }
   .chat-bubble:hover {
     background: var(--muted);
@@ -194,6 +205,111 @@ img.lazy-img[data-ll-status="loading"] {
   }
   .chat-content a:hover {
     text-decoration: underline;
+  }
+  // 评论区在 article 内，article h1/h2/h3::before 的绿色装饰条会应用到
+  // 评论标题，且在自己评论的 primary 绿底上完全融合。仅评论区禁用，
+  // 文章正文标题装饰条保留（见 ADR-0009）。
+  .cherry-markdown {
+    h1::before,
+    h2::before,
+    h3::before {
+      content: none;
+    }
+  }
+  // 评论表格斑马纹 + 行 hover。Cherry 表格默认只有 th 背景（muted 灰）、
+  // body 行透明，视觉割裂。偶数行 --muted 交替，hover 淡绿高亮。
+  .cherry-markdown {
+    table {
+      tbody tr:nth-child(even) {
+        background-color: var(--muted);
+      }
+      tbody tr:hover {
+        background-color: color-mix(in oklch, var(--primary) 8%, transparent);
+      }
+    }
+  }
+  // 用户自己评论（data-align="end"）背景是 primary 亮绿，浅灰斑马纹会形成
+  // 绿-灰跳变。表格所有行改用灰色实色（不露绿底）：奇数行 --muted（与
+  // header 同色）、偶数行 --muted 混 10% --foreground（纯黑，明显更深的灰）。
+  // 注意不能混 --muted-foreground——它是半透明的（60% 前景 + 40% 透明），
+  // 混出的颜色带 alpha 会透出绿底（见 ADR-0010）。
+  .chat-bubble[data-align="end"] .cherry-markdown {
+    table {
+      tbody tr:nth-child(odd) {
+        background-color: var(--muted);
+      }
+      tbody tr:nth-child(even) {
+        background-color: color-mix(
+          in oklch,
+          var(--muted) 90%,
+          var(--foreground)
+        );
+      }
+    }
+  }
+  // Cherry markdown CSS（.cherry-markdown 作用域）的排版依赖 --md-* 变量，
+  // 而这些变量默认定义在 .cherry.theme__default（编辑器类）下。
+  // 评论容器没有 .cherry 类，故在此显式声明变量（值取自 Cherry 默认主题，
+  // 依赖的 --oc-* 调色板已在 :root 全局定义）。
+  .chat-content.cherry-markdown {
+    --md-heading-color: var(--foreground);
+    --md-paragraph-color: var(--foreground);
+    --md-link-color: var(--primary);
+    --md-link-hover-color: var(--primary);
+    --md-inline-code-color: var(--primary);
+    --md-inline-code-bg: var(--muted);
+    --md-blockquote-bg: var(--muted);
+    --md-hr-border: var(--border);
+    --md-table-border: var(--border);
+    // 阻断 Cherry 的 .cherry-markdown { background: var(--base-previewer-bg) }
+    // 白底规则——它比 bubble 的变体背景规则优先级更高，会覆盖 bubble 颜色。
+    background-color: transparent;
+    background-image: none;
+  }
+  // bubble 变体背景：自己评论（data-align="end"）用 primary 亮绿，
+  // 他人评论（start）用 secondary 灰。显式补回，避免被 Cherry 背景规则覆盖
+  // （见 ADR-0008）。
+  .chat-bubble[data-align="end"] .chat-content.cherry-markdown {
+    background-color: var(--primary);
+  }
+  .chat-bubble[data-align="start"] .chat-content.cherry-markdown {
+    background-color: var(--secondary);
+  }
+  // 自己发的评论（data-align="end"）背景是 primary 亮绿。
+  // Cherry markdown CSS 使用硬编码深色文字，与亮绿背景对比不足，
+  // 统一覆盖为 --primary-foreground（深黑）保证对比度（见 ADR-0007）。
+  // 注意：.cherry-markdown 与 [data-slot="bubble-content"] 是同一元素（BubbleContent）。
+  .chat-bubble[data-align="end"] .cherry-markdown {
+    --md-heading-color: var(--primary-foreground);
+    --md-paragraph-color: var(--primary-foreground);
+    --md-link-color: var(--primary-foreground);
+    --md-inline-code-color: var(--primary-foreground);
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    p,
+    li,
+    td,
+    th,
+    blockquote,
+    pre,
+    code,
+    strong,
+    em {
+      color: var(--primary-foreground);
+    }
+  }
+  // @ 提及时，@ 是 React 组件、内容走 dangerouslySetInnerHTML，两者并列。
+  // wrapper inline 使 @ 与首行内容同行；仅第一个 <p> 转 inline 与 @ 环绕，
+  // 其余段落保持块级，避免多段落粘连。
+  .chat-body-inline {
+    display: inline;
+    > span:last-child > p:first-child {
+      display: inline;
+    }
   }
   #chat-scroll::-webkit-scrollbar {
     width: 5px;

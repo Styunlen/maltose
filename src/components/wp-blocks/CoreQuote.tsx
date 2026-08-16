@@ -40,7 +40,10 @@ export default function CoreQuote({
   return (
     <Alert className={quoteClass} style={style}>
       <AlertDescription className="text-foreground/90 italic">
-        <p dangerouslySetInnerHTML={{ __html: value }} />
+        {/* value is already <p>...</p> from WordPress; a <div> wrapper avoids
+            invalid nested <p><p> which browsers auto-split during parsing,
+            causing SSR/client hydration mismatch and layout height jumps. */}
+        <div dangerouslySetInnerHTML={{ __html: value }} />
         {citation && (
           <cite
             className="block mt-3 text-sm not-italic text-muted-foreground before:content-['—\00a0']"

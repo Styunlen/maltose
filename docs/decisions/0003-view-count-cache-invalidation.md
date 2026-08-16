@@ -2,7 +2,13 @@
 
 ## 状态
 
-已接受
+已接受（**部分被推翻**——见下）
+
+> **Superseded 注记**：本文档的核心问题（浏览数实时 + 内容陈旧）依然成立，但**具体方案已被后续 ADR 与代码审查修复改写**：
+> - **cache-purge 主动失效链路**（`/api/cache-purge` + `save_post` 钩子）已**删除**。改为 ADR-0015 的**缓存分层**：实时数据（文章/评论/首页列表）一律 `network-only`，低变动数据（导航/侧边栏/时间轴）走 `cachedQuery` 60s TTL。
+> - **内容查询保持 cache-first**（`getNodeByURI`、`homePagePostsQuery`）已改为 `network-only`（代码审查 #1/#2，2026-08-15）。全局 `cache-first` 仅作为默认兜底，实际实时数据全部显式覆盖。
+> - **ViewCountsProvider 客户端批量刷新**已移除（见本文档"清理"节），浏览数由 SSR 直接渲染。
+> - 参见：ADR-0013（查询合并）、ADR-0014（TTFB 优化）、ADR-0015（缓存分层）。
 
 ## 日期
 
@@ -121,6 +127,58 @@ query ViewCounts($ids: [ID!]!) {
 
 - 失效端点鉴权复用 GraphQL 网关签名（共享密钥 + 时间戳防重放），避免任意 URL 被恶意触发清缓存。
 - 失效请求仅清理内存缓存，不涉及数据库写操作，风险面小。
+
+## 修订（2026-08-05）：移除 Apollo 内存缓存
+
+本 ADR 的决策 2（内容查询 `cache-first` + `cache-purge` 主动失效）已被**废弃**，理由与替代方案如下。
+
+### 背景
+
+`InMemoryCache` + `cache-first` 在 SSR + 签名代理架构下引发多类数据陈旧问题：
+
+- 评论编辑/删除后，`nodeByUri` 内联的 `comments` 字段缓存旧值，刷新页面评论不更新。
+- `cache-purge` 只覆盖 WP `save_post`（发布文章）场景，**遗漏了评论增删改**（发生在 Astro 端）。
+- 排查链路复杂（签名代理 + Apollo 缓存双重机制叠加）。
+
+### 新决策：全局 `network-only`
+
+`src/api/api.ts` 的 `ApolloClient` 增加 `defaultOptions.query.fetchPolicy: "network-only"`，所有查询每次从 WP 实时拉取。
+
+- `InMemoryCache` 保留但不再被读取（`network-only` 不读不写缓存）。
+- `getRandomPosts`、`getViewCounts` 原有的 `network-only` 显式声明成为冗余（全局默认已覆盖），保留无妨。
+- 性能取舍：SSR 每次请求打 WP，但请求经签名代理（WP 端可自行加 HTTP 缓存），且博客流量有限，可接受。
+
+### 清理
+
+- 删除 `src/pages/api/cache-purge.ts`、`src/pages/api/dev/cache-purge.ts`（无缓存可清）。
+- WordPress 端删除 `includes/class-cache-purge.php`、`save_post` 钩子、`maltose_astro_url` 设置项。
+
+### 影响
+
+- 评论/文章编辑后刷新页面立即呈现新内容（无需任何失效通知）。
+- 不再有"缓存数据陈旧"类 bug 的排查负担。
+
+## 修订（2026-08-09）：移除 ViewCountsProvider
+
+本 ADR 的决策 3（`ViewCountsProvider` 前端批量刷新，渐进更新浏览数）随 Apollo 缓存移除而**废弃**。
+
+### 背景
+
+`ViewCountsProvider` 的设计前提是"首屏显示缓存值 → 挂载后 0.5s 更新为最新值"（应对 cache-first 的陈旧问题）。2026-08-05 移除 Apollo 缓存（全局 `network-only`）后，SSR 首屏的 `viewCount` 已是 WP 实时值——渐进更新失去意义，`ViewCountsProvider` 变成**每次首页加载多余的 `getViewCounts` 请求**（值基本不变）。
+
+### 清理
+
+- 删除 `src/components/ViewCountsProvider.tsx`（含 `VIEW_COUNT_EVENT`）。
+- `index.astro`：移除 Provider 挂载与 `viewCountTargets` 计算。
+- `MainLayout.astro`：移除 `maltose:view-count` 事件监听脚本。
+- `PostCard.astro` / `StickyCarousel.astro` / `PopularPosts.astro`：移除 `data-view-dbid` 属性（浏览数由 SSR 直接渲染，无客户端更新）。
+- **保留** `getViewCounts` API 函数（未来如需批量刷新仍可用）。
+
+### 影响
+
+- 首页加载少一次 `getViewCounts` 网络请求。
+- 浏览数展示不变（SSR 实时渲染）。
+- 文章页 `PostViewCounter` 的 `recordPostView` 计数链路不受影响。
 
 ## 参考文献
 

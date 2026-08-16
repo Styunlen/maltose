@@ -2,8 +2,8 @@
 import { getFriends } from "@lib/friends";
 import FriendCard from "@/components/FriendCard";
 
-const { active, dead, lastCheckAt } = await getFriends();
-const total = active.length + dead.length;
+const { active, unknown, dead, lastCheckAt } = await getFriends();
+const total = active.length + unknown.length + dead.length;
 const checkedTime = new Date(lastCheckAt).toLocaleString("zh-CN");
 ---
 
@@ -27,7 +27,23 @@ const checkedTime = new Date(lastCheckAt).toLocaleString("zh-CN");
         </h2>
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.75rem; margin-bottom: 2rem;">
           {active.map((f, i) => (
-            <FriendCard friend={f} key={i} />
+            <FriendCard friend={f} status={f.status} key={i} />
+          ))}
+        </div>
+      </>
+    )
+  }
+
+  {
+    unknown.length > 0 && (
+      <>
+        <h2 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.4rem;">
+          <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #eab308;" />
+          网络波动待确认 ({unknown.length})
+        </h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.75rem; margin-bottom: 2rem;">
+          {unknown.map((f, i) => (
+            <FriendCard friend={f} status={f.status} key={i} />
           ))}
         </div>
       </>
@@ -43,7 +59,7 @@ const checkedTime = new Date(lastCheckAt).toLocaleString("zh-CN");
         </h2>
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.75rem; margin-bottom: 2rem;">
           {dead.map((f, i) => (
-            <FriendCard friend={f} key={i} dead />
+            <FriendCard friend={f} status={f.status} key={i} />
           ))}
         </div>
       </>

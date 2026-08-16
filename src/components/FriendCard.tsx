@@ -1,14 +1,15 @@
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import type { FriendWithStatus } from "@lib/friends";
+import type { FriendStatus, FriendWithStatus } from "@lib/friends";
 
 export default function FriendCard({
   friend,
-  dead,
+  status,
 }: {
   friend: FriendWithStatus;
-  dead?: boolean;
+  status: FriendStatus;
 }) {
   const initial = friend.title.slice(0, 2).toUpperCase();
+  const isDead = status === "dead";
 
   return (
     <div
@@ -20,7 +21,7 @@ export default function FriendCard({
         border: "1px solid #f3f4f6",
         overflow: "hidden",
         transition: "all 0.3s",
-        opacity: dead ? 0.55 : 1,
+        opacity: isDead ? 0.55 : 1,
       }}
     >
       <div className="friend-card-bar" />
@@ -80,46 +81,45 @@ export default function FriendCard({
               overflow: "hidden",
             }}
           >
-            {dead ? "暂时无法访问" : friend.info}
+            {isDead ? "暂时无法访问" : friend.info}
           </p>
         </div>
-        {!dead && (
-          <div style={{ marginLeft: "1rem", flexShrink: 0 }}>
-            <a
-              href={friend.link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="friend-card-link"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 40,
-                height: 40,
-                borderRadius: "50%",
-                background: "#f9fafb",
-                color: "#9ca3af",
-                transition: "all 0.2s",
-              }}
-              aria-label="Visit website"
+        <div style={{ marginLeft: "1rem", flexShrink: 0 }}>
+          <a
+            href={friend.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="friend-card-link"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 40,
+              height: 40,
+              borderRadius: "50%",
+              background: "#f9fafb",
+              color: "#9ca3af",
+              transition: "all 0.2s",
+            }}
+            aria-label="Visit website"
+            title={isDead ? "站点可能已失效，仍可尝试访问" : "访问站点"}
+          >
+            <svg
+              width={20}
+              height={20}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
             >
-              <svg
-                width={20}
-                height={20}
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M15 3h6v6" />
-                <path d="M10 14 21 3" />
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-              </svg>
-            </a>
-          </div>
-        )}
+              <path d="M15 3h6v6" />
+              <path d="M10 14 21 3" />
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+            </svg>
+          </a>
+        </div>
       </div>
       <style>{`
         .friend-card {

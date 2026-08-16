@@ -4,6 +4,7 @@ import * as React from "react";
 import SiteHeader from "@/components/SiteHeader";
 import AuthProvider from "@/components/AuthProvider";
 import AuthErrorToast from "@/components/AuthErrorToast";
+import ExternalLinkGuard from "@/components/ExternalLinkGuard";
 import SidebarLeft from "./SidebarLeft";
 import SidebarRight from "./SidebarRight";
 import {
@@ -22,7 +23,15 @@ import { Separator } from "@/components/ui/separator";
 interface LayoutShellProps {
   menu?: { menuItems: { nodes: Array<{ uri: string; url: string; order: number; label: string }> } };
   generalSettings?: { title: string; url: string; description: string };
-  sidebarData?: { posts?: any[]; tags?: any[]; comments?: any[] } | null;
+  sidebarData?: {
+    posts?: any[];
+    tags?: any[];
+    comments?: any[];
+    categories?: { name: string; uri: string; count: number }[];
+    archivePosts?: { date: string }[];
+  } | null;
+  initialUser?: { sub: string; email?: string; name?: string; preferred_username?: string } | null;
+  pathname?: string;
   children: React.ReactNode;
 }
 
@@ -30,11 +39,14 @@ export default function LayoutShell({
   menu,
   generalSettings,
   sidebarData,
+  initialUser = null,
+  pathname,
   children,
 }: LayoutShellProps) {
   return (
-    <AuthProvider>
+    <AuthProvider initialUser={initialUser}>
     <AuthErrorToast />
+    <ExternalLinkGuard />
     <div className="[--header-height:calc(--spacing(14))]">
       <SiteHeader menu={menu} generalSettings={generalSettings} />
       <SidebarProvider>
@@ -60,7 +72,7 @@ export default function LayoutShell({
             {children}
           </div>
         </SidebarInset>
-        <SidebarRight menu={menu} generalSettings={generalSettings} sidebarData={sidebarData} />
+        <SidebarRight menu={menu} generalSettings={generalSettings} sidebarData={sidebarData} pathname={pathname} />
       </SidebarProvider>
     </div>
     </AuthProvider>

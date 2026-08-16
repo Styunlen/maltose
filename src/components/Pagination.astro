@@ -4,6 +4,7 @@ interface Props {
   totalPages: number;
   hasNextPage: boolean;
   hasPreviousPage: boolean;
+  basePath?: string;
 }
 
 const {
@@ -11,11 +12,12 @@ const {
   totalPages,
   hasNextPage,
   hasPreviousPage,
+  basePath = "/",
 } = Astro.props;
 
 function getPageUrl(page: number): string {
-  if (page <= 1) return "/";
-  return `/?page=${page}`;
+  if (page <= 1) return basePath;
+  return `${basePath}?page=${page}`;
 }
 
 // Build visible page numbers

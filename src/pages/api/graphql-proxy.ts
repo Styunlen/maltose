@@ -142,6 +142,14 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
     if (authHeader) {
       forwardHeaders["Authorization"] = authHeader;
     }
+    // Forward the browser User-Agent so WordPress can record it as the
+    // comment agent (agentPublic field). create.ts reads the real browser UA
+    // server-side and passes it here; without this the agent is always empty
+    // and the comment UI shows "Unknown".
+    const uaHeader = request.headers.get("user-agent");
+    if (uaHeader) {
+      forwardHeaders["User-Agent"] = uaHeader;
+    }
 
     // Add signature headers
     Object.assign(forwardHeaders, buildSignatureHeaders());

@@ -4,36 +4,25 @@ import "@/styles/global.scss";
 import SiteFooter from "../components/SiteFooter.astro";
 import LayoutShell from "./LayoutShell";
 import {
-  navQuery,
-  getRecentPosts,
-  getAllTags,
-  getRecentComments,
+  layoutQuery,
 } from "@api/api.ts";
 
 let primaryMenu: any = null;
 let generalSettings: any = { title: "AstroPress", url: "", description: "" };
-let sidebarData: any = null;
+const { title, description, sidebarData = null } = Astro.props;
 
 try {
-  const { menus, generalSettings: gs } = await navQuery();
-  primaryMenu = menus.nodes[0];
-  if (gs) generalSettings = gs;
+  // Layout-level query: only site chrome (menu + site identity) needed by
+  // every page. Homepage-only sidebar content (posts/comments/tags/archive)
+  // is fetched by index.astro and passed down via the sidebarData prop (see
+  // ADR-0013: layout vs page data separation).
+  const data = await layoutQuery();
+  primaryMenu = data.menus?.nodes?.[0] ?? null;
+  if (data.generalSettings) generalSettings = data.generalSettings;
 } catch (err) {
-  console.warn("navQuery failed, using fallback:", err);
+  console.warn("Layout query failed, using fallback:", err);
 }
 
-try {
-  const [sp, st, sc] = await Promise.all([
-    getRecentPosts(5),
-    getAllTags(),
-    getRecentComments(5),
-  ]);
-  sidebarData = { posts: sp, tags: st, comments: sc };
-} catch (err) {
-  console.warn("Sidebar data fetch failed:", err);
-}
-
-const { title, description } = Astro.props;
 const pageTitle = `${title} | ${generalSettings.title}`;
 ---
 
@@ -51,6 +40,8 @@ const pageTitle = `${title} | ${generalSettings.title}`;
       menu={primaryMenu}
       generalSettings={generalSettings}
       sidebarData={sidebarData}
+      initialUser={Astro.locals.user ?? null}
+      pathname={Astro.url.pathname}
       client:load
     >
       <slot />
@@ -69,21 +60,6 @@ const pageTitle = `${title} | ${generalSettings.title}`;
   // Watch for dynamically added content
   const observer = new MutationObserver(() => instance.update());
   observer.observe(document.body, { childList: true, subtree: true });
-
-  // Live view-count refresh: ViewCountsProvider dispatches fresh counts,
-  // and every [data-view-dbid] element updates in place.
-  window.addEventListener("maltose:view-count", (e) => {
-    const detail = e.detail;
-    if (!detail?.counts) return;
-    const counts = detail.counts;
-    document.querySelectorAll("[data-view-dbid]").forEach((el) => {
-      const dbid = el.getAttribute("data-view-dbid");
-      const fresh = dbid ? counts.get(dbid) : undefined;
-      if (typeof fresh === "number") {
-        el.textContent = String(fresh);
-      }
-    });
-  });
 </script>
 
 <style>

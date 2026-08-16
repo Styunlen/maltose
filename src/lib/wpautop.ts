@@ -20,5 +20,9 @@ export function reverseWpautop(html: string): string {
     // headings break the block structure. Since wpautop wrapped everything with
     // <p>, after reversal we get extra blank lines before these elements.
     .replace(/\n\n(?=(?:[-*+]\s|\d+\.\s|```|>|#{1,6}\s))/g, "\n")
+    // wpautop wraps each table row in its own <p>, so reversal yields a blank
+    // line between rows — markdown tables require contiguous rows. Collapse
+    // blank lines before a line starting with "|" so marked recognizes it.
+    .replace(/\n\n(?=\|)/g, "\n")
     .trim();
 }

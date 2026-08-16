@@ -5,6 +5,7 @@ import {
   InMemoryCache,
   HttpLink,
   gql,
+  type DocumentNode,
 } from "@apollo/client";
 import { loadErrorMessages, loadDevMessages } from "@apollo/client/dev";
 import { ErrorLink } from "@apollo/client/link/error";
@@ -80,44 +81,233 @@ export const client = new ApolloClient({
       : [errorLink, httpLink],
   ),
   cache: new InMemoryCache(),
+  defaultOptions: {
+    query: {
+      // Default to cache-first so low-volatility data (nav/sidebar/popular)
+      // hits Apollo's normalized cache. Real-time queries (articles/comments)
+      // explicitly override to network-only (see ADR-0015).
+      fetchPolicy: "cache-first",
+    },
+  },
 });
+
+// ── 60s TTL cache for low-volatility queries (ADR-0015) ─────────────────────
+// Apollo's InMemoryCache has no built-in TTL. This module-level Map adds a
+// time-based cache on top for the merged site-wide query, so it isn't
+// re-fetched on every request. Survives across SSR requests (like ADR-0012's
+// refreshInFlight). Real-time queries bypass this entirely. Bounded by
+// MAX_CACHE_ENTRIES so dynamic query keys can never grow it unbounded.
+const queryCache = new Map<string, { data: any; expiresAt: number }>();
+const MAX_CACHE_ENTRIES = 50;
+
+function pruneQueryCache(now: number): void {
+  if (queryCache.size < MAX_CACHE_ENTRIES) return;
+  // Drop expired entries first (cheap scan); if still over the cap, evict
+  // the oldest entries by insertion order (Map preserves it).
+  for (const [k, v] of queryCache) {
+    if (now >= v.expiresAt) queryCache.delete(k);
+  }
+  while (queryCache.size >= MAX_CACHE_ENTRIES) {
+    const oldest = queryCache.keys().next().value;
+    if (oldest === undefined) break;
+    queryCache.delete(oldest);
+  }
+}
+
+export async function cachedQuery<T>(
+  key: string,
+  query: DocumentNode,
+  variables?: Record<string, unknown>,
+  ttlMs = 60 * 1000,
+): Promise<T> {
+  const now = Date.now();
+  pruneQueryCache(now);
+  const hit = queryCache.get(key);
+  if (hit && now < hit.expiresAt) {
+    return hit.data as T;
+  }
+  const { data } = await client.query({
+    query,
+    variables,
+    fetchPolicy: "network-only",
+  });
+  queryCache.set(key, { data, expiresAt: now + ttlMs });
+  return data as T;
+}
 
 export async function getQuery(query, variables = {}) {
   const { data } = await client.query({
     query,
     variables,
+    // Only used by Single.astro to fetch article editorBlocks — real-time
+    // content that must never be served stale from Apollo's cache (see
+    // review #2; ADR-0015 keeps articles network-only).
+    fetchPolicy: "network-only",
   });
   return data;
 }
 
-export async function getPostQuery() {}
+// Combined query for all site-wide shared data (nav + sidebar + popular).
+// Merging into one HTTP request avoids per-query connection overhead
+// (~300ms each); measured 3 parallel sidebar queries at 1099ms vs 446ms
+// merged (see ADR-0013). Cached 60s via cachedQuery since this data is
+// low-volatility; real-time data (articles/comments) stays network-only
+// (see ADR-0015).
+// Layout-level query: only the site-wide chrome (menu + site identity) that
+// every page needs. Kept separate from megaQuery (page data) so that article
+// / timeline / utility pages never fetch homepage-only sidebar content (see
+// ADR-0013 layered caching).
+export async function layoutQuery() {
+  const query = gql`
+    query LayoutQuery {
+      menus {
+        nodes {
+          name
+          menuItems {
+            nodes {
+              uri
+              url
+              order
+              label
+            }
+          }
+        }
+      }
+      generalSettings {
+        title
+        url
+        description
+      }
+    }
+  `;
+  return cachedQuery<any>("layout", query, {});
+}
 
-export async function navQuery() {
-  const { data } = await client.query({
-    query: gql`
-      {
-        menus {
-          nodes {
-            name
-            menuItems {
-              nodes {
+// Homepage data query: sidebar widgets (recent posts / comments / tags /
+// categories / archive) plus sticky + most-viewed pools. Only index.astro
+// consumes this — MainLayout uses layoutQuery() for the shared chrome.
+export async function megaQuery(opts: {
+  sidebarPosts?: number;
+  recentComments?: number;
+  randomFirst?: number;
+  includeSticky?: boolean;
+} = {}) {
+  const { sidebarPosts = 5, recentComments = 5, randomFirst = 0, includeSticky = false } = opts;
+  const query = gql`
+    query MegaQuery($sidebarPosts: Int!, $recentComments: Int!, $randomFirst: Int!, $includeSticky: Boolean!) {
+      recentPosts: posts(first: $sidebarPosts, where: { orderby: { field: DATE, order: DESC } }) {
+        nodes {
+          id
+          date
+          uri
+          title
+          viewCount
+        }
+      }
+      allTags: tags(first: 100) {
+        nodes {
+          id
+          name
+          uri
+          count
+        }
+      }
+      allCategories: categories(first: 100) {
+        nodes {
+          id
+          name
+          uri
+          count
+          parent {
+            node {
+              name
+            }
+          }
+          children {
+            nodes {
+              name
+            }
+          }
+        }
+      }
+      recentComments: comments(first: $recentComments, where: { order: DESC }) {
+        nodes {
+          id
+          databaseId
+          content
+          date
+          author {
+            node {
+              name
+            }
+          }
+          commentedOn {
+            node {
+              ... on Post {
+                title
                 uri
-                url
-                order
-                label
+              }
+              ... on Page {
+                title
+                uri
               }
             }
           }
         }
-        generalSettings {
-          title
-          url
-          description
+      }
+      mostViewedPosts(first: $randomFirst) {
+        id
+        databaseId
+        title
+        uri
+        commentCount
+        viewCount
+        categories {
+          nodes {
+            name
+            uri
+          }
         }
       }
-    `,
-  });
-  return data;
+      stickyPosts @include(if: $includeSticky) {
+        id
+        databaseId
+        date
+        uri
+        title
+        commentCount
+        viewCount
+        excerpt
+        content
+        categories {
+          nodes {
+            name
+            uri
+          }
+        }
+        tags {
+          nodes {
+            name
+            uri
+          }
+        }
+        featuredImage {
+          node {
+            srcSet
+            sourceUrl
+            altText
+            mediaDetails {
+              height
+              width
+            }
+          }
+        }
+      }
+    }
+  `;
+  const variables = { sidebarPosts, recentComments, randomFirst, includeSticky };
+  const key = `mega:${sidebarPosts}:${recentComments}:${randomFirst}:${includeSticky}`;
+  return cachedQuery<any>(key, query, variables);
 }
 
 export async function homePagePostsQuery(first = 10, offset = 0) {
@@ -159,13 +349,7 @@ export async function homePagePostsQuery(first = 10, offset = 0) {
             }
             featuredImage {
               node {
-                srcSet
                 sourceUrl
-                altText
-                mediaDetails {
-                  height
-                  width
-                }
               }
             }
           }
@@ -173,102 +357,14 @@ export async function homePagePostsQuery(first = 10, offset = 0) {
       }
     `,
     variables: { first, offset },
+    // Homepage post list must stay real-time (new posts visible immediately).
+    // cache-purge was removed, so cache-first would leave it stale until
+    // process restart (see review #1).
+    fetchPolicy: "network-only",
   });
   return data;
 }
 
-export async function getStickyPosts() {
-  const { data } = await client.query({
-    query: gql`
-      query StickyPosts {
-        stickyPosts {
-          databaseId
-          date
-          uri
-          title
-          commentCount
-          viewCount
-          content
-          excerpt
-          categories {
-            nodes {
-              name
-              uri
-            }
-          }
-          tags {
-            nodes {
-              name
-              uri
-            }
-          }
-          featuredImage {
-            node {
-              srcSet
-              sourceUrl
-              altText
-              mediaDetails {
-                height
-                width
-              }
-            }
-          }
-        }
-      }
-    `,
-  });
-  return data.stickyPosts || [];
-}
-
-export async function getMostViewedPosts(first = 10): Promise<any[]> {
-  const { data } = await client.query({
-    query: gql`
-      query MostViewedPosts($first: Int!) {
-        mostViewedPosts(first: $first) {
-          databaseId
-          date
-          uri
-          title
-          commentCount
-          viewCount
-          excerpt
-          categories {
-            nodes {
-              name
-              uri
-            }
-          }
-          tags {
-            nodes {
-              name
-              uri
-            }
-          }
-          featuredImage {
-            node {
-              srcSet
-              sourceUrl
-              altText
-              mediaDetails {
-                height
-                width
-              }
-            }
-          }
-        }
-      }
-    `,
-    variables: { first },
-  });
-  return (data as any).mostViewedPosts || [];
-}
-
-/**
- * Fetch a random selection of published posts.
- * Fetches a larger candidate pool (candidates) then shuffles and slices it
- * client-side, avoiding ORDER BY RAND() on the WordPress side. Uses
- * network-only so the candidate pool itself refreshes on every request.
- */
 export async function getRandomPosts(
   count = 8,
   candidates = 50,
@@ -317,7 +413,7 @@ export async function getRandomPosts(
   return shuffle(pool).slice(0, count);
 }
 
-function shuffle<T>(arr: T[]): T[] {
+export function shuffle<T>(arr: T[]): T[] {
   const result = [...arr];
   for (let i = result.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -338,154 +434,6 @@ export async function recordPostView(postId: number | string): Promise<number | 
     variables: { postId: String(postId) },
   });
   return (data as any)?.recordPostView?.viewCount as number | undefined;
-}
-
-/**
- * Batch fetch the latest view counts for a set of posts.
- * Uses network-only so results are always fresh (bypasses the Apollo cache).
- * Returns a map of databaseId -> viewCount.
- */
-export async function getViewCounts(
-  ids: Array<number | string>,
-): Promise<Map<string, number>> {
-  const globalIds = ids.map((id) =>
-    typeof id === "string" && id.includes(":")
-      ? id
-      : btoa(`post:${id}`),
-  );
-
-  const { data } = await client.query({
-    query: gql`
-      query ViewCounts($ids: [ID!]!) {
-        posts(first: 100, where: { in: $ids }) {
-          nodes {
-            databaseId
-            viewCount
-          }
-        }
-      }
-    `,
-    variables: { ids: globalIds },
-    fetchPolicy: "network-only",
-  });
-
-  const map = new Map<string, number>();
-  const nodes = (data as any)?.posts?.nodes ?? [];
-  for (const node of nodes) {
-    if (node?.databaseId != null && typeof node.viewCount === "number") {
-      map.set(String(node.databaseId), node.viewCount);
-    }
-  }
-  return map;
-}
-
-export async function getRecentPosts(first = 5) {
-  const { data } = await client.query({
-    query: gql`
-      query RecentPosts($first: Int!) {
-        posts(first: $first, where: { orderby: { field: DATE, order: DESC } }) {
-          nodes {
-            date
-            uri
-            title
-            viewCount
-          }
-        }
-      }
-    `,
-    variables: { first },
-  });
-  return data.posts.nodes;
-}
-
-export async function getAllTags() {
-  const { data } = await client.query({
-    query: gql`
-      query AllTags {
-        tags(first: 100) {
-          nodes {
-            name
-            uri
-            count
-          }
-        }
-      }
-    `,
-  });
-  return data.tags.nodes;
-}
-
-export async function getRecentComments(first = 5) {
-  const { data } = await client.query({
-    query: gql`
-      query RecentComments($first: Int!) {
-        comments(first: $first, where: { order: DESC }) {
-          nodes {
-            databaseId
-            content
-            date
-            author {
-              node {
-                name
-              }
-            }
-            commentedOn {
-              node {
-                ... on Post {
-                  title
-                  uri
-                }
-                ... on Page {
-                  title
-                  uri
-                }
-              }
-            }
-          }
-        }
-      }
-    `,
-    variables: { first },
-  });
-  return data.comments.nodes;
-}
-
-export async function getPostContent(postId) {
-  const { data } = await client.query({
-    query: gql`
-      query GetPostContent($postId: ID!) {
-        post(id: $postId) {
-          id
-          title
-          date
-          uri
-          excerpt
-          content
-          categories {
-            nodes {
-              name
-              uri
-            }
-          }
-          featuredImage {
-            node {
-              srcSet
-              sourceUrl
-              altText
-              mediaDetails {
-                height
-                width
-              }
-            }
-          }
-        }
-      }
-    `,
-    variables: {
-      postId: postId,
-    },
-  });
-  return data.post;
 }
 
 export async function getNodeByURI(uri, wpToken) {
@@ -656,6 +604,9 @@ export async function getNodeByURI(uri, wpToken) {
       uri: uri,
     },
     context,
+    // Article pages (incl. comments) must stay real-time — never cache
+    // (see ADR-0015 layered caching).
+    fetchPolicy: "network-only",
   });
   return data;
 }
@@ -701,4 +652,94 @@ export async function getAllUris() {
       };
     });
   return uris;
+}
+
+// ── Timeline page queries (ADR-0016) ────────────────────────────────────────
+
+// Paginated posts for the timeline list. Light fields only (no content).
+export async function getTimelinePosts(
+  page = 1,
+  perPage = 10,
+): Promise<{ nodes: any[]; total: number }> {
+  const query = gql`
+    query TimelinePosts($first: Int!, $offset: Int!) {
+      posts(
+        first: $first
+        where: {
+          offsetPagination: { size: $first, offset: $offset }
+          orderby: { field: DATE, order: DESC }
+        }
+      ) {
+        pageInfo {
+          offsetPagination {
+            total
+          }
+        }
+        nodes {
+          databaseId
+          date
+          uri
+          title
+          viewCount
+          commentCount
+        }
+      }
+    }
+  `;
+  const variables = { first: perPage, offset: (page - 1) * perPage };
+  const key = `timelinePosts:${page}:${perPage}`;
+  const data = await cachedQuery<any>(key, query, variables);
+  return {
+    nodes: data.posts.nodes,
+    total: data.posts.pageInfo?.offsetPagination?.total ?? 0,
+  };
+}
+
+// All posts' light fields (date/viewCount/commentCount) for the heatmap +
+// stats aggregation. Fetches ALL posts by paging through the connection
+// (WPGraphQL caps `first` at 100) and caches each page 60s.
+export async function getTimelineStats(): Promise<any[]> {
+  const all: any[] = [];
+  const PAGE = 100;
+  const query = gql`
+    query TimelineStats($first: Int!, $offset: Int!) {
+      posts(
+        first: $first
+        where: {
+          offsetPagination: { size: $first, offset: $offset }
+          orderby: { field: DATE, order: DESC }
+        }
+      ) {
+        pageInfo {
+          offsetPagination {
+            total
+          }
+        }
+        nodes {
+          databaseId
+          date
+          uri
+          title
+          viewCount
+          commentCount
+        }
+      }
+    }
+  `;
+  let offset = 0;
+  for (;;) {
+    const key = `timelineStats:${offset}`;
+    const data = await cachedQuery<any>(key, query, {
+      first: PAGE,
+      offset,
+    });
+    const nodes = data.posts.nodes || [];
+    all.push(...nodes);
+    // Stop by the server-reported total instead of node count so a total that
+    // is an exact multiple of PAGE doesn't trigger one empty trailing request.
+    const total = data.posts?.pageInfo?.offsetPagination?.total ?? 0;
+    offset += PAGE;
+    if (offset >= total) break;
+  }
+  return all;
 }

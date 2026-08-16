@@ -5,11 +5,11 @@ import StickyCarousel from "../components/StickyCarousel.astro";
 import Pagination from "../components/Pagination.astro";
 import MaintenancePage from "../components/MaintenancePage.astro";
 import MainLayout from "../layouts/MainLayout.astro";
-import ViewCountsProvider from "../components/ViewCountsProvider";
 import {
   homePagePostsQuery,
-  getStickyPosts,
-  getRandomPosts,
+  megaQuery,
+  getTimelineStats,
+  shuffle,
 } from "@api/api";
 
 const perPage = 10;
@@ -23,32 +23,41 @@ const offset = (currentPage - 1) * perPage;
 let posts: any[] = [];
 let stickyPosts: any[] = [];
 let popularPosts: any[] = [];
+let sidebarData: any = null;
 let total = 0;
 let hasError = false;
 
 try {
-  const result = await Promise.all([
+  const [data, mega, archivePosts] = await Promise.all([
     homePagePostsQuery(perPage, offset),
-    getStickyPosts(),
-    getRandomPosts(8, 50),
+    megaQuery({
+      sidebarPosts: 5,
+      recentComments: 5,
+      randomFirst: 30,
+      includeSticky: true,
+    }),
+    getTimelineStats(),
   ]);
-  const data = result[0];
   posts = data.posts.nodes;
   total = data.posts.pageInfo?.offsetPagination?.total ?? 0;
-  stickyPosts = result[1];
-  popularPosts = result[2];
+  stickyPosts = mega.stickyPosts ?? [];
+  // 随机推荐：取 mostViewedPosts 候选池并洗牌（替代 getRandomPosts）
+  popularPosts = shuffle(mega.mostViewedPosts ?? []).slice(0, 8);
+  // Homepage sidebar is homepage-only content — fetched here and passed down
+  // through MainLayout so article/utility pages never fetch it (see ADR-0013).
+  sidebarData = {
+    posts: mega.recentPosts?.nodes ?? [],
+    tags: mega.allTags?.nodes ?? [],
+    categories: mega.allCategories?.nodes ?? [],
+    comments: mega.recentComments?.nodes ?? [],
+    archivePosts,
+  };
 } catch (err) {
   console.warn("Failed to fetch homepage data:", err);
   hasError = true;
 }
 
 const totalPages = Math.max(1, Math.ceil(total / perPage));
-
-// Collect every post whose view count should refresh live (posts + sticky + popular).
-const viewCountTargets = [...posts, ...stickyPosts, ...popularPosts].map((p, i) => ({
-  databaseId: p.databaseId,
-  elementId: `home-view-${p.databaseId ?? i}`,
-}));
 
 // Homepage contains live view counts, so it must not be cached by proxies.
 Astro.response.headers.set("Cache-Control", "no-cache, must-revalidate");
@@ -60,8 +69,8 @@ Astro.response.headers.set("Cache-Control", "no-cache, must-revalidate");
   ) : (
     <MainLayout
       title="Home Page"
+      sidebarData={sidebarData}
     >
-      <ViewCountsProvider targets={viewCountTargets} client:load />
       <main style="margin-top: 1.5rem;">
         <StickyCarousel posts={stickyPosts} />
 

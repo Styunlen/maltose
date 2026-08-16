@@ -93,6 +93,10 @@ const TTL_CONFIG: Record<string, number> = {
   GetPost: 30,
   PreviewByUri: 300,
   MaltoseSettings: 300,
+  StatsCategories: 300,
+  StatsComments: 300,
+  CommentGeoStats: 300,
+  StatsContent: 300,
 };
 
 const STRONG_CONSISTENCY = new Set<string>(["GetNodeByURI", "GetPost"]);
@@ -830,4 +834,153 @@ export async function maltoseSettingsQuery() {
   `;
   const { data } = await client.query({ query, variables: {} });
   return data;
+}
+
+// ── Stats dashboard queries (ADR-0026) ─────────────────────────────────────
+
+// Category counts for the /stats category-share section. Light fields only.
+export async function statsCategoriesQuery() {
+  const query = gql`
+    query StatsCategories {
+      categories(first: 100) {
+        nodes {
+          id
+          databaseId
+          name
+          uri
+          count
+        }
+      }
+    }
+  `;
+  const { data } = await client.query({ query, variables: {} });
+  return data;
+}
+
+// Every comment's author name for the commenter leaderboard. `author` is
+// public (unlike authorIp), so the dashboard aggregates it client-side via
+// cursor pagination (WPGraphQL caps `first` at 100).
+export async function getAllComments(): Promise<any[]> {
+  const all: any[] = [];
+  const PAGE = 100;
+  const query = gql`
+    query StatsComments($first: Int!, $after: String) {
+      comments(first: $first, after: $after, where: { order: ASC }) {
+        pageInfo {
+          endCursor
+          hasNextPage
+        }
+        nodes {
+          id
+          author {
+            node {
+              name
+            }
+          }
+        }
+      }
+    }
+  `;
+  let after: string | null = null;
+  for (;;) {
+    const { data } = await client.query({
+      query,
+      variables: { first: PAGE, after },
+    });
+    const nodes = data.comments?.nodes || [];
+    all.push(...nodes);
+    const pageInfo = data.comments?.pageInfo;
+    if (!pageInfo?.hasNextPage || !pageInfo.endCursor) break;
+    after = pageInfo.endCursor;
+  }
+  return all;
+}
+
+// Province/country leaderboards aggregated server-side by WordPress
+// (bypasses the private Comment.authorIp field — see ADR-0026). Includes the
+// siteBirthday option (fallback handled on the page when null).
+export async function commentGeoStatsQuery() {
+  const query = gql`
+    query CommentGeoStats {
+      siteBirthday
+      commentGeoStats {
+        total
+        resolved
+        updatedAt
+        provinces {
+          name
+          count
+        }
+        countries {
+          name
+          count
+        }
+      }
+    }
+  `;
+  const { data } = await client.query({ query, variables: {} });
+  return data;
+}
+
+// All posts' content for the 累计字数 (cumulative word count) aggregate.
+// Word count can't be derived from getTimelineStats' light fields, so this
+// pages through every post fetching content only, then sums stripped text
+// length client-side. Cached 300s like the other stats queries.
+export async function getStatsContents(): Promise<string[]> {
+  const all: string[] = [];
+  const PAGE = 100;
+  const query = gql`
+    query StatsContent($first: Int!, $offset: Int!) {
+      posts(
+        first: $first
+        where: {
+          offsetPagination: { size: $first, offset: $offset }
+          orderby: { field: DATE, order: DESC }
+        }
+      ) {
+        pageInfo {
+          offsetPagination {
+            total
+          }
+        }
+        nodes {
+          content
+        }
+      }
+    }
+  `;
+  let offset = 0;
+  for (;;) {
+    const { data } = await client.query({
+      query,
+      variables: { first: PAGE, offset },
+    });
+    const nodes = data.posts?.nodes || [];
+    for (const node of nodes) {
+      if (node?.content) all.push(node.content);
+    }
+    const total = data.posts?.pageInfo?.offsetPagination?.total ?? 0;
+    offset += PAGE;
+    if (offset >= total) break;
+  }
+  return all;
+}
+
+// Approximate 字数: strip HTML tags, collapse whitespace, then count
+// CJK characters + latin/numeric words individually. Matches how the
+// reference dashboard counts 累计字数.
+export function countContentWords(html: string): number {
+  if (!html) return 0;
+  const text = html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&[a-zA-Z#0-9]+;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const cjk = text.match(/[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/g) || [];
+  const cjkCount = cjk.length;
+  const latin = text
+    .replace(/[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 0).length;
+  return cjkCount + latin;
 }

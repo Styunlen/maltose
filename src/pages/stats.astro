@@ -1,0 +1,277 @@
+---
+// 站点数据看板（ADR-0026）：/stats
+// 数据分三类：
+//   1. 文章维度 —— getTimelineStats（全量文章，LruLink TTL 300）+ 分类查询 + 评论查询
+//   2. 最勤评论者 —— 评论 author 字段公开，前端聚合
+//   3. 地域分布 —— WP 服务端聚合（commentGeoStats），transient 缓存 12h
+import MainLayout from "@/layouts/MainLayout.astro";
+import StatCards from "@/components/stats/StatCards";
+import BarChart from "@/components/stats/BarChart";
+import ProgressBars from "@/components/stats/ProgressBars";
+import Leaderboard from "@/components/stats/Leaderboard";
+import {
+  getTimelineStats,
+  statsCategoriesQuery,
+  getAllComments,
+  commentGeoStatsQuery,
+  getStatsContents,
+  countContentWords,
+} from "@api/api";
+
+Astro.response.headers.set("Cache-Control", "max-age=600");
+
+let posts: any[] = [];
+let totalComments = 0;
+let totalWords = 0;
+let categories: any[] = [];
+let commenters: any[] = [];
+let provinces: any[] = [];
+let countries: any[] = [];
+let geoTotal = 0;
+let geoResolved = 0;
+let geoUpdatedAt = "";
+let siteBirthday: string | null = null;
+let hasError = false;
+
+try {
+  const [allPosts, catData, comments, geoData, contents] = await Promise.all([
+    getTimelineStats(),
+    statsCategoriesQuery(),
+    getAllComments(),
+    commentGeoStatsQuery(),
+    getStatsContents(),
+  ]);
+
+  posts = allPosts;
+  totalComments = posts.reduce((s, p) => s + (p.commentCount || 0), 0);
+  totalWords = contents.reduce((s, html) => s + countContentWords(html), 0);
+
+  categories = (catData.categories?.nodes || [])
+    .filter((c: any) => (c.count || 0) > 0)
+    .sort((a: any, b: any) => b.count - a.count);
+
+  const authorMap = new Map<string, number>();
+  for (const c of comments || []) {
+    const name = c?.author?.node?.name;
+    if (!name) continue;
+    authorMap.set(name, (authorMap.get(name) || 0) + 1);
+  }
+  commenters = [...authorMap.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count);
+
+  provinces = geoData?.commentGeoStats?.provinces || [];
+  countries = geoData?.commentGeoStats?.countries || [];
+  geoTotal = geoData?.commentGeoStats?.total || 0;
+  geoResolved = geoData?.commentGeoStats?.resolved || 0;
+  geoUpdatedAt = geoData?.commentGeoStats?.updatedAt || "";
+  siteBirthday = geoData?.siteBirthday || null;
+} catch (err) {
+  console.warn("Stats data fetch failed:", err);
+  hasError = true;
+}
+
+// ── 运行天数：优先 site_birthday 主题选项，未填回落到首篇时间 ──
+const sortedDates = posts
+  .map((p) => p.date?.slice(0, 10))
+  .filter(Boolean)
+  .sort();
+const firstDate = sortedDates[0];
+
+// 已运行天数（ADR-0026 决策 4）：site_birthday 优先，否则取首篇发布时间。
+const anchor = siteBirthday && !isNaN(new Date(siteBirthday).getTime()) ? siteBirthday : firstDate;
+const runningDays = anchor
+  ? Math.max(1, Math.floor((Date.now() - new Date(anchor).getTime()) / (1000 * 60 * 60 * 24)) + 1)
+  : 0;
+
+// ── 平均更新间隔（天/篇）──
+const lastDate = sortedDates[sortedDates.length - 1];
+let avgInterval = 0;
+if (sortedDates.length >= 2) {
+  avgInterval =
+    (new Date(lastDate).getTime() - new Date(firstDate).getTime()) /
+    (1000 * 60 * 60 * 24) /
+    (sortedDates.length - 1);
+}
+
+// ── 近 30 天发布节奏（每日文章数）──
+const now = Date.now();
+const dayCounts = new Map<string, number>();
+for (const p of posts) {
+  const day = p.date?.slice(0, 10);
+  if (day) dayCounts.set(day, (dayCounts.get(day) || 0) + 1);
+}
+const rhythm: { label: string; value: number; title?: string }[] = [];
+for (let i = 29; i >= 0; i--) {
+  const d = new Date(now - i * 1000 * 60 * 60 * 24);
+  const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  rhythm.push({
+    label: `${d.getMonth() + 1}/${d.getDate()}`,
+    value: dayCounts.get(iso) || 0,
+    title: `${iso} · ${dayCounts.get(iso) || 0} 篇`,
+  });
+}
+const rhythmTotal = rhythm.reduce((s, r) => s + r.value, 0);
+
+// ── 年度产出（按年文章数）──
+const yearCounts = new Map<string, number>();
+for (const p of posts) {
+  const y = p.date?.slice(0, 4);
+  if (y) yearCounts.set(y, (yearCounts.get(y) || 0) + 1);
+}
+const yearly = [...yearCounts.entries()]
+  .map(([label, value]) => ({ label, value, title: `${label} 年 · ${value} 篇` }))
+  .sort((a, b) => a.label.localeCompare(b.label));
+
+// ── 分类占比（Top 12）──
+const categoryMax = categories[0]?.count || 1;
+const categoryItems = categories.slice(0, 12).map((c: any) => ({
+  label: c.name,
+  count: c.count,
+  percent: Math.round((c.count / categoryMax) * 100),
+}));
+---
+
+<MainLayout title="站点数据看板">
+  <div style={{ maxWidth: 760, margin: "1.5rem auto 0", padding: "0 1.25rem" }}>
+    <h1 style={{ fontSize: "1.5rem", fontWeight: 800, marginBottom: "0.25rem" }}>
+      📊 站点数据看板
+    </h1>
+    <p style={{ fontSize: "0.85rem", color: "var(--muted-foreground)", marginBottom: "1rem" }}>
+      这个博客到今天为止，长成了什么样子
+    </p>
+
+    {hasError ? (
+      <p style={{ color: "var(--muted-foreground)", textAlign: "center", padding: "2rem" }}>
+        数据加载失败，请稍后重试
+      </p>
+    ) : (
+      <>
+        <StatCards
+          runningDays={runningDays}
+          totalPosts={posts.length}
+          totalWords={totalWords}
+          totalComments={totalComments}
+          avgInterval={avgInterval}
+        />
+
+        {/* 近 30 天发布节奏 */}
+        <section
+          style={{
+            background: "var(--card)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius)",
+            padding: "1rem",
+            margin: "1rem 0",
+          }}
+        >
+          <h2 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.25rem" }}>
+            近 30 天发布节奏
+            <span style={{ fontSize: "0.75rem", color: "var(--muted-foreground)", fontWeight: 400, marginLeft: "0.5rem" }}>
+              共 {rhythmTotal} 篇
+            </span>
+          </h2>
+          <BarChart data={rhythm} height={120} />
+        </section>
+
+        {/* 年度产出 */}
+        <section
+          style={{
+            background: "var(--card)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius)",
+            padding: "1rem",
+            margin: "1rem 0",
+          }}
+        >
+          <h2 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.25rem" }}>
+            年度产出
+          </h2>
+          <BarChart data={yearly} height={120} />
+        </section>
+
+        {/* 分类占比 */}
+        {categoryItems.length > 0 && (
+          <section
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius)",
+              padding: "1rem",
+              margin: "1rem 0",
+            }}
+          >
+            <h2 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.75rem" }}>
+              分类占比
+            </h2>
+            <ProgressBars items={categoryItems} />
+          </section>
+        )}
+
+        {/* 最勤评论者 */}
+        {commenters.length > 0 && (
+          <section
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius)",
+              padding: "1rem",
+              margin: "1rem 0",
+            }}
+          >
+            <h2 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.75rem" }}>
+              最勤评论者
+            </h2>
+            <Leaderboard items={commenters} limit={10} />
+          </section>
+        )}
+
+        {/* 评论者地域分布 */}
+        {provinces.length + countries.length > 0 && (
+          <section
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius)",
+              padding: "1rem",
+              margin: "1rem 0",
+            }}
+          >
+            <h2 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.25rem" }}>
+              评论者地域分布
+              <span style={{ fontSize: "0.75rem", color: "var(--muted-foreground)", fontWeight: 400, marginLeft: "0.5rem" }}>
+                已定位 {geoResolved.toLocaleString()} / {geoTotal.toLocaleString()} 条评论
+              </span>
+            </h2>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: "1rem",
+                marginTop: "0.75rem",
+              }}
+            >
+              <div>
+                <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--muted-foreground)", marginBottom: "0.5rem" }}>
+                  省份榜
+                </div>
+                <Leaderboard items={provinces} limit={12} />
+              </div>
+              <div>
+                <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--muted-foreground)", marginBottom: "0.5rem" }}>
+                  国家 / 地区榜
+                </div>
+                <Leaderboard items={countries} limit={12} />
+              </div>
+            </div>
+            {geoUpdatedAt && (
+              <p style={{ fontSize: "0.72rem", color: "var(--muted-foreground)", marginTop: "0.75rem", textAlign: "right" }}>
+                数据更新于 {geoUpdatedAt}
+              </p>
+            )}
+          </section>
+        )}
+      </>
+    )}
+  </div>
+</MainLayout>

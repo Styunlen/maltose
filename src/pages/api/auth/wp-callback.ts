@@ -1,5 +1,9 @@
 import type { APIRoute } from "astro";
 import { sanitizeReturnTo } from "@lib/url";
+import {
+  getWpAuthorizationUrlInteractive,
+} from "@lib/auth/authentik";
+import { randomBytes } from "node:crypto";
 
 import { getProxyUrl } from '@lib/graphql-proxy';
 
@@ -11,11 +15,35 @@ function errorRedirect(error: string, hint: string) {
   return `/?${params.toString()}`;
 }
 
+// Authentik errors that mean "the user isn't authenticated but could be" —
+// recoverable by showing the interactive login page. Anything else is a hard
+// failure and should surface as an error (see ADR-0011).
+const RECOVERABLE_AUTH_ERRORS = [
+  "login_required",
+  "interaction_required",
+  "account_selection_required",
+];
+
 export const GET: APIRoute = async ({ url, redirect, cookies }) => {
   const code = url.searchParams.get("code");
   const stateParam = url.searchParams.get("state");
+  const error = url.searchParams.get("error");
 
   if (!code) {
+    // The silent prompt=none attempt failed because the user has no active
+    // Authentik session. Fall back to the interactive login URL (prompt=login)
+    // with a fresh state so we always get a code back instead of erroring.
+    if (error && RECOVERABLE_AUTH_ERRORS.includes(error)) {
+      const stateBytes = randomBytes(16);
+      const state = stateBytes.toString("hex");
+      cookies.set("wp_auth_state", JSON.stringify({ state, returnTo: "/" }), {
+        path: "/",
+        httpOnly: true,
+        sameSite: "lax",
+        maxAge: 300,
+      });
+      return redirect(getWpAuthorizationUrlInteractive(state));
+    }
     return redirect(errorRedirect("WP 登录失败", "未收到授权码"));
   }
 

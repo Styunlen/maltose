@@ -2,6 +2,7 @@ import { defineMiddleware } from "astro/middleware";
 import { verifySessionToken, sessionToUser } from "@lib/auth/session";
 import { getProxyUrl } from "@lib/graphql-proxy";
 import jwt from "jsonwebtoken";
+import { createHash } from "node:crypto";
 
 // WPGraphQL JWT carries the user id as a string; normalize to a number for
 // consistent comparison against numeric databaseId fields.
@@ -9,6 +10,67 @@ function normalizeUserId(raw: unknown): number | null {
   if (raw == null) return null;
   const n = Number(raw);
   return Number.isNaN(n) ? null : n;
+}
+
+// ── Token refresh queue (see ADR-0012) ──────────────────────────────────────
+// Dedupe concurrent refresh calls per user. Keyed by the sha256 of the refresh
+// token so different users (different refresh tokens) never share a refresh.
+// The first request to hit an expiring token starts one refresh; the rest
+// await the same in-flight promise instead of each firing their own request.
+const refreshInFlight = new Map<string, Promise<string | null>>();
+
+function hashToken(t: string): string {
+  return createHash("sha256").update(t).digest("hex");
+}
+
+async function refreshTokenFor(refreshToken: string): Promise<string | null> {
+  const key = hashToken(refreshToken);
+  const inFlight = refreshInFlight.get(key);
+  if (inFlight) return inFlight;
+
+  const p = (async () => {
+    try {
+      const res = await fetch(getProxyUrl(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: `
+            mutation RefreshAuthToken($input: RefreshTokenInput!) {
+              refreshToken(input: $input) { authToken authTokenExpiration }
+            }
+          `,
+          variables: { input: { refreshToken } },
+        }),
+      });
+      const data = await res.json();
+      return data?.data?.refreshToken?.authToken ?? null;
+    } catch {
+      return null;
+    } finally {
+      refreshInFlight.delete(key);
+    }
+  })();
+
+  refreshInFlight.set(key, p);
+  return p;
+}
+
+// Apply the refreshed token to the current response + locals.
+function applyNewToken(
+  context: Parameters<typeof onRequest>[0],
+  newToken: string,
+): void {
+  context.cookies.set("wp_token", newToken, {
+    path: "/", httpOnly: true, sameSite: "lax",
+    maxAge: 60 * 60 * 24 * 7, secure: import.meta.env.PROD,
+  });
+  context.locals.wpToken = newToken;
+  try {
+    const freshDecoded = jwt.decode(newToken) as any;
+    context.locals.wpUserId = normalizeUserId(freshDecoded?.data?.user?.id);
+  } catch {
+    context.locals.wpUserId = null;
+  }
 }
 
 export const onRequest = defineMiddleware(async (context, next) => {
@@ -31,43 +93,13 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // If wp_token is missing but wp_refresh exists, try to refresh
   if (!wpToken && wpRefreshToken) {
     if (import.meta.env.DEV) console.log("[TOKEN] wp_token missing, wp_refresh exists, attempting silent refresh");
-    try {
-      const res = await fetch(getProxyUrl(), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query: `
-            mutation RefreshAuthToken($input: RefreshTokenInput!) {
-              refreshToken(input: $input) { authToken authTokenExpiration }
-            }
-          `,
-          variables: { input: { refreshToken: wpRefreshToken } },
-        }),
-      });
-      const data = await res.json();
-      const newToken = data?.data?.refreshToken?.authToken;
-      if (import.meta.env.DEV) console.log("[TOKEN] silent refresh status:", res.status, "hasNewToken:", !!newToken);
-      if (newToken) {
-        context.cookies.set("wp_token", newToken, {
-          path: "/", httpOnly: true, sameSite: "lax",
-          maxAge: 60 * 60 * 24 * 7, secure: import.meta.env.PROD,
-        });
-        context.locals.wpToken = newToken;
-        // Decode the fresh token so the current request reflects the user
-        try {
-          const freshDecoded = jwt.decode(newToken) as any;
-          context.locals.wpUserId = normalizeUserId(freshDecoded?.data?.user?.id);
-        } catch {
-          context.locals.wpUserId = null;
-        }
-        return next();
-      }
-      // Silent refresh failed — drop the stale refresh token.
-      context.cookies.delete("wp_refresh", { path: "/" });
-    } catch (e) {
-      if (import.meta.env.DEV) console.log("[TOKEN] silent refresh failed:", e);
-      context.cookies.delete("wp_refresh", { path: "/" });
+    const newToken = await refreshTokenFor(wpRefreshToken);
+    if (newToken) {
+      applyNewToken(context, newToken);
+      return next();
     }
+    // Silent refresh failed — drop the stale refresh token.
+    context.cookies.delete("wp_refresh", { path: "/" });
     context.locals.wpUserId = null;
     return next();
   }
@@ -79,47 +111,25 @@ export const onRequest = defineMiddleware(async (context, next) => {
       const now = Date.now();
       const expMs = exp * 1000;
       const expired = expMs <= now;
-      const expiringSoon = !expired && expMs - now < 3600 * 1000;
+      // Only refresh when truly near expiry (30s) or expired. WP tokens live
+      // ~5 min; a 1h window would refresh on every single request (ADR-0012).
+      const expiringSoon = !expired && expMs - now < 30 * 1000;
       if (import.meta.env.DEV) console.log("[TOKEN] expired:", expired, "expMs:", new Date(expMs).toISOString(), "now:", new Date(now).toISOString());
 
       // Try refresh if expired or expiring soon
       if ((expired || expiringSoon) && context.cookies.get("wp_refresh")?.value) {
         const refreshToken = context.cookies.get("wp_refresh")!.value;
         if (import.meta.env.DEV) console.log("[TOKEN] attempting refresh, refreshToken length:", refreshToken.length);
-        try {
-          const res = await fetch(getProxyUrl(), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              query: `
-                mutation RefreshAuthToken($input: RefreshTokenInput!) {
-                  refreshToken(input: $input) { authToken authTokenExpiration }
-                }
-              `,
-              variables: { input: { refreshToken } },
-            }),
-          });
-          const data = await res.json();
-          if (import.meta.env.DEV) console.log("[TOKEN] refresh response status:", res.status, "hasErrors:", !!data?.errors, "hasNewToken:", !!data?.data?.refreshToken?.authToken);
-          if (data?.errors && import.meta.env.DEV) {
-            console.log("[TOKEN] refresh errors:", JSON.stringify(data.errors));
-          }
-          const newToken = data?.data?.refreshToken?.authToken;
-          if (newToken) {
-            context.cookies.set("wp_token", newToken, {
-              path: "/", httpOnly: true, sameSite: "lax",
-              maxAge: 60 * 60 * 24 * 7, secure: import.meta.env.PROD,
-            });
-            context.locals.wpToken = newToken;
-            const freshDecoded = jwt.decode(newToken) as any;
-            context.locals.wpUserId = normalizeUserId(freshDecoded?.data?.user?.id);
-            return next();
-          }
-          // Refresh failed (e.g. token revoked) — drop the stale refresh token
-          // so we don't retry a doomed refresh on every request.
-          if (import.meta.env.DEV) console.log("[TOKEN] refresh returned no token, clearing wp_refresh");
-          context.cookies.delete("wp_refresh", { path: "/" });
-        } catch { /* refresh failed */ }
+        const newToken = await refreshTokenFor(refreshToken);
+        if (import.meta.env.DEV) console.log("[TOKEN] refresh done, hasNewToken:", !!newToken);
+        if (newToken) {
+          applyNewToken(context, newToken);
+          return next();
+        }
+        // Refresh failed (e.g. token revoked) — drop the stale refresh token
+        // so we don't retry a doomed refresh on every request.
+        if (import.meta.env.DEV) console.log("[TOKEN] refresh returned no token, clearing wp_refresh");
+        context.cookies.delete("wp_refresh", { path: "/" });
       }
 
       // If token is expired and refresh failed or no refresh token, clear it

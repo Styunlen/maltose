@@ -91,6 +91,24 @@ export function getWpAuthorizationUrl(state: string): string {
   return `${AUTH_ENDPOINT}?${params.toString()}`;
 }
 
+// Interactive fallback for WP login. Used when the silent attempt
+// (prompt=none) fails with a recoverable auth error (e.g. login_required).
+// Deliberately has NO prompt parameter: Authentik's prompt=login has an
+// upstream bug (goauthentik issues #12182/#18507) that forces re-authentication
+// even right after a successful login, causing a redirect loop (especially with
+// third-party sources like Google/GitHub). Without prompt, Authentik shows the
+// login page when there's no session and silently proceeds once one exists.
+export function getWpAuthorizationUrlInteractive(state: string): string {
+  const params = new URLSearchParams({
+    client_id: getWpClientId(),
+    redirect_uri: `${getAppUrl()}/api/auth/wp-callback`,
+    response_type: "code",
+    scope: "openid profile email",
+    state,
+  });
+  return `${AUTH_ENDPOINT}?${params.toString()}`;
+}
+
 export async function exchangeCodeForTokens(
   code: string,
 ): Promise<TokenResponse> {

@@ -1,0 +1,65 @@
+---
+import MainLayout from "@/layouts/MainLayout.astro";
+import Pagination from "@/components/Pagination.astro";
+import GitHubCalendar from "@/components/timeline/GitHubCalendar";
+import StatsCards from "@/components/timeline/StatsCards";
+import TimelineList from "@/components/timeline/TimelineList";
+import { getTimelinePosts, getTimelineStats } from "@api/api";
+
+const PER_PAGE = 100;
+const url = new URL(Astro.url);
+const pageParam = url.searchParams.get("page");
+const currentPage = Math.max(1, parseInt(pageParam || "1", 10) || 1);
+
+let posts: any[] = [];
+let statsPosts: any[] = [];
+let total = 0;
+let totalComments = 0;
+let hasError = false;
+
+try {
+  const [pageData, allPosts] = await Promise.all([
+    getTimelinePosts(currentPage, PER_PAGE),
+    getTimelineStats(),
+  ]);
+  posts = pageData.nodes;
+  total = pageData.total;
+  statsPosts = allPosts;
+  totalComments = allPosts.reduce((s, p) => s + (p.commentCount || 0), 0);
+} catch (err) {
+  console.warn("Timeline data fetch failed:", err);
+  hasError = true;
+}
+
+const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
+---
+
+<MainLayout title="时光轴">
+  <div style={{ maxWidth: 760, margin: "1.5rem auto 0", padding: "0 1.25rem" }}>
+    <h1 style={{ fontSize: "1.5rem", fontWeight: 800, marginBottom: "0.25rem" }}>
+      🌐 时光轴
+    </h1>
+    <p style={{ fontSize: "0.85rem", color: "var(--muted-foreground)", marginBottom: "1rem" }}>
+      把每一次写作，钉在属于它的那一天
+    </p>
+
+    {hasError ? (
+      <p style={{ color: "var(--muted-foreground)", textAlign: "center", padding: "2rem" }}>
+        数据加载失败，请稍后重试
+      </p>
+    ) : (
+      <>
+        <GitHubCalendar posts={statsPosts} client:load />
+        <StatsCards posts={statsPosts} totalComments={totalComments} />
+        <TimelineList posts={posts} client:load />
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          hasNextPage={currentPage < totalPages}
+          hasPreviousPage={currentPage > 1}
+          basePath="/timeline"
+        />
+      </>
+    )}
+  </div>
+</MainLayout>

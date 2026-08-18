@@ -2,14 +2,14 @@
 
 import * as React from "react";
 import { IdleAnimation, SkinViewer, SwimAnimation } from "skinview3d";
-import { Minus } from "lucide-react";
 
 // MC 皮肤 3D 看板娘（见 ADR-0027）。
 // 使用 skinview3d（bs-community，three.js 驱动）——相比早期用的
 // minecraft-skin-viewer，skinview3d 公开暴露 playerObject.skin.head 等
 // 部件级 BodyPart，眼睛跟随可直接只转头（更自然），且全类型安全（无 hack）。
-// 完全无壳：纯 canvas 悬浮在右下角，无边框/背景/圆角。
-// 交互层（拖拽把手条 + 收起钮）默认透明，hover 时淡入。
+// 完全无壳：纯 canvas 悬浮在右下角，无边框/背景/圆角，无收起功能。
+// 整个 canvas 按下即拖动移动容器（OrbitControls 禁用，相机视角固定）；
+// 单击（无拖拽）预留气泡功能入口。
 const SKIN_URL = "/skins/styunlen.png";
 
 // 拖拽位移阈值：低于该值视为「点击」，高于则视为拖拽
@@ -155,8 +155,8 @@ export default function Live2DAvatar() {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const rootRef = React.useRef<HTMLDivElement>(null);
   const viewerRef = React.useRef<SkinViewer | null>(null);
-  // 是否展开显示 3D 看板娘（收起时只剩一个小方块按钮）
-  const [expanded, setExpanded] = React.useState(true);
+  // 看板娘始终展开（无收起功能），expanded 固定 true 供 effect 守卫使用
+  const expanded = true;
   // 相对锚点（right-4 bottom-4）的拖拽偏移量，通过 transform: translate 应用
   const [offset, setOffset] = React.useState({ x: 0, y: 0 });
   // offset 的 ref 镜像（游泳 rAF 循环内读，避免闭包过期）
@@ -200,15 +200,15 @@ export default function Live2DAvatar() {
   });
 
   // 初始化 skinview3d：仅在客户端执行（client:load island）。
-  // 收起时卸载 canvas → effect 清理调用 dispose()，释放 WebGL 并停止动画循环。
+  // 组件卸载时 effect 清理调用 dispose()，释放 WebGL 并停止动画循环。
   React.useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !expanded) return;
     const viewer = new SkinViewer({
       canvas,
-      skin: SKIN_URL, // 静态资源，浏览器会缓存，收起再展开时命中缓存
-      width: 160,
-      height: 160,
+      skin: SKIN_URL, // 静态资源，浏览器缓存后快速加载
+      width: 180,
+      height: 180,
       pixelRatio: "match-device",
     });
     // 只转头（眼睛跟随），禁用拖拽旋转（OrbitControls）避免与看板娘移动冲突
@@ -452,7 +452,7 @@ export default function Live2DAvatar() {
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(timer);
-      // 复位屏幕位移 + 模型朝向，避免收起再展开时残留游动状态；切回 idle 动画
+      // 复位屏幕位移 + 模型朝向，避免组件重挂载时残留游动状态；切回 idle 动画
       setSwimOffset({ x: 0, y: 0 });
       const viewer = viewerRef.current;
       if (viewer && !viewer.disposed) {
@@ -463,7 +463,7 @@ export default function Live2DAvatar() {
     };
   }, [expanded]);
 
-  // 窗口 resize 或展开/收起时，把 offset 重新 clamp 到当前视口边界
+  // 窗口 resize 或容器尺寸变化时，把 offset 重新 clamp 到当前视口边界
   // （容器尺寸随 expanded 变化，窗口缩小后看板娘可能越界）
   const clampOffset = React.useCallback(() => {
     const root = rootRef.current;
@@ -514,8 +514,8 @@ export default function Live2DAvatar() {
       startY: e.clientY,
       baseX: offset.x,
       baseY: offset.y,
-      width: rect?.width ?? 160,
-      height: rect?.height ?? 160,
+      width: rect?.width ?? 180,
+      height: rect?.height ?? 180,
     };
     e.currentTarget.setPointerCapture(e.pointerId);
     e.preventDefault();
@@ -546,10 +546,11 @@ export default function Live2DAvatar() {
     dragRef.current = null;
   };
 
-  // 收起态 FAB：点击展开，拖拽不触发展开
-  const onFabClick = () => {
+  // 单击 canvas（无拖拽位移）：预留气泡功能入口。拖动时 movedRef 置位，
+  // 点击不触发（与拖拽区分）。未来在此触发看板娘气泡。
+  const onCanvasClick = () => {
     if (movedRef.current) return;
-    setExpanded(true);
+    // TODO(bubble): 未来气泡功能入口——点击看板娘弹出气泡对话
   };
 
   return (
@@ -563,41 +564,22 @@ export default function Live2DAvatar() {
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
     >
-      {expanded ? (
-        <div className="group relative">
-          <canvas
-            ref={canvasRef}
-            className="h-40 w-40 cursor-grab rounded-lg bg-transparent active:cursor-grabbing"
-          />
-          {/* 透明交互层：hover 时淡入显示，平时不可见 */}
-          <div className="pointer-events-none absolute inset-0 flex flex-col justify-between opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-            {/* 顶部拖拽把手条：透明，按下可移动整个看板娘。
-                pointer-events-auto 覆盖父容器的 pointer-events-none，
-                否则 hover 显示的把手条无法接收 pointerdown（拖拽失效）。 */}
-            <div
-              className="pointer-events-auto flex h-8 cursor-grab touch-none select-none items-center justify-end rounded-md bg-primary/10 px-1.5 backdrop-blur-sm"
-              onPointerDown={beginDrag}
-            >
-              <button
-                onClick={() => setExpanded(false)}
-                className="pointer-events-auto flex size-6 items-center justify-center rounded-md text-primary transition-colors hover:bg-primary/20"
-                title="收起看板娘"
-              >
-                <Minus className="size-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <button
+      {/* 看板娘始终展开（无收起功能）。整个 canvas 区域按下即可拖动移动容器——
+          skinview3d 的 canvas 自带 mouse/touch 监听（即使 controls.enabled=false），
+          故外包一层透明拖动层接收 pointer 事件，canvas 本体不绑定 pointerdown。
+          onClick 预留：单击（无拖拽位移）为未来气泡功能入口。 */}
+      <div className="relative">
+        <canvas
+          ref={canvasRef}
+          className="pointer-events-none h-44 w-44 rounded-lg bg-transparent"
+        />
+        {/* 透明拖动层：覆盖 canvas，接收拖动与点击 */}
+        <div
+          className="absolute inset-0 cursor-grab touch-none select-none active:cursor-grabbing"
           onPointerDown={beginDrag}
-          onClick={onFabClick}
-          className="group flex size-12 cursor-grab touch-none select-none items-center justify-center rounded-xl border border-primary/30 bg-background/80 shadow-lg backdrop-blur transition-all duration-200 active:cursor-grabbing hover:scale-105 hover:border-primary/60 hover:bg-primary/10"
-          title="展开 MC 看板娘"
-        >
-          <span className="text-2xl">⛏️</span>
-        </button>
-      )}
+          onClick={onCanvasClick}
+        />
+      </div>
     </div>
   );
 }

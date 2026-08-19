@@ -122,9 +122,13 @@ export const client = new ApolloClient({
   ssrMode: true,
   defaultOptions: {
     query: {
-      // Cache-first lets Apollo's InMemoryCache short-circuit identical
-      // in-request repeats; cross-request caching is owned by LruLink.
-      fetchPolicy: "cache-first",
+      // InMemoryCache is only here to satisfy ApolloClient's constructor
+      // (ADR-0024: cross-request caching is owned by LruLink). A cache-first
+      // default would let InMemoryCache short-circuit queries before LruLink
+      // runs, pinning per-process data for the process lifetime and
+      // nullifying LruLink's TTLs (see ADR-0029). no-cache forces every query
+      // through LruLink, which is the actual cache layer with SWR + TTL.
+      fetchPolicy: "no-cache",
     },
   },
 });
@@ -133,10 +137,10 @@ export async function getQuery(query, variables = {}) {
   const { data } = await client.query({
     query,
     variables,
-    // Only used by Single.astro to fetch article editorBlocks — real-time
-    // content that must never be served stale from Apollo's cache (see
-    // review #2; ADR-0015 keeps articles network-only).
-    fetchPolicy: "network-only",
+    // Article editorBlocks are read-after-write data: must reach LruLink's
+    // STRONG_CONSISTENCY + TTL every time. no-cache bypasses InMemoryCache
+    // both ways (network-only would still write back and pin it, see ADR-0029).
+    fetchPolicy: "no-cache",
   });
   return data;
 }
@@ -353,9 +357,9 @@ export async function homePagePostsQuery(first = 10, offset = 0) {
     `,
     variables: { first, offset },
     // Homepage post list must stay real-time (new posts visible immediately).
-    // cache-purge was removed, so cache-first would leave it stale until
-    // process restart (see review #1).
-    fetchPolicy: "network-only",
+    // no-cache reaches LruLink every time so HomePosts' 60s SWR applies;
+    // network-only would write back to InMemoryCache and pin it (ADR-0029).
+    fetchPolicy: "no-cache",
   });
   return data;
 }
@@ -402,7 +406,9 @@ export async function getRandomPosts(
       }
     `,
     variables: { first: candidates },
-    fetchPolicy: "network-only",
+    // RandomPosts is SWR-cached by LruLink (TTL 180s); no-cache ensures the
+    // request reaches it instead of being pinned by InMemoryCache (ADR-0029).
+    fetchPolicy: "no-cache",
   });
   const pool = (data as any)?.mostViewedPosts || [];
   return shuffle(pool).slice(0, count);
@@ -601,8 +607,10 @@ export async function getNodeByURI(uri, wpToken) {
     context,
     // Read-after-write data (article + comments): LruLink caches it but
     // treats it as STRONG_CONSISTENCY — expired entries wait for the network
-    // instead of serving stale (see ADR-0024).
-    fetchPolicy: "network-only",
+    // instead of serving stale (see ADR-0024). no-cache keeps the request
+    // flowing through LruLink every time (network-only would write back to
+    // InMemoryCache and pin stale data, see ADR-0029).
+    fetchPolicy: "no-cache",
   });
   return data;
 }

@@ -1,6 +1,7 @@
 ---
 import "@/styles/tailwind.css";
 import "@/styles/global.scss";
+import { ClientRouter } from "astro:transitions";
 import SiteFooter from "../components/SiteFooter.astro";
 import LayoutShell from "./LayoutShell";
 import {
@@ -34,6 +35,7 @@ const pageTitle = `${title} | ${generalSettings.title}`;
     <meta name="generator" content={Astro.generator} />
     <title>{`${title} | ${generalSettings.title}`}</title>
     <meta name="description" content={description} />
+    <ClientRouter fallback="swap" />
   </head>
   <body>
     <LayoutShell
@@ -57,9 +59,23 @@ const pageTitle = `${title} | ${generalSettings.title}`;
     elements_selector: ".lazy-img",
   });
 
-  // Watch for dynamically added content
+  // Observe <html>, not <body>: ClientRouter swaps the whole body element on
+  // navigation, which would detach an observer attached to the old body node.
   const observer = new MutationObserver(() => instance.update());
-  observer.observe(document.body, { childList: true, subtree: true });
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+
+  document.addEventListener("astro:page-load", () => instance.update());
+
+  // Smooth scrolling during view-transition navigation: opt <html> into
+  // `scroll-behavior: smooth` (see `.smooth-scroll` in tailwind.css) while the
+  // router animates the scroll-to-top, then drop the class after the page
+  // settles so ordinary programmatic scrolls stay instant.
+  document.addEventListener("astro:before-preparation", () => {
+    document.documentElement.classList.add("smooth-scroll");
+  });
+  document.addEventListener("astro:page-load", () => {
+    setTimeout(() => document.documentElement.classList.remove("smooth-scroll"), 500);
+  });
 </script>
 
 <style>

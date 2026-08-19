@@ -1,12 +1,15 @@
 "use client";
 
 import * as React from "react";
+import NavigationProgress from "@/components/NavigationProgress";
+import ScrollProgress from "@/components/ScrollProgress";
 import SiteHeader from "@/components/SiteHeader";
 import AuthProvider from "@/components/AuthProvider";
 import AuthErrorToast from "@/components/AuthErrorToast";
 import ExternalLinkGuard from "@/components/ExternalLinkGuard";
 import HoverPreviewProvider from "@/components/HoverPreviewProvider";
 import Live2DAvatar from "@/components/Live2DAvatar";
+import BackToTop from "@/components/BackToTop";
 import SidebarLeft from "./SidebarLeft";
 import SidebarRight from "./SidebarRight";
 import {
@@ -46,12 +49,16 @@ export default function LayoutShell({
   children,
 }: LayoutShellProps) {
   return (
-    <AuthProvider initialUser={initialUser}>
+    <>
+      <NavigationProgress />
+      <ScrollProgress />
+      <AuthProvider initialUser={initialUser}>
     <AuthErrorToast />
     <ExternalLinkGuard />
     <HoverPreviewProvider />
     {/* MC 皮肤 3D 看板娘（ADR-0027）：右下角浮动，桌面端展示 */}
     <Live2DAvatar />
+    <BackToTop />
     <div className="[--header-height:calc(--spacing(14))]">
       <SiteHeader menu={menu} generalSettings={generalSettings} />
       <SidebarProvider>
@@ -81,5 +88,6 @@ export default function LayoutShell({
       </SidebarProvider>
     </div>
     </AuthProvider>
+    </>
   );
 }

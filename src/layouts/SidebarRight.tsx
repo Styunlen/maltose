@@ -645,7 +645,7 @@ interface TocItem {
   children: TocItem[];
 }
 
-function useToc() {
+function useToc(pathname?: string) {
   const [toc, setToc] = React.useState<TocItem[]>([]);
   const [activeIndex, setActiveIndex] = React.useState<number>(-1);
   const [collapsed, setCollapsed] = React.useState<Set<number>>(new Set());
@@ -714,7 +714,10 @@ function useToc() {
       observer.disconnect();
       emitter.off("article-page-changed", onPageChange);
     };
-  }, []);
+    // Rebuild when the route changes: ClientRouter swaps the body, so the
+    // previously observed article element is gone and the observer would
+    // silently stop firing.
+  }, [pathname]);
 
   // IntersectionObserver for scroll-aware active heading
   React.useEffect(() => {
@@ -832,9 +835,9 @@ function TocRenderer({
   );
 }
 
-function ArticleToc() {
+function ArticleToc({ pathname }: { pathname?: string }) {
   const { toc, activeIndex, collapsed, scrollToHeading, toggleCollapsed } =
-    useToc();
+    useToc(pathname);
 
   if (toc.length === 0) {
     return (
@@ -867,7 +870,7 @@ function ArticleToc() {
   );
 }
 
-function ArticleComments() {
+function ArticleComments({ pathname }: { pathname?: string }) {
   const [commentCount, setCommentCount] = React.useState(0);
 
   React.useEffect(() => {
@@ -878,7 +881,8 @@ function ArticleComments() {
         setCommentCount(data.commentCount ?? 0);
       } catch {}
     }
-  }, []);
+    // pathname dep: ClientRouter swaps the body, replacing #article-comment-data.
+  }, [pathname]);
 
   return (
     <SidebarGroup>
@@ -979,15 +983,15 @@ function HomepageSidebar({
 }
 
 /* ─── ArticleSidebar ─── */
-function ArticleSidebar() {
+function ArticleSidebar({ pathname }: { pathname?: string }) {
   return (
     <>
       <SidebarHeader className="h-16 border-b border-sidebar-border">
         <NavUser />
       </SidebarHeader>
       <SidebarContent className="overflow-y-auto custom-scrollbar">
-        <ArticleToc />
-        <ArticleComments />
+        <ArticleToc pathname={pathname} />
+        <ArticleComments pathname={pathname} />
       </SidebarContent>
     </>
   );
@@ -1010,11 +1014,11 @@ export default function SidebarRight({
       suppressHydrationWarning
     >
       {pageType === "" && <SidebarSkeleton />}
-      {pageType === "article" && <ArticleSidebar />}
+      {pageType === "article" && <ArticleSidebar pathname={pathname} />}
       {pageType === "home" && (
         <HomepageSidebar menu={menu} sidebarData={sidebarData} />
       )}
-      {pageType === "other" && <ArticleSidebar />}
+      {pageType === "other" && <ArticleSidebar pathname={pathname} />}
       <style>
         {`
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }

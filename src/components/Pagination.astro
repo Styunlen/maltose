@@ -41,6 +41,7 @@ if (totalPages <= 7) {
     class={`pagination-btn${!hasPreviousPage ? " disabled" : ""}`}
     aria-disabled={!hasPreviousPage}
     tabindex={hasPreviousPage ? undefined : -1}
+    data-astro-history="replace"
   >
     <svg class="pagination-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
       <path d="M15 18l-6-6 6-6" />
@@ -56,6 +57,7 @@ if (totalPages <= 7) {
           href={getPageUrl(pageNum)}
           class={`pagination-page${pageNum === currentPage ? " active" : ""}`}
           aria-current={pageNum === currentPage ? "page" : undefined}
+          data-astro-history="replace"
         >
           {pageNum}
         </a>
@@ -69,6 +71,7 @@ if (totalPages <= 7) {
     class={`pagination-btn${!hasNextPage ? " disabled" : ""}`}
     aria-disabled={!hasNextPage}
     tabindex={hasNextPage ? undefined : -1}
+    data-astro-history="replace"
   >
     Next
     <svg class="pagination-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">

@@ -71,7 +71,7 @@ if (node?.__typename === "Post" || node?.__typename === "Page") {
 {
   fetchError ? (
     <MainLayout title="服务异常">
-      <main style="max-width: 600px; margin: 3rem auto; text-align: center; padding: 2rem;">
+      <div style="max-width: 600px; margin: 3rem auto; text-align: center; padding: 2rem;">
         <h1 style="font-size: 1.5rem; font-weight: 800; margin-bottom: 0.75rem;">⚠️ 服务暂时不可用</h1>
         <p style="font-size: 0.9rem; color: var(--muted-foreground); margin-bottom: 1.5rem; line-height: 1.6;">
           数据获取失败，请稍后重试。如问题持续，请联系管理员。
@@ -82,7 +82,7 @@ if (node?.__typename === "Post" || node?.__typename === "Page") {
             <pre style="white-space: pre-wrap; word-break: break-word; margin: 0; background: transparent; padding: 0;">{fetchErrorMessage}</pre>
           </details>
         )}
-      </main>
+      </div>
     </MainLayout>
   ) : node == null ? (
     <MainLayout title="not found">

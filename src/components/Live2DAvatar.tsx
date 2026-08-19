@@ -12,6 +12,9 @@ import { IdleAnimation, SkinViewer, SwimAnimation } from "skinview3d";
 // 单击（无拖拽）预留气泡功能入口。
 const SKIN_URL = "/skins/styunlen.png";
 
+// 位置持久化键（sessionStorage）：SPA 导航重挂载时恢复拖拽/游动后的位置
+const AVATAR_OFFSET_KEY = "maltose:avatar-offset";
+
 // 拖拽位移阈值：低于该值视为「点击」，高于则视为拖拽
 const DRAG_THRESHOLD = 4;
 
@@ -158,11 +161,36 @@ export default function Live2DAvatar() {
   // 看板娘始终展开（无收起功能），expanded 固定 true 供 effect 守卫使用
   const expanded = true;
   // 相对锚点（right-4 bottom-4）的拖拽偏移量，通过 transform: translate 应用
+  // SSR 阶段恒为 0,0（避免 hydration mismatch）；客户端挂载后从
+  // sessionStorage 恢复（见下方 restoreOffset effect），SPA 导航不跳动。
   const [offset, setOffset] = React.useState({ x: 0, y: 0 });
   // offset 的 ref 镜像（游泳 rAF 循环内读，避免闭包过期）
   const offsetRef = React.useRef(offset);
   React.useEffect(() => {
     offsetRef.current = offset;
+  }, [offset]);
+  // 挂载后恢复持久化位置（SSR 0,0 → 客户端恢复，避免 hydration mismatch）。
+  // 必须在 persist effect 之前声明：mount 时 restore 先读到真实值并 setOffset，
+  // persist 跳过首次执行、在 offset 变化后写回恢复值，避免 0,0 覆盖 storage。
+  const restoredRef = React.useRef(false);
+  React.useEffect(() => {
+    restoredRef.current = true;
+    try {
+      const raw = sessionStorage.getItem(AVATAR_OFFSET_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed.x === "number" && typeof parsed.y === "number") {
+          setOffset({ x: parsed.x, y: parsed.y });
+        }
+      }
+    } catch {}
+  }, []);
+  // 位置持久化：offset 变化（拖拽/游泳提交/恢复）写回 sessionStorage
+  React.useEffect(() => {
+    if (!restoredRef.current) return;
+    try {
+      sessionStorage.setItem(AVATAR_OFFSET_KEY, JSON.stringify(offset));
+    } catch {}
   }, [offset]);
   // 游动屏幕位移（px）：游动期间叠加到容器 transform，让整个看板娘在屏幕上移动
   const [swimOffset, setSwimOffset] = React.useState({ x: 0, y: 0 });

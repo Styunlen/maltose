@@ -200,9 +200,13 @@
 }
 
 @layer anime {
-  /* Smooth scroll */
-  html {
-    scroll-behavior: smooth;
+  /* Smooth scroll is opt-in per navigation (see MainLayout astro:page-load
+     handler). A global `scroll-behavior: smooth` would fight ClientRouter's
+     scroll restoration, so it stays off by default here. Respect reduced motion. */
+  @media (prefers-reduced-motion: no-preference) {
+    html.smooth-scroll {
+      scroll-behavior: smooth;
+    }
   }
 
   /* Custom Scrollbar - Anime themed (Webkit) */

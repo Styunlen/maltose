@@ -71,7 +71,7 @@ Astro.response.headers.set("Cache-Control", "no-cache, must-revalidate");
       title="Home Page"
       sidebarData={sidebarData}
     >
-      <main style="margin-top: 1.5rem;">
+      <div style="margin-top: 1.5rem;">
         <StickyCarousel posts={stickyPosts} />
 
         <PopularPosts first={8} posts={popularPosts} />
@@ -94,7 +94,7 @@ Astro.response.headers.set("Cache-Control", "no-cache, must-revalidate");
             hasPreviousPage={currentPage > 1}
           />
         )}
-      </main>
+      </div>
     </MainLayout>
   )
 }

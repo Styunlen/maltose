@@ -8,7 +8,7 @@ const user = Astro.locals.user;
 ---
 
 <MainLayout title="我的评论">
-  <main>
+  <div>
     {!wpToken || !user ? (
       <div style="text-align: center; padding: 3rem 1rem; max-width: 800px; margin: 1.5rem auto 0;">
         <p style="font-size: 1rem; color: var(--muted-foreground); margin-bottom: 1rem;">
@@ -33,5 +33,5 @@ const user = Astro.locals.user;
     ) : (
       <UserComments client:load />
     )}
-  </main>
+  </div>
 </MainLayout>

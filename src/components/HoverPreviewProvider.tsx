@@ -79,7 +79,7 @@ function ContentCard({ data }: { data: PreviewData }) {
   const date = formatDate(data.date);
   return (
     <a href={data.uri} className="block w-80 max-w-full">
-      <div className="flex gap-3">
+      <div className="flex items-center gap-3">
         {data.thumbnail && (
           <img
             src={data.thumbnail}

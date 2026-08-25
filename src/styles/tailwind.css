@@ -77,12 +77,11 @@
 
 :root {
   /* ── Extended brand ramp (playful-technical, ADR-less) ──────────────────
-   * Indigo is the primary hue (255° — cool technical blue). mint-600 is the
-   * light-mode --primary (white text, ≈4.5:1), mint-300 the dark-mode one.
-   * Energy hues (magenta/coral/amber) are warm contrasts — indigo is cool, so
-   * warmth carries the playful energy. #00f0a0 (--primary-color) stays as a
-   * neon accent (hero glow, selection) for the indigo↔neon tension. Keep
-   * energy hues ≤10% of any screen.
+   * ORIGINAL palette restored per user request: --primary = #00f0a0 neon mint
+   * (as before the redesign). The mint/magenta/violet/coral/amber ramps below
+   * are ADDITIVE — used only for tag/category chips and decorative accents,
+   * never for --primary/--accent/--ring which keep their original values.
+   * Dark mode stays active via :root.dark (toggle in SiteHeader).
    */
   --mint-50:  oklch(0.970 0.030 255);
   --mint-100: oklch(0.930 0.050 255);
@@ -168,19 +167,19 @@
   --card-foreground: var(--base-color-black);
   --popover: var(--base-color-white);
   --popover-foreground: var(--base-color-black);
-  --primary: var(--mint-600);
-  --primary-foreground: var(--base-color-white);
+  --primary: var(--primary-color);
+  --primary-foreground: var(--base-color-blackbtn);
   --secondary: var(--base-color-tertiarybg);
   --secondary-foreground: var(--base-color-black);
   --muted: var(--base-color-secondbg);
   --muted-foreground: color-mix(in oklch, var(--foreground) 60%, transparent);
-  --accent: var(--magenta-100);
+  --accent: var(--base-color-lightgreen);
   --accent-foreground: var(--base-color-black);
   --destructive: var(--base-color-red);
   --destructive-foreground: var(--base-color-white);
   --border: var(--base-color-black-10);
   --input: var(--base-color-deepgrey);
-  --ring: var(--mint-600);
+  --ring: var(--primary-color);
   --radius: 0.75rem;
 
   --sidebar: var(--base-color-white);
@@ -242,19 +241,19 @@
   --card-foreground: var(--base-color-black);
   --popover: var(--base-color-white);
   --popover-foreground: var(--base-color-black);
-  --primary: var(--mint-300);
-  --primary-foreground: var(--base-color-black);
+  --primary: var(--primary-color);
+  --primary-foreground: var(--base-color-blackbtn);
   --secondary: var(--base-color-tertiarybg);
   --secondary-foreground: var(--base-color-black);
   --muted: var(--base-color-secondbg);
   --muted-foreground: color-mix(in oklch, var(--foreground) 60%, transparent);
-  --accent: var(--magenta-200);
+  --accent: var(--base-color-lightgreen);
   --accent-foreground: var(--base-color-black);
   --destructive: var(--base-color-red);
   --destructive-foreground: var(--base-color-white);
   --border: var(--base-color-black-10);
   --input: var(--base-color-deepgrey);
-  --ring: var(--mint-300);
+  --ring: var(--primary-color);
   --radius: 0.75rem;
 
   --sidebar: var(--base-color-primarybg);

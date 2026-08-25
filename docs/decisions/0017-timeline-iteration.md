@@ -38,6 +38,8 @@ ADR-0016 实现的时间轴页面经用户验收后，反馈三个问题：
 
 ### 1. 全量文章数据获取（修复问题 3）
 
+> 依赖说明：`offsetPagination`（`where: { offsetPagination: { size, offset } }`）**不是 WPGraphQL 原生功能**（原生仅 cursor 分页 `after`/`endCursor`），由第三方插件 [valu-digital/wp-graphql-offset-pagination](https://github.com/valu-digital/wp-graphql-offset-pagination) 提供。实际实现（api.ts `getTimelineStats`）用 `pageInfo.offsetPagination.total` 判断终止，而非下述伪代码的短批判断（避免总数恰为 100 整数倍时多发一次空请求）。
+
 `getTimelineStats` 改为**分页拉全量**：
 
 ```ts

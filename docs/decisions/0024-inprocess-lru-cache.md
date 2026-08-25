@@ -79,7 +79,7 @@ key = sha256(operationName + stableStringify(variables))           # 公开查�
 ### 5. client 架构：保留单例 + LruLink 进链
 
 - **保留模块级单例 client**，加 `ssrMode: true`，LruLink 进链。8 个查询函数零签名变更。
-- 不做 per-request client（YAGNI）：当前唯一认证查询（getNodeByURI）通过 context 传 token，LruLink 读 context 即可隔离用户。未来若需每用户私有数据缓存，LruLink 设计可平滑演进（共享实例注入 per-request client 链路）。
+- 不做 per-request client（YAGNI，即 "You Aren't Gonna Need It"——不为当前用不到的需求提前设计）：当前唯一认证查询（getNodeByURI）通过 context 传 token，LruLink 读 context 即可隔离用户。未来若需每用户私有数据缓存，LruLink 设计可平滑演进（共享实例注入 per-request client 链路）。
 - 删除 `queryCache` Map + `cachedQuery`（手动 key）——由 LruLink 统一接管。
 
 ### 6. 测试

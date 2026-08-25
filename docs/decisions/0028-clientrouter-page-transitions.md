@@ -25,7 +25,7 @@
 
 - `MainLayout.astro` 的 `<head>` 加入 `<ClientRouter fallback="swap" />`（老浏览器降级为无动画 SPA，而非整页刷新）。
 - 理由：
-  - **架构同构**：全站内容在 LayoutShell 单岛内，ClientRouter 的 body swap + island 重新水合正好让每次导航拿到新 pathname（SidebarRight 陈旧状态被默认行为修复）；swup 只换 `<main>` 容器，LayoutShell 不重挂载，陈旧问题需手工补丁。
+  - **架构同构**：全站内容在 LayoutShell 单岛内，ClientRouter 的 body swap + island 重新水合正好让每次导航拿到新 pathname（SidebarRight 陈旧状态被默认行为修复）。swup 虽可配置 `containers` 指定替换范围（甚至 `morph` 保留部分元素），但它不认识 React：单岛架构下替换少了则骨架内状态（pathname 等）陈旧，替换多了则整个组件树重建、登录态/看板娘/侧栏状态全丢——两边都需手工补丁。
   - **零依赖**：swup 需引入第三方 + 模拟层（`@swup/astro` 内部靠派发 `astro:before-swap/after-swap/page-load` 模拟 Astro 生命周期）。
   - swup 的卖点（smoothScrolling/progress/preload 开箱即用）在 ClientRouter 生态里都有对等实现，且 ClientRouter 无内置进度条/平滑滚动——本 ADR 自建。
 - 对比结论：Fuwari 主题用 swup 是「静态 Svelte 博客 × swup 生态 × 时代背景（Astro 5 前 ClientRouter 未成熟）」的合理选择；本项目是 React 岛屿架构，ClientRouter 才是同构方案。

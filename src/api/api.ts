@@ -59,8 +59,8 @@ const errorLink = new ErrorLink(({ error, operation }) => {
 });
 
 // HTTP Link
-const proxyUrl = import.meta.env.APP_URL
-  ? `${import.meta.env.APP_URL}/api/graphql-proxy`
+const proxyUrl = process.env.APP_URL
+  ? `${process.env.APP_URL}/api/graphql-proxy`
   : "http://localhost:4321/api/graphql-proxy";
 const httpLink = new HttpLink({
   uri: proxyUrl,
@@ -105,14 +105,14 @@ const STRONG_CONSISTENCY = new Set<string>(["GetNodeByURI", "GetPost"]);
 // Cache backend selection (ADR-0032): memory (default) | redis | lmdb.
 // Shared backends (redis/lmdb) enable cross-process cache coherence under
 // pm2 cluster. redis requires REDIS_URL; lmdb uses GRAPHQL_CACHE_PATH.
-const CACHE_DRIVER = (import.meta.env.GRAPHQL_CACHE_DRIVER as string) || "memory";
+const CACHE_DRIVER = (process.env.GRAPHQL_CACHE_DRIVER as string) || "memory";
 
 const cacheCfg = {
   driver: (CACHE_DRIVER as any) ?? "memory",
-  path: import.meta.env.GRAPHQL_CACHE_PATH || ".cache/graphql",
-  mapSize: Number(import.meta.env.GRAPHQL_CACHE_MAP_SIZE) || 64 * 1024 * 1024,
+  path: process.env.GRAPHQL_CACHE_PATH || ".cache/graphql",
+  mapSize: Number(process.env.GRAPHQL_CACHE_MAP_SIZE) || 64 * 1024 * 1024,
   maxEntries: 1000,
-  cleanupIntervalMs: Number(import.meta.env.GRAPHQL_CACHE_CLEANUP_MS) || 0,
+  cleanupIntervalMs: Number(process.env.GRAPHQL_CACHE_CLEANUP_MS) || 0,
   // Fail-open reconnect: swap the live store when the backend comes back.
   onReconnect: (store: any) => lruLink?.setStore(store),
 };

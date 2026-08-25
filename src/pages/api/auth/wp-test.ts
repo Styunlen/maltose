@@ -65,11 +65,11 @@ export const GET: APIRoute = async () => {
 
   // 3. Check env config (redact secrets)
   results.config = {
-    WORDPRESS_API_URL: import.meta.env.WORDPRESS_API_URL || "(not set)",
-    AUTHENTIK_WP_CLIENT_ID: import.meta.env.AUTHENTIK_WP_CLIENT_ID
-      ? `${String(import.meta.env.AUTHENTIK_WP_CLIENT_ID).slice(0, 8)}...`
+    WORDPRESS_API_URL: process.env.WORDPRESS_API_URL || "(not set)",
+    AUTHENTIK_WP_CLIENT_ID: process.env.AUTHENTIK_WP_CLIENT_ID
+      ? `${String(process.env.AUTHENTIK_WP_CLIENT_ID).slice(0, 8)}...`
       : "(not set)",
-    APP_URL: import.meta.env.APP_URL,
+    APP_URL: process.env.APP_URL,
   };
 
   return new Response(JSON.stringify(results, null, 2), {

@@ -2,14 +2,18 @@
 # Maltose SSH command gate (ADR-0033).
 #
 # This is the ONLY command the restricted deploy SSH key can run: it is wired
-# via authorized_keys `command="/home/deploy/bin/deploy-gate.sh"`. OpenSSH
-# replaces whatever the client sends with this script and puts the client's
-# original command line in $SSH_ORIGINAL_COMMAND, so the key can never open a
-# shell. We accept a fixed vocabulary and reject everything else.
+# via authorized_keys `command="/home/<user>/.local/bin/maltose-deploy/deploy-gate.sh"`.
+# OpenSSH replaces whatever the client sends with this script and puts the
+# client's original command line in $SSH_ORIGINAL_COMMAND, so the key can never
+# open a shell. We accept a fixed vocabulary and reject everything else.
 set -euo pipefail
 
+# Bootstrap the toolchain PATH (nvm/fnm/volta/asdf/system) — see env.sh.
+# shellcheck source=env.sh
+. "$(dirname "${BASH_SOURCE[0]}")/env.sh"
+
 DEPLOY_USER="$(whoami)"
-DEPLOY_BIN="/home/${DEPLOY_USER}/bin"
+DEPLOY_BIN="/home/${DEPLOY_USER}/.local/bin/maltose-deploy"
 
 # The client's command as OpenSSH captured it (e.g. "rsync --server ..." or
 # "deploy production /var/www/maltose"). Positional args ($@) are the gate's

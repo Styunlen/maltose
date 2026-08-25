@@ -4,7 +4,7 @@ import { RateLimiterMemory, RateLimiterRedis } from "rate-limiter-flexible";
 import { connectRedisIfConfigured } from "@lib/auth/redis";
 
 const WP_GRAPHQL_URL =
-  import.meta.env.WORDPRESS_API_URL || "https://styunlen.cn/graphql";
+  process.env.WORDPRESS_API_URL || "https://styunlen.cn/graphql";
 
 const VIEW_RATE_LIMIT_OPTS = {
   points: 1, // one recorded view
@@ -61,7 +61,7 @@ function getOtpSendLimiter(): Promise<RateLimiterMemory | RateLimiterRedis> {
 }
 
 function getSecret(): string {
-  const secret = import.meta.env.WP_GRAPHQL_SECRET_KEY;
+  const secret = process.env.WP_GRAPHQL_SECRET_KEY;
   if (!secret || secret === "change-me") {
     if (import.meta.env.PROD) {
       throw new Error("WP_GRAPHQL_SECRET_KEY is not configured. Set it in .env before deploying.");
@@ -72,7 +72,7 @@ function getSecret(): string {
 }
 
 function getExpireSeconds(): number {
-  return Number(import.meta.env.WP_SIGN_EXPIRE_SECONDS) || 60;
+  return Number(process.env.WP_SIGN_EXPIRE_SECONDS) || 60;
 }
 
 /**
@@ -269,7 +269,7 @@ function isPublicMutation(query: string): boolean {
 // origins get no CORS headers and are rejected by the browser.
 const ALLOWED_ORIGINS = [
   "http://localhost:4321",
-  ...(import.meta.env.APP_URL ? [import.meta.env.APP_URL] : []),
+  ...(process.env.APP_URL ? [process.env.APP_URL] : []),
   ...(import.meta.env.SITE ? [import.meta.env.SITE] : []),
 ].filter(Boolean);
 

@@ -1,6 +1,5 @@
 allowBuilds:
   '@parcel/watcher': false
-  bcrypt: true
   esbuild: true
   lmdb: true
   msgpackr-extract: true
@@ -13,9 +12,3 @@ minimumReleaseAgeExclude:
   - '@astrojs/react@6.0.1'
   - '@astrojs/ts-plugin@1.10.10'
   - astro@7.0.6
-onlyBuiltDependencies:
-  - '@tailwindcss/oxide'
-  - bcrypt
-  - esbuild
-  - sharp
-  - vue-demi

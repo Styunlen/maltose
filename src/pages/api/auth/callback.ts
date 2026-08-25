@@ -78,7 +78,7 @@ export const GET: APIRoute = async ({ url, redirect, cookies }) => {
       hint = "Redirect URI 不匹配，请在 Authentik 后台添加: " +
         (import.meta.env.DEV
           ? "http://localhost:4321/api/auth/callback"
-          : `${import.meta.env.APP_URL || "https://your-domain"}/api/auth/callback`);
+          : `${process.env.APP_URL || "https://your-domain"}/api/auth/callback`);
     } else {
       hint = message.slice(0, 120);
     }

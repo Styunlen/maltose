@@ -17,9 +17,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # pnpm version comes from package.json `packageManager` (single source
+      # of truth — matches local; no version conflict with action-setup).
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - uses: actions/setup-node@v4
         with:
@@ -39,6 +39,9 @@ jobs:
             ecosystem.config.cjs
             package.json
             pnpm-lock.yaml
+            # Required on the server: pnpm 11 reads the build-script policy
+            # (allowBuilds) from pnpm-workspace.yaml.
+            pnpm-workspace.yaml
           if-no-files-found: error
 
   deploy:
@@ -53,7 +56,7 @@ jobs:
         with:
           name: dist
 
-      - name: Deploy via rsync + server script
+      - name: Deploy via rsync
         uses: easingthemes/ssh-deploy@v5.1.0
         with:
           SSH_PRIVATE_KEY: ${{ secrets.STAGING_SSH_KEY }}
@@ -64,6 +67,15 @@ jobs:
           TARGET: ${{ vars.STAGING_PATH }}
           ARGS: -rlgoDzvc -i
           EXCLUDE: "/.git/, /.cache/, .github/, node_modules/"
-          # Pass the deploy directory (env var) so the server script works in
-          # the exact dir the artifacts were synced into (ADR-0033).
-          SCRIPT: "deploy staging ${{ vars.STAGING_PATH }}"
+
+      # ssh-deploy@v5.1.0 has no SCRIPT input and its script runner is rejected
+      # by the gate whitelist — trigger the server deploy via the allowed
+      # `deploy staging <path>` command in a separate step.
+      - name: Trigger server deploy
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ vars.STAGING_HOST }}
+          port: ${{ vars.STAGING_SSH_PORT || 22 }}
+          username: ${{ vars.STAGING_USER || 'deploy' }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: deploy staging ${{ vars.STAGING_PATH }}

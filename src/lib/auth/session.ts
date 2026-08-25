@@ -15,7 +15,7 @@ export interface SessionPayload {
 }
 
 function getSecret(): string {
-  const secret = import.meta.env.APP_SECRET;
+  const secret = process.env.APP_SECRET;
   if (!secret || secret === "change-me") {
     if (import.meta.env.PROD) {
       throw new Error("APP_SECRET is not configured. Set it in .env before deploying.");

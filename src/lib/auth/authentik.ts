@@ -19,23 +19,23 @@ const TOKEN_ENDPOINT = "https://api.styunlen.cn/application/o/token/";
 const USERINFO_ENDPOINT = "https://api.styunlen.cn/application/o/userinfo/";
 
 function getIssuer(): string {
-  return import.meta.env.AUTHENTIK_ISSUER || "https://api.styunlen.cn/application/o/enneaquest/";
+  return process.env.AUTHENTIK_ISSUER || "https://api.styunlen.cn/application/o/enneaquest/";
 }
 
 function getClientId(): string {
-  return import.meta.env.AUTHENTIK_CLIENT_ID || "TWnYjp4wDLwA1Nr1Q928QTGlnuHPJCMMW2S1Q90t";
+  return process.env.AUTHENTIK_CLIENT_ID || "TWnYjp4wDLwA1Nr1Q928QTGlnuHPJCMMW2S1Q90t";
 }
 
 function getWpClientId(): string {
-  return import.meta.env.AUTHENTIK_WP_CLIENT_ID || "";
+  return process.env.AUTHENTIK_WP_CLIENT_ID || "";
 }
 
 function getClientSecret(): string | undefined {
-  return import.meta.env.AUTHENTIK_CLIENT_SECRET;
+  return process.env.AUTHENTIK_CLIENT_SECRET;
 }
 
 function getAppUrl(): string {
-  return import.meta.env.APP_URL || "http://localhost:4321";
+  return process.env.APP_URL || "http://localhost:4321";
 }
 
 function getRedirectUri(): string {

@@ -19,6 +19,40 @@ sudo ln -s /etc/nginx/sites-available/maltose /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
+### Docker 化 nginx 的关键点（容器内反代）
+
+若 nginx 跑在 Docker 容器里，需额外处理三点（已在本项目实际部署中验证）：
+
+1. **端口映射**：`docker-compose.yml` 必须显式映射 `80:80` 和 `443:443`，
+   否则外部流量进不了容器（bridge 网络默认不暴露端口）。
+2. **访问宿主机 app**：容器内 `127.0.0.1:4321` **不是**宿主机——要用
+   `host.docker.internal`（需在 compose 加 `extra_hosts: - "host.docker.internal:host-gateway"`），
+   nginx 配置写 `proxy_pass http://host.docker.internal:4321;`。
+3. **app 监听地址**：pm2 进程默认只绑 `localhost`（IPv6 `::1`），Docker 容器经
+   host-gateway（IPv4 `172.17.0.1`）访问不到。**必须**在 `.env` 设 `HOST=0.0.0.0`，
+   否则 nginx 报 502 Bad Gateway。
+
+```caddyfile
+# nginx.conf 中 dev 站点示例（443 SSL 反代到容器外宿主机上的 pm2）
+server {
+    listen       443 ssl;
+    server_name  dev.styunlen.cn;
+    ssl_certificate      /usr/share/nginx/certs/dev.styunlen.cn.crt;
+    ssl_certificate_key  /usr/share/nginx/certs/dev.styunlen.cn.key;
+    location / {
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_http_version 1.1;
+        proxy_pass http://host.docker.internal:4321;
+    }
+}
+```
+
+> ⚠️ 改端口映射后需 **recreate 容器**（`docker compose up -d`），不是 `nginx -s reload`
+> ——reload 只重载配置，不应用端口映射变更。
+
 ## 1. 一键配置（推荐）
 
 服务器上运行交互式脚本，自动完成以下全部步骤：
@@ -52,16 +86,16 @@ sudo useradd -m -s /bin/bash deploy
 # 目录由 GitHub secret（PRODUCTION_PATH/STAGING_PATH）决定 — 先按示例创建，
 # 若改 secret 则在此创建对应目录并授权。
 sudo -u deploy mkdir -p /var/www/maltose/prod /var/www/maltose/dev
-sudo -u deploy mkdir -p /home/deploy/bin
+sudo -u deploy mkdir -p /home/deploy/.local/bin/maltose-deploy
 ```
 
 ### 1.2 部署脚本
 
-将仓库 `deploy/` 目录上传到 `/home/deploy/bin/`：
+将仓库 `deploy/` 目录上传到 `~/.local/bin/maltose-deploy/`（XDG 规范 + 子目录隔离）：
 
 ```bash
-sudo -u deploy cp deploy/deploy.sh deploy/deploy-gate.sh /home/deploy/bin/
-sudo -u deploy chmod +x /home/deploy/bin/deploy.sh /home/deploy/bin/deploy-gate.sh
+sudo -u deploy cp deploy/env.sh deploy/deploy.sh deploy/deploy-gate.sh /home/deploy/.local/bin/maltose-deploy/
+sudo -u deploy chmod +x /home/deploy/.local/bin/maltose-deploy/deploy.sh /home/deploy/.local/bin/maltose-deploy/deploy-gate.sh
 ```
 
 ### 1.3 安装运行时
@@ -91,7 +125,7 @@ cat ~/.ssh/maltose_deploy.pub | sudo tee -a ~deploy/.ssh/authorized_keys
 然后在 `authorized_keys` 这一行前加上限制前缀：
 
 ```
-command="/home/deploy/bin/deploy-gate.sh",no-port-forwarding,no-agent-forwarding,no-X11-forwarding ssh-ed25519 AAAA... maltose-ci-deploy
+command="/home/deploy/.local/bin/maltose-deploy/deploy-gate.sh",no-port-forwarding,no-agent-forwarding,no-X11-forwarding ssh-ed25519 AAAA... maltose-ci-deploy
 ```
 
 **效果**：这个 key 无论客户端发什么命令，OpenSSH 都强制运行 `deploy-gate.sh`——它只接受
@@ -198,3 +232,44 @@ ssh -i ~/.ssh/maltose_deploy deploy@styunlen.cn deploy production /var/www/malto
    ```
 
 `setup.sh` 会自动检测此类跨用户路径并提示这些操作。
+
+## 6. 工具链 PATH 引导（nvm / fnm / volta / asdf / 系统级）
+
+SSH `authorized_keys` 的 `command=` 触发的是**非交互 shell**——PATH 是系统默认，
+**不会加载** `.bashrc` / `.zshrc` / `.profile`。因此用 nvm 等版本管理器安装的
+node/pm2 在部署时可能报 `pm2: command not found`（exit 127）。
+
+`deploy/env.sh`（随脚本一起部署）自动解决：它在运行 `pnpm`/`pm2` 前**探测常见
+工具链位置**并加入 PATH：
+
+```bash
+# nvm 多版本选择顺序：
+#   1. ~/.nvm/alias/default 存在 → 遵循用户 default 别名
+#      （内容为 vX.Y.Z / 部分版本如 18 / 隐式别名 node / system）
+#   2. 无 default → 按版本号取最新已装（v26 优先于 v18，非字典序）
+# 其他工具链探测顺序（第一个含 node 的目录生效）：
+#   ~/.local/bin                 # XDG 用户可执行目录
+#   ~/.local/share/pnpm/bin      # pnpm 全局 bin（pnpm add -g 装的 pm2 在这!）
+#   ~/.volta/bin                 # volta
+#   ~/.fnm                       # fnm
+#   ~/.asdf/shims                # asdf
+#   /usr/local/bin               # 系统级
+# 之后按 pnpm 官方默认值推导全局 bin（pnpm 11: <home>/bin, home 依次取
+#   $PNPM_HOME → $XDG_DATA_HOME/pnpm → ~/.local/share/pnpm）
+```
+
+> **pm2 用 `pnpm add -g` 安装的服务器**：pm2 的 shim 在 pnpm 全局 bin 目录
+> （pnpm 10 为 `~/.local/share/pnpm`，pnpm 11 为 `~/.local/share/pnpm/bin`），
+> **不在** node 的 bin 目录里。env.sh 按 pnpm 官方默认值自动推导该位置
+> （显式设置了 `global-bin-dir` 时优先用配置值）。
+
+- **零配置**：上述任一工具链安装方式都能自动找到；nvm 多版本自动取 default 或最新
+- **强制覆盖**：设置环境变量 `DEPLOY_TOOLCHAIN_PATH=/path/to/bin` 可跳过探测
+  （校验该路径下有可执行 `node`；若路径无效，打印警告并自动回退到探测）
+- **不修改任何 shell 配置**：`.bashrc`/`.zshrc`/`.profile` 均无需改动
+- **调试**：设置 `DEPLOY_DEBUG=1`（可写在 `authorized_keys` 的 `command=` 前缀）时，
+  env.sh 在 stderr 打印 node/pnpm/pm2 的解析结果与最终 PATH，并追加
+  `env-debug.log` 到部署脚本同目录——部署失败时把这个文件发给我们即可定位
+
+> 若你的 node/pm2 安装在上述列表之外的路径，设置 `DEPLOY_TOOLCHAIN_PATH`
+> 或在服务器上把该路径加入 `authorized_keys` 的 `command=` 前缀。

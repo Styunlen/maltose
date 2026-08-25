@@ -20,9 +20,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # pnpm version comes from package.json `packageManager` (single source
+      # of truth — matches local; no version conflict with action-setup).
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - uses: actions/setup-node@v4
         with:
@@ -42,6 +42,11 @@ jobs:
             ecosystem.config.cjs
             package.json
             pnpm-lock.yaml
+            # Required on the server: pnpm 11 reads the build-script policy
+            # (allowBuilds) from pnpm-workspace.yaml. Without it, the server's
+            # `pnpm install --prod` fails with ERR_PNPM_IGNORED_BUILDS for every
+            # native package (esbuild/sharp/lmdb/...).
+            pnpm-workspace.yaml
           if-no-files-found: error
 
   deploy:
@@ -59,10 +64,16 @@ jobs:
 
       # rsync-over-SSH: incremental upload of built artifacts. The remote
       # side is wrapped by deploy-gate.sh (authorized_keys `command=`), which
-      # permits this rsync path and then runs the post-sync deploy script.
+      # permits this rsync path.
       # PRODUCTION_SSH_KEY is a secret (sensitive); host/port/user/path are
       # non-sensitive environment variables (ADR-0033).
-      - name: Deploy via rsync + server script
+      #
+      # NOTE: ssh-deploy@v5.1.0 has NO `SCRIPT` input (only SCRIPT_BEFORE/
+      # SCRIPT_AFTER), and its script runner (RSYNC_STDOUT=... bash -s) is
+      # rejected by deploy-gate.sh's command whitelist. We therefore trigger
+      # the server deploy in a SEPARATE step using a plain ssh command that the
+      # gate explicitly allows: `deploy production <path>`.
+      - name: Deploy via rsync
         uses: easingthemes/ssh-deploy@v5.1.0
         with:
           SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_KEY }}
@@ -73,6 +84,14 @@ jobs:
           TARGET: ${{ vars.PRODUCTION_PATH }}
           ARGS: -rlgoDzvc -i
           EXCLUDE: "/.git/, /.cache/, .github/, node_modules/"
-          # Pass the deploy directory (env var) so the server script works in
-          # the exact dir the artifacts were synced into (ADR-0033).
-          SCRIPT: "deploy production ${{ vars.PRODUCTION_PATH }}"
+
+      # Trigger the server deploy.sh (pm2 reload/start) via the gate's allowed
+      # `deploy <env> <path>` command. Runs after rsync uploads the artifacts.
+      - name: Trigger server deploy
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ vars.PRODUCTION_HOST }}
+          port: ${{ vars.PRODUCTION_SSH_PORT || 22 }}
+          username: ${{ vars.PRODUCTION_USER || 'deploy' }}
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          script: deploy production ${{ vars.PRODUCTION_PATH }}

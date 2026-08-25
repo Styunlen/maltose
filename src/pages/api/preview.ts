@@ -5,7 +5,7 @@
 import type { APIRoute } from "astro";
 import { previewByUriQuery, maltoseSettingsQuery } from "@api/api";
 
-const APP_URL = import.meta.env.APP_URL;
+const APP_URL = process.env.APP_URL;
 const SITE = import.meta.env.SITE;
 
 // 与 APP_URL / SITE 同源的 origin 列表，用于校验完整 URL 是否本站链接。

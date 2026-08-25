@@ -214,19 +214,19 @@ setup_user_and_dirs() {
     fi
   done
 
-  # Deploy scripts dir.
-  sudo -u "$user" mkdir -p "/home/${user}/bin" 2>/dev/null || sudo mkdir -p "/home/${user}/bin"
+  # Deploy scripts dir (XDG base dir spec; isolated under maltose-deploy/).
+  sudo -u "$user" mkdir -p "/home/${user}/.local/bin/maltose-deploy" 2>/dev/null || sudo mkdir -p "/home/${user}/.local/bin/maltose-deploy"
 }
 
 # ── 3. Install deploy scripts ───────────────────────────────────────────────
 install_scripts() {
   local user="$1" script_dir="${2:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
-  local bin="/home/${user}/bin"
+  local bin="/home/${user}/.local/bin/maltose-deploy"
 
   sudo -u "$user" mkdir -p "${bin}" 2>/dev/null || sudo mkdir -p "${bin}"
 
   local exists=0
-  for f in deploy.sh deploy-gate.sh; do
+  for f in env.sh deploy.sh deploy-gate.sh; do
     [ -f "${bin}/${f}" ] && exists=1
   done
 
@@ -241,10 +241,10 @@ install_scripts() {
     info "Installing deploy scripts from ${script_dir} → ${bin}"
   fi
 
-  sudo cp "${script_dir}/deploy.sh" "${script_dir}/deploy-gate.sh" "${bin}/"
+  sudo cp "${script_dir}/env.sh" "${script_dir}/deploy.sh" "${script_dir}/deploy-gate.sh" "${bin}/"
   sudo chmod +x "${bin}/deploy.sh" "${bin}/deploy-gate.sh"
   sudo chown -R "$user":"$user" "${bin}"
-  ok "Scripts installed (deploy.sh, deploy-gate.sh)"
+  ok "Scripts installed (env.sh, deploy.sh, deploy-gate.sh)"
 }
 
 # ── 4. SSH keys (dual-key per environment) + authorized_keys ────────────────
@@ -282,7 +282,7 @@ install_pub() {
   local pub restricted
   pub="$(cat "${keyfile}.pub")"
   # Prepend the command whitelist — this is the core restriction (ADR-0033).
-  restricted="command=\"/home/${user}/bin/deploy-gate.sh\",no-port-forwarding,no-agent-forwarding,no-X11-forwarding ${pub}"
+  restricted="command=\"/home/${user}/.local/bin/maltose-deploy/deploy-gate.sh\",no-port-forwarding,no-agent-forwarding,no-X11-forwarding ${pub}"
 
   sudo -u "$user" mkdir -p "/home/${user}/.ssh"
   sudo -u "$user" sh -c "umask 077 && touch /home/${user}/.ssh/authorized_keys"

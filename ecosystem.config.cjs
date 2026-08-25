@@ -22,9 +22,13 @@ module.exports = {
       exec_mode: "cluster",
       autorestart: true,
       max_memory_restart: "1G",
+      // Load the deploy-directory .env into the process at runtime (Node
+      // --env-file, path relative to pm_cwd = deploy dir). This makes every
+      // env var (APP_SECRET, AUTHENTIK_*, GRAPHQL_CACHE_*, …) runtime-mutable:
+      // edit .env on the server, `pm2 restart`, done — no rebuild.
+      node_args: "--env-file=.env",
       env: {
         NODE_ENV: "production",
-        PORT: process.env.PROD_PORT || 8080,
         GRAPHQL_CACHE_DRIVER: "memory",
       },
       // ── Option A: shared via Redis ────────────────────────────────────
@@ -39,9 +43,9 @@ module.exports = {
       exec_mode: "cluster",
       autorestart: true,
       max_memory_restart: "1G",
+      node_args: "--env-file=.env",
       env: {
         NODE_ENV: "production",
-        PORT: process.env.STAGE_PORT || 8081,
         GRAPHQL_CACHE_DRIVER: "memory",
       },
       // ── Option A: shared via Redis ────────────────────────────────────

@@ -1,12 +1,11 @@
 ---
 import { LAZY_PLACEHOLDER } from "@/lib/lazy";
+import { formatRelativeTime, isNew } from "@/lib/relative-time";
+
 const { post } = Astro.props;
 
-const formattedDate = new Date(post.date).toLocaleDateString("zh-CN", {
-  year: "numeric",
-  month: "long",
-  day: "numeric",
-});
+const relativeDate = formatRelativeTime(post.date);
+const isRecent = isNew(post.date);
 
 const primaryCategory = post.categories?.nodes?.[0] || null;
 const tags = post.tags?.nodes || [];
@@ -28,7 +27,6 @@ function categoryHue(name) {
 // Extract first image from content as fallback when no featuredImage
 let fallbackImageUrl = "";
 if (!hasImage && post.content) {
-  // console.log(JSON.stringify(post, null, 2));
   const imgMatch = post.content.match(
     /<img[^>]+data-original=["']([^"']+)["']/i,
   );
@@ -55,87 +53,35 @@ function cleanExcerpt(html) {
     .replace(/&nbsp;/g, " ")
     .trim();
   text = text.replace(/\[(?:&hellip;|…)\]|(?:&hellip;|…)/g, "…").trim();
-  return text.length > 200 ? text.slice(0, 200) + "…" : text;
+  return text.length > 320 ? text.slice(0, 320) + "…" : text;
 }
-const excerpt = cleanExcerpt(post.excerpt);
+// Prefer the full post body (much longer than WP's auto excerpt) so cards read
+// fuller; fall back to the WP excerpt when content is unavailable.
+const excerptSource = post.content?.length > post.excerpt?.length ? post.content : post.excerpt;
+const excerpt = cleanExcerpt(excerptSource);
 
 // Generate a deterministic seed from the post title for random nature images
 const imageSeed = encodeURIComponent(
   (post.title ?? "").replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, "").slice(0, 20),
 );
+
+// Tagline: show up to MAX_TAGS inline, rest behind a hover popover.
+const MAX_TAGS = 3;
+const visibleTags = tags.slice(0, MAX_TAGS);
+const hiddenTags = tags.slice(MAX_TAGS);
+const hasHiddenTags = hiddenTags.length > 0;
 ---
 
 <article class="post-card mb-8">
-  <!-- Image area (clickable, links to post) -->
+  <!-- Cover (clickable, links to post) -->
   <a href={post.uri} class="card-image-link" tabindex="-1" aria-hidden="true">
     <div class="card-image-wrap">
-      {
-        displayImageUrl ? (
-          <img
-            src={LAZY_PLACEHOLDER}
-            data-src={displayImageUrl}
-            alt=""
-            class="card-image lazy-img"
-          />
-        ) : (
-          <img
-            src={LAZY_PLACEHOLDER}
-            data-src={`https://picsum.photos/seed/${imageSeed}/600/240`}
-            alt=""
-            class="card-image lazy-img"
-            class="card-image"
-          />
-        )
-      }
-
-      <!-- Hover Overlay -->
-      <div class="hover-overlay">
-        <div class="overlay-content">
-          <div class="overlay-row overlay-stats">
-            <span class="overlay-stat">
-              <svg
-                class="stat-icon"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path
-                  d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-                ></path>
-              </svg>
-              {commentCount} 评论
-            </span>
-            <span class="overlay-stat">
-              <svg
-                class="stat-icon"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path
-                  d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"
-                ></path>
-              </svg>
-              {viewCount} 浏览
-            </span>
-          </div>
-          {
-            hasTags && (
-              <div class="overlay-row overlay-tags">
-                {tags.map((tag) => (
-                  <span class="tag-pill">{tag.name}</span>
-                ))}
-              </div>
-            )
-          }
-        </div>
-      </div>
+      <img
+        src={LAZY_PLACEHOLDER}
+        data-src={displayImageUrl || `https://picsum.photos/seed/${imageSeed}/400/400`}
+        alt=""
+        class="card-image lazy-img"
+      />
     </div>
   </a>
 
@@ -143,20 +89,23 @@ const imageSeed = encodeURIComponent(
   <div class="card-body">
     {
       primaryCategory && (
-        <span class="card-category {`cat-${categoryHue(primaryCategory.name)}`}">
+        <span class={`card-category cat-${categoryHue(primaryCategory.name)}`}>
           {primaryCategory.name}
         </span>
       )
     }
 
-    <a href={post.uri} class="card-title-link">
-      <h3 class="card-title">{post.title}</h3>
-    </a>
+    <div class="card-title-row">
+      <a href={post.uri} class="card-title-link">
+        <h3 class="card-title">{post.title}</h3>
+      </a>
+      {isRecent && <span class="new-badge">NEW</span>}
+    </div>
 
     {excerpt && <p class="card-excerpt">{excerpt}</p>}
 
     <div class="card-meta">
-      <time datetime={post.date} class="card-date">{formattedDate}</time>
+      <time datetime={post.date} class="card-date">{relativeDate}</time>
       <span class="card-comments">
         <svg
           class="meta-icon"
@@ -189,17 +138,41 @@ const imageSeed = encodeURIComponent(
         </svg>
         <span>{viewCount}</span>
       </span>
+      {hasTags && (
+        <span class="card-tags">
+          {visibleTags.map((tag) => (
+            <a href={tag.uri} class="card-tag">{`#${tag.name}`}</a>
+          ))}
+          {hasHiddenTags && (
+            <span class="card-tags-more" tabindex="0" aria-label={`展开其余 ${hiddenTags.length} 个标签`}>
+              {`+${hiddenTags.length}`}
+              <span class="card-tags-popover">
+                {hiddenTags.map((tag) => (
+                  <a href={tag.uri} class="card-tag-pop">{`#${tag.name}`}</a>
+                ))}
+              </span>
+            </span>
+          )}
+        </span>
+      )}
     </div>
   </div>
 </article>
 
 <style>
+  /* Hallmark · macrostructure: Ecosystem Index · card: horizontal-compact
+   * theme: studied-DNA (source: https://blog.anheyu.com/) · studied: yes
+   * observed-accent: mint #00f0a0 (user identity, preserved) · rhythm: unknown
+   * contrast: pass (40–41) · nav: N1b (existing) · footer: Ft3 (existing)
+   * mobile: pass (34, 49, 50–57) · icons: pass (30) */
   /* ─── Card ─── */
   .post-card {
+    display: flex;
+    gap: 1.25rem;
+    padding: 1rem;
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    overflow: hidden;
     transition:
       transform 0.3s ease,
       box-shadow 0.3s ease;
@@ -213,14 +186,17 @@ const imageSeed = encodeURIComponent(
   /* ─── Image ─── */
   .card-image-link {
     display: block;
+    flex-shrink: 0;
+    width: 200px;
     text-decoration: none;
     color: inherit;
   }
 
   .card-image-wrap {
     position: relative;
-    aspect-ratio: 5 / 2;
+    aspect-ratio: 1 / 1;
     overflow: hidden;
+    border-radius: calc(var(--radius) - 4px);
     background: var(--muted);
   }
 
@@ -236,85 +212,18 @@ const imageSeed = encodeURIComponent(
     transform: scale(1.05);
   }
 
-  /* ─── Hover Overlay ─── */
-  .hover-overlay {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      to top,
-      rgba(0, 0, 0, 0.8) 0%,
-      rgba(0, 0, 0, 0.4) 60%,
-      rgba(0, 0, 0, 0.15) 100%
-    );
-    display: flex;
-    align-items: flex-end;
-    padding: 1.25rem;
-    opacity: 0;
-    transition: opacity 0.25s ease;
-  }
-
-  .post-card:hover .hover-overlay {
-    opacity: 1;
-  }
-
-  .overlay-content {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-  }
-
-  .overlay-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-
-  .overlay-stats {
-    gap: 1.25rem;
-  }
-
-  .overlay-stat {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    font-size: 0.8rem;
-    font-weight: 500;
-    color: #fff;
-  }
-
-  .stat-icon {
-    width: 0.9rem;
-    height: 0.9rem;
-    flex-shrink: 0;
-  }
-
-  .overlay-tags {
-    gap: 0.4rem;
-  }
-
-  .tag-pill {
-    display: inline-block;
-    padding: 0.15rem 0.55rem;
-    font-size: 0.7rem;
-    font-weight: 500;
-    color: #fff;
-    background: rgba(255, 255, 255, 0.15);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 9999px;
-  }
-
-  .tag-pill:hover {
-    background: rgba(255, 255, 255, 0.25);
-  }
-
   /* ─── Body ─── */
   .card-body {
-    padding: 1rem 1.25rem 1.2rem;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    padding: 0.15rem 0;
   }
 
   .card-category {
     display: inline-block;
+    align-self: flex-start;
     margin-bottom: 0.5rem;
     padding: 0.18rem 0.6rem;
     font-size: 0.7rem;
@@ -328,11 +237,129 @@ const imageSeed = encodeURIComponent(
   .cat-violet { background: var(--violet-100); color: var(--violet-700); }
   .cat-coral { background: var(--coral-100); color: var(--coral-700); }
   .cat-amber { background: var(--amber-100); color: var(--amber-700); }
-  .dark .cat-mint { background: var(--mint-900); color: var(--mint-300); }
-  .dark .cat-magenta { background: var(--magenta-600); color: var(--magenta-50); }
-  .dark .cat-violet { background: var(--violet-700); color: var(--violet-100); }
-  .dark .cat-coral { background: var(--coral-500); color: var(--coral-100); }
-  .dark .cat-amber { background: var(--amber-700); color: var(--amber-100); }
+  :global(.dark) .cat-mint { background: var(--mint-900); color: var(--mint-300); }
+  :global(.dark) .cat-magenta { background: var(--magenta-600); color: var(--magenta-50); }
+  :global(.dark) .cat-violet { background: var(--violet-700); color: var(--violet-100); }
+  :global(.dark) .cat-coral { background: var(--coral-500); color: var(--coral-100); }
+  :global(.dark) .cat-amber { background: var(--amber-700); color: var(--amber-100); }
+
+  .card-tags {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .card-tag {
+    display: inline-block;
+    padding: 0.1rem 0.4rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    line-height: 1.4;
+    color: var(--muted-foreground);
+    text-decoration: none;
+    border-radius: 4px;
+    transition:
+      color 0.15s ease,
+      background 0.15s ease;
+  }
+
+  .card-tag:hover {
+    color: var(--mint-700);
+    background: var(--mint-100);
+  }
+  :global(.dark) .card-tag:hover {
+    color: var(--mint-300);
+    background: var(--mint-900);
+  }
+
+  .card-tags-more {
+    position: relative;
+    padding: 0.1rem 0.3rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    border-radius: 4px;
+    transition:
+      color 0.15s ease,
+      background 0.15s ease;
+  }
+
+  .card-tags-more:hover,
+  .card-tags-more:focus-visible {
+    color: var(--mint-700);
+    background: var(--mint-100);
+  }
+
+  .card-tags-popover {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 7rem;
+    padding: 0.4rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--base-color-black-45) 0 8px 24px -8px;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-4px);
+    transition:
+      opacity 0.15s ease,
+      transform 0.15s ease,
+      visibility 0.15s;
+    pointer-events: none;
+  }
+
+  .card-tags-more:hover .card-tags-popover,
+  .card-tags-more:focus-visible .card-tags-popover,
+  .card-tags-more:focus-within .card-tags-popover {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  .card-tag-pop {
+    display: block;
+    padding: 0.2rem 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--muted-foreground);
+    text-decoration: none;
+    border-radius: 4px;
+    transition:
+      color 0.15s ease,
+      background 0.15s ease;
+  }
+
+  .card-tag-pop:hover {
+    color: var(--mint-700);
+    background: var(--mint-100);
+  }
+  :global(.dark) .card-tag-pop:hover {
+    color: var(--mint-300);
+    background: var(--mint-900);
+  }
+
+  .card-title-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .card-title-link {
+    flex: 1;
+    min-width: 0;
+    text-decoration: none;
+    color: inherit;
+  }
 
   .card-title {
     margin: 0;
@@ -351,14 +378,29 @@ const imageSeed = encodeURIComponent(
     color: var(--primary-color);
   }
 
+  .new-badge {
+    flex-shrink: 0;
+    margin-top: 0.3rem;
+    padding: 0.08rem 0.5rem;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    border-radius: 999px;
+    background: var(--mint-100);
+    color: var(--mint-700);
+  }
+  :global(.dark) .new-badge {
+    background: var(--mint-900);
+    color: var(--mint-300);
+  }
+
   .card-excerpt {
     margin: 0.4rem 0 0;
-    cursor: pointer;
     font-size: 0.875rem;
     line-height: 1.55;
     color: var(--muted-foreground);
     display: -webkit-box;
-    -webkit-line-clamp: 2;
+    -webkit-line-clamp: 4;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
@@ -366,8 +408,15 @@ const imageSeed = encodeURIComponent(
   .card-meta {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    margin-top: 0.6rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: auto;
+    padding-top: 0.75rem;
+  }
+
+  .card-tags {
+    margin-left: auto;
+    gap: 0.35rem;
   }
 
   .card-date {
@@ -391,14 +440,45 @@ const imageSeed = encodeURIComponent(
 
   /* ─── Responsive ─── */
   @media (max-width: 640px) {
+    .post-card {
+      flex-direction: column;
+      gap: 0.6rem;
+      padding: 0.75rem;
+    }
+    .card-image-link {
+      width: 100%;
+      flex-shrink: 1;
+    }
+    .card-image-wrap {
+      aspect-ratio: 16 / 9;
+      border-radius: calc(var(--radius) - 4px);
+    }
     .card-body {
-      padding: 0.8rem 1rem 1rem;
+      padding: 0;
+    }
+    .card-category {
+      margin-bottom: 0.4rem;
     }
     .card-title {
-      font-size: 1rem;
+      font-size: 1.05rem;
+      -webkit-line-clamp: 2;
     }
-    .hover-overlay {
-      padding: 1rem;
+    .card-excerpt {
+      margin-top: 0.35rem;
+      -webkit-line-clamp: 3;
+    }
+    .card-meta {
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      padding-top: 0.6rem;
+    }
+    .card-tags {
+      width: 100%;
+      margin-left: 0;
+      justify-content: flex-start;
+    }
+    .card-tag {
+      white-space: nowrap;
     }
   }
 </style>

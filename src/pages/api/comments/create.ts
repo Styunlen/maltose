@@ -91,8 +91,12 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     // Comments are embedded in GetNodeByURI responses — drop those cache
     // entries so the next read revalidates with the new comment (ADR-0024).
     // Preview cards embed commentCount too, so drop those as well (ADR-0025).
+    // Site stats (TimelineStats) and homepage cards (HomePosts) carry counts.
     __internalLruCache.deleteByPrefix("GetNodeByURI:");
     __internalLruCache.deleteByPrefix("PreviewByUri:");
+    __internalLruCache.deleteByPrefix("TimelineStats:");
+    __internalLruCache.deleteByPrefix("HomePosts:");
+    __internalLruCache.deleteByPrefix("MegaQuery:");
 
     return new Response(JSON.stringify(data?.data?.createComment || data), {
       status: 200,

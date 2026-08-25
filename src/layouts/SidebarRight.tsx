@@ -56,6 +56,8 @@ interface SidebarRightProps {
     comments?: any[];
     categories?: { name: string; uri: string; count: number }[];
     archivePosts?: { date: string }[];
+    totalPosts?: number;
+    totalComments?: number;
   } | null;
 }
 
@@ -960,6 +962,50 @@ function SidebarSkeleton() {
   );
 }
 
+/* ─── SiteStats ─── */
+function SiteStats({
+  sidebarData,
+}: {
+  sidebarData: SidebarRightProps["sidebarData"];
+}) {
+  const postCount = sidebarData?.totalPosts ?? sidebarData?.posts?.length ?? 0;
+  const commentCount = sidebarData?.totalComments ?? 0;
+  const tagCount = sidebarData?.tags?.length ?? 0;
+  const categoryCount = sidebarData?.categories?.length ?? 0;
+
+  if (!postCount && !commentCount) return null;
+
+  const stats = [
+    { label: "文章", value: postCount },
+    { label: "分类", value: categoryCount },
+    { label: "标签", value: tagCount },
+    { label: "评论", value: commentCount },
+  ];
+
+  return (
+    <SidebarGroup>
+      <SidebarGroupLabel className="font-bold tracking-wider uppercase text-[0.65rem] text-sidebar-foreground/60">
+        网站统计
+      </SidebarGroupLabel>
+      <div className="grid grid-cols-2 gap-1.5 px-2 pb-2">
+        {stats.map((s) => (
+          <div
+            key={s.label}
+            className="flex flex-col items-center gap-0.5 rounded-lg border border-border/60 bg-sidebar-accent/40 px-2 py-2.5"
+          >
+            <span className="font-display text-lg font-bold text-mint-700 transition-colors duration-200 dark:text-mint-300">
+              {s.value}
+            </span>
+            <span className="text-[0.6rem] font-semibold uppercase tracking-wide text-sidebar-foreground/50">
+              {s.label}
+            </span>
+          </div>
+        ))}
+      </div>
+    </SidebarGroup>
+  );
+}
+
 /* ─── HomepageSidebar ─── */
 function HomepageSidebar({
   menu,
@@ -975,6 +1021,7 @@ function HomepageSidebar({
       </SidebarHeader>
       <SidebarContent className="overflow-y-auto custom-scrollbar">
         <CalendarWidget />
+        <SiteStats sidebarData={sidebarData} />
         <TabsSection
           posts={sidebarData?.posts || []}
           comments={sidebarData?.comments || []}
@@ -1020,7 +1067,7 @@ export default function SidebarRight({
     <Sidebar
       side="right"
       collapsible="icon"
-      className="fixed right-0 top-(--header-height) w-(--sidebar-width) h-[calc(100svh-var(--header-height))]! hidden lg:flex"
+      className="fixed right-0 top-(--header-height) w-(--sidebar-width) h-[calc(100svh-var(--header-height))]! xl:hidden 2xl:flex"
       suppressHydrationWarning
     >
       {pageType === "" && <SidebarSkeleton />}

@@ -1,5 +1,18 @@
 ---
 const { title = "你好，Web 朋友 👋", subtitle = "记录技术、生活与一切有趣的东西" } = Astro.props;
+
+const techStack = [
+  "TypeScript",
+  "Node.js",
+  "React",
+  "Vue",
+  "Astro",
+  "Docker",
+  "Linux",
+  "GraphQL",
+  "Nginx",
+  "pnpm",
+];
 ---
 
 <section class="hero">
@@ -14,11 +27,31 @@ const { title = "你好，Web 朋友 👋", subtitle = "记录技术、生活与
       <span class="tag tag-coral">音乐</span>
       <span class="tag tag-amber">折腾</span>
     </div>
+
+    <div class="hero-stack" role="region" aria-label="技术栈">
+      <div class="stack-track font-mono">
+        <div class="stack-group">
+          {techStack.map((tech) => (
+            <span class="stack-chip">{tech}</span>
+          ))}
+        </div>
+        <div class="stack-group" aria-hidden="true">
+          {techStack.map((tech) => (
+            <span class="stack-chip">{tech}</span>
+          ))}
+        </div>
+      </div>
+    </div>
   </div>
   <div class="hero-bg" aria-hidden="true" />
 </section>
 
 <style>
+  /* Hallmark · macrostructure: Ecosystem Index · hero: whoami + tech-marquee
+   * theme: studied-DNA (source: https://blog.anheyu.com/) · studied: yes
+   * observed-accent: mint #00f0a0 (user identity, preserved) · rhythm: unknown
+   * contrast: pass (40–41) · nav: N1b (existing) · footer: Ft3 (existing)
+   * mobile: pass (34, 49, 50–57) · icons: pass (30) */
   .hero {
     position: relative;
     box-sizing: border-box;
@@ -29,7 +62,7 @@ const { title = "你好，Web 朋友 👋", subtitle = "记录技术、生活与
     margin: 1.5rem 0;
     background: color-mix(in oklch, var(--mint-50) 60%, var(--background));
   }
-  .dark .hero {
+  :global(.dark) .hero {
     background: color-mix(in oklch, var(--mint-950) 40%, var(--background));
   }
   .hero-inner {
@@ -43,7 +76,7 @@ const { title = "你好，Web 朋友 👋", subtitle = "记录技术、生活与
     margin-bottom: 0.6rem;
     letter-spacing: 0.02em;
   }
-  .dark .hero-eyebrow {
+  :global(.dark) .hero-eyebrow {
     color: var(--mint-300);
   }
   .hero-title {
@@ -82,11 +115,82 @@ const { title = "你好，Web 朋友 👋", subtitle = "记录技术、生活与
   .tag-violet { background: var(--violet-100); color: var(--violet-700); }
   .tag-coral { background: var(--coral-100); color: var(--coral-700); }
   .tag-amber { background: var(--amber-100); color: var(--amber-700); }
-  .dark .tag-mint { background: var(--mint-900); color: var(--mint-300); }
-  .dark .tag-magenta { background: var(--magenta-600); color: var(--magenta-50); }
-  .dark .tag-violet { background: var(--violet-700); color: var(--violet-100); }
-  .dark .tag-coral { background: var(--coral-500); color: var(--coral-100); }
-  .dark .tag-amber { background: var(--amber-700); color: var(--amber-100); }
+  :global(.dark) .tag-mint { background: var(--mint-900); color: var(--mint-300); }
+  :global(.dark) .tag-magenta { background: var(--magenta-600); color: var(--magenta-50); }
+  :global(.dark) .tag-violet { background: var(--violet-700); color: var(--violet-100); }
+  :global(.dark) .tag-coral { background: var(--coral-500); color: var(--coral-100); }
+  :global(.dark) .tag-amber { background: var(--amber-700); color: var(--amber-100); }
+
+  /* ─── Tech-stack marquee wall ─── */
+  .hero-stack {
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .stack-track {
+    display: flex;
+    width: max-content;
+    will-change: transform;
+    animation: stack-scroll 30s linear infinite;
+  }
+
+  .hero-stack:hover .stack-track {
+    animation-play-state: paused;
+  }
+
+  .stack-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  .stack-chip {
+    flex-shrink: 0;
+    padding: 0.3rem 0.8rem;
+    font-size: 0.72rem;
+    white-space: nowrap;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--muted);
+    color: var(--mint-700);
+    transition:
+      color 0.15s ease,
+      border-color 0.15s ease,
+      background-color 0.15s ease;
+  }
+
+  .stack-chip:hover {
+    color: var(--primary-color);
+    border-color: color-mix(in oklch, var(--primary-color) 50%, var(--border));
+    background: color-mix(in oklch, var(--primary-color) 10%, var(--muted));
+  }
+
+  :global(.dark) .stack-chip {
+    color: var(--mint-300);
+  }
+
+  @keyframes stack-scroll {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .stack-track {
+      animation: none;
+      width: auto;
+      flex-wrap: wrap;
+    }
+    .stack-group[aria-hidden="true"] {
+      display: none;
+    }
+  }
 
   .hero-bg {
     position: absolute;
@@ -104,7 +208,7 @@ const { title = "你好，Web 朋友 👋", subtitle = "记录技术、生活与
     filter: blur(2px);
     pointer-events: none;
   }
-  .dark .hero-bg {
+  :global(.dark) .hero-bg {
     opacity: 0.5;
   }
 </style>

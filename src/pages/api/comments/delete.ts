@@ -56,6 +56,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     // Removed comments are embedded in GetNodeByURI responses — invalidate.
     __internalLruCache.deleteByPrefix("GetNodeByURI:");
     __internalLruCache.deleteByPrefix("PreviewByUri:");
+    __internalLruCache.deleteByPrefix("TimelineStats:");
+    __internalLruCache.deleteByPrefix("HomePosts:");
+    __internalLruCache.deleteByPrefix("MegaQuery:");
 
     return new Response(JSON.stringify(data?.data?.deleteComment || data), {
       status: 200,

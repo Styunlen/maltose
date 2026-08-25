@@ -35,6 +35,8 @@ interface LayoutShellProps {
     comments?: any[];
     categories?: { name: string; uri: string; count: number }[];
     archivePosts?: { date: string }[];
+    totalPosts?: number;
+    totalComments?: number;
   } | null;
   initialUser?: { sub: string; email?: string; name?: string; preferred_username?: string } | null;
   pathname?: string;

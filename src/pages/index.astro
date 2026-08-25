@@ -4,6 +4,7 @@ import Hero from "../components/Hero.astro";
 import PopularPosts from "../components/PopularPosts.astro";
 import StickyCarousel from "../components/StickyCarousel.astro";
 import Pagination from "../components/Pagination.astro";
+import CategoryTabs from "../components/CategoryTabs.astro";
 import MaintenancePage from "../components/MaintenancePage.astro";
 import MainLayout from "../layouts/MainLayout.astro";
 import {
@@ -46,11 +47,18 @@ try {
   popularPosts = shuffle(mega.mostViewedPosts ?? []).slice(0, 8);
   // Homepage sidebar is homepage-only content — fetched here and passed down
   // through MainLayout so article/utility pages never fetch it (see ADR-0013).
+  // totalComments sums the FULL post set via getTimelineStats (paged past the
+  // 100-post cap); megaQuery's allCommentCounts only covers posts(first:100).
   sidebarData = {
     posts: mega.recentPosts?.nodes ?? [],
     tags: mega.allTags?.nodes ?? [],
     categories: mega.allCategories?.nodes ?? [],
     comments: mega.recentComments?.nodes ?? [],
+    totalPosts: total,
+    totalComments: archivePosts.reduce(
+      (sum, p) => sum + (p?.commentCount ?? 0),
+      0,
+    ),
     archivePosts,
   };
 } catch (err) {
@@ -82,6 +90,13 @@ Astro.response.headers.set("Cache-Control", "no-cache, must-revalidate");
         <h2 style="font-weight: 700; font-size: 1.25rem; color: var(--foreground); margin-top: 2.5rem; margin-bottom: 1rem; letter-spacing: 0.02em;">
           {currentPage === 1 ? "Recent Posts" : `Page ${currentPage}`}
         </h2>
+
+        {currentPage === 1 && (
+          <CategoryTabs
+            categories={sidebarData?.categories ?? []}
+            currentUri={Astro.url.pathname}
+          />
+        )}
 
         <div>
           {posts.map((post) => (

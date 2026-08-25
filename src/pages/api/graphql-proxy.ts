@@ -15,8 +15,10 @@ const VIEW_RATE_LIMIT_OPTS = {
 
 // OTP send is a public mutation — throttle per IP to prevent mail-bombing
 // (the WP side only throttles per-email; a bot can otherwise spray addresses).
+// 10/hr balances normal users (retry after lost mail, switching mailbox) with
+// abuse protection; the WP-side 60s per-email resend gate is the second layer.
 const OTP_SEND_RATE_LIMIT_OPTS = {
-  points: 5, // five sendEmailOtp calls
+  points: 10, // ten sendEmailOtp calls
   duration: 3600, // per hour per IP
   keyPrefix: "otp_send",
 };

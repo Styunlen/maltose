@@ -12,6 +12,14 @@ const VIEW_RATE_LIMIT_OPTS = {
   keyPrefix: "view_rate",
 };
 
+// OTP send is a public mutation — throttle per IP to prevent mail-bombing
+// (the WP side only throttles per-email; a bot can otherwise spray addresses).
+const OTP_SEND_RATE_LIMIT_OPTS = {
+  points: 5, // five sendEmailOtp calls
+  duration: 3600, // per hour per IP
+  keyPrefix: "otp_send",
+};
+
 // Lazy-initialized rate limiter. Uses Redis when REDIS_URL is configured
 // (multi-instance pm2 deployments) and an in-memory limiter otherwise
 // (single-instance deployments, no Redis dependency).
@@ -32,6 +40,24 @@ function getViewRateLimiter(): Promise<RateLimiterMemory | RateLimiterRedis> {
     })();
   }
   return viewRateLimiterPromise;
+}
+
+let otpSendLimiterPromise: Promise<RateLimiterMemory | RateLimiterRedis> | null = null;
+
+function getOtpSendLimiter(): Promise<RateLimiterMemory | RateLimiterRedis> {
+  if (!otpSendLimiterPromise) {
+    otpSendLimiterPromise = (async () => {
+      const client = await connectRedisIfConfigured();
+      if (client) {
+        return new RateLimiterRedis({
+          storeClient: client,
+          ...OTP_SEND_RATE_LIMIT_OPTS,
+        });
+      }
+      return new RateLimiterMemory(OTP_SEND_RATE_LIMIT_OPTS);
+    })();
+  }
+  return otpSendLimiterPromise;
 }
 
 function getSecret(): string {
@@ -65,20 +91,36 @@ function buildSignatureHeaders(): Record<string, string> {
 }
 
 // Blacklisted operations — rejected even with a valid session (defense-in-depth against open-relay abuse)
+// updateUser is deliberately allowed (self-service profile edits, ADR-0030);
+// revokeUserSecret is allowed (logout must invalidate the refresh token server-side, 方案 A);
+// all other user mutations stay blocked.
 const BLOCKED_PATTERNS = [
   /__schema\b/,
   /__type\b/,
-  /\b(?:createUser|updateUser|deleteUser|registerUser|resetUserPassword)\b/,
+  /\b(?:createUser|deleteUser|registerUser|resetUserPassword)\b/,
   /\b(?:updateSettings|updateOptions)\b/,
   /\b(?:createPost|updatePost|deletePost|createPage|updatePage|deletePage)\b/,
   /\b(?:createMediaItem|updateMediaItem|deleteMediaItem)\b/,
   /\b(?:createCategory|updateCategory|deleteCategory|createTag|updateTag|deleteTag)\b/,
   /\b(?:updatePlugin|updateTheme)\b/,
-  /\b(?:linkUserIdentity|refreshUserSecret|revokeUserSecret|restoreComment)\b/,
+  /\b(?:linkUserIdentity|refreshUserSecret|restoreComment)\b/,
 ];
 
 function isBlocked(query: string): boolean {
   return BLOCKED_PATTERNS.some((re) => re.test(query));
+}
+
+// Any mutation requires an authenticated wp_token. Queries stay open.
+function isMutation(query: string): boolean {
+  return /^\s*mutation\b/m.test(query);
+}
+
+function hasAuth(request: Request): boolean {
+  // Coarse gate only — the real auth is WPGraphQL's JWT check on the WP side.
+  // Requiring a Bearer-shaped header filters obviously-invalid anonymous calls
+  // without pretending this is a validation layer.
+  const h = request.headers.get("Authorization") || "";
+  return /^Bearer\s+\S+/.test(h);
 }
 
 function isRecordPostView(query: string): boolean {
@@ -111,6 +153,41 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
         JSON.stringify({ error: "Operation not allowed" }),
         { status: 403, headers: { "Content-Type": "application/json" } },
       );
+    }
+
+// Mutations require an authenticated wp_token (ADR-0030).
+// Exemptions — these run *before* a token exists:
+//   recordPostView (visitor view counting),
+//   login / refreshToken (credential flows),
+//   sendEmailOtp / verifyEmailOtp (passwordless pre-auth).
+function isPublicMutation(query: string): boolean {
+  return (
+    isRecordPostView(query) ||
+    /\b(?:login|refreshToken|sendEmailOtp|verifyEmailOtp)\s*\(/.test(query)
+  );
+}
+
+    // Mutations require an authenticated wp_token (ADR-0030).
+    if (isMutation(query) && !isPublicMutation(query) && !hasAuth(request)) {
+      return new Response(
+        JSON.stringify({ error: "请先登录后再操作" }),
+        { status: 401, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
+    // Per-IP throttle on OTP sends (public endpoint; prevents mail-bombing).
+    if (/\bsendEmailOtp\s*\(/.test(query)) {
+      const ip = clientAddress || "unknown";
+      try {
+        const limiter = await getOtpSendLimiter();
+        await limiter.consume(ip);
+      } catch {
+        console.warn(`[graphql-proxy] sendEmailOtp rate limited: ip=${ip}`);
+        return new Response(
+          JSON.stringify({ error: "发送过于频繁，请稍后再试" }),
+          { status: 429, headers: { "Content-Type": "application/json" } },
+        );
+      }
     }
 
     // Coarse per-IP+post rate limit for view recording (exact dedup happens

@@ -1,46 +1,110 @@
 ---
-
+const { title = "你好，Web 朋友 👋", subtitle = "记录技术、生活与一切有趣的东西" } = Astro.props;
 ---
 
-<section>
-    <h1>Hello, web friend! 🌎 Thanks for visiting</h1>
-    <p></p>
+<section class="hero">
+  <div class="hero-inner">
+    <p class="hero-eyebrow font-mono">~/$ whoami</p>
+    <h1 class="hero-title font-display">{title}</h1>
+    <p class="hero-subtitle">{subtitle}</p>
+    <div class="hero-tags font-mono">
+      <span class="tag tag-mint">Astro</span>
+      <span class="tag tag-magenta">React</span>
+      <span class="tag tag-violet">GraphQL</span>
+      <span class="tag tag-coral">TypeScript</span>
+      <span class="tag tag-amber">自建部署</span>
+    </div>
+  </div>
+  <div class="hero-bg" aria-hidden="true" />
 </section>
 
 <style>
-    section {
-        box-sizing: border-box;
-        min-height: 400px;
-        background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-        border: 4px solid var(--border);
-        border-radius: var(--radius);
-        box-shadow: 8px 8px 0px var(--border);
-        color: white;
-        font-size: 2.5rem;
-        padding: 4rem 3rem;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        position: relative;
-        overflow: hidden;
-    }
-    section::after {
-        content: '✨';
-        position: absolute;
-        top: 20px;
-        right: 30px;
-        font-size: 3rem;
-        animation: float 3s ease-in-out infinite;
-    }
-    @keyframes float {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-10px); }
-    }
-    h1 {
-       text-align: center;
-       margin: auto;
-       font-weight: 800;
-       text-shadow: 3px 3px 0px var(--border);
-    }
+  .hero {
+    position: relative;
+    box-sizing: border-box;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    padding: 3.5rem 2.5rem;
+    margin-top: 1.5rem;
+    background: color-mix(in oklch, var(--mint-50) 60%, var(--background));
+  }
+  .dark .hero {
+    background: color-mix(in oklch, var(--mint-950) 40%, var(--background));
+  }
+  .hero-inner {
+    position: relative;
+    z-index: 1;
+    max-width: 42rem;
+  }
+  .hero-eyebrow {
+    font-size: 0.8rem;
+    color: var(--mint-700);
+    margin-bottom: 0.6rem;
+    letter-spacing: 0.02em;
+  }
+  .dark .hero-eyebrow {
+    color: var(--mint-300);
+  }
+  .hero-title {
+    font-size: clamp(1.9rem, 4vw, 3rem);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.75rem;
+    color: var(--foreground);
+    overflow-wrap: anywhere;
+  }
+  .hero-subtitle {
+    font-size: 1.05rem;
+    color: var(--muted-foreground);
+    margin: 0 0 1.5rem;
+    max-width: 36rem;
+  }
+  .hero-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .tag {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.28rem 0.7rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .tag:hover {
+    transform: translateY(-1px);
+  }
+  .tag-mint { background: var(--mint-100); color: var(--mint-700); }
+  .tag-magenta { background: var(--magenta-100); color: var(--magenta-700); }
+  .tag-violet { background: var(--violet-100); color: var(--violet-700); }
+  .tag-coral { background: var(--coral-100); color: var(--coral-700); }
+  .tag-amber { background: var(--amber-100); color: var(--amber-700); }
+  .dark .tag-mint { background: var(--mint-900); color: var(--mint-300); }
+  .dark .tag-magenta { background: var(--magenta-600); color: var(--magenta-50); }
+  .dark .tag-violet { background: var(--violet-700); color: var(--violet-100); }
+  .dark .tag-coral { background: var(--coral-500); color: var(--coral-100); }
+  .dark .tag-amber { background: var(--amber-700); color: var(--amber-100); }
+
+  .hero-bg {
+    position: absolute;
+    top: -3rem;
+    right: -3rem;
+    width: 14rem;
+    height: 14rem;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle,
+      color-mix(in oklch, var(--primary-color) 35%, transparent),
+      transparent 70%
+    );
+    opacity: 0.6;
+    filter: blur(2px);
+    pointer-events: none;
+  }
+  .dark .hero-bg {
+    opacity: 0.5;
+  }
 </style>

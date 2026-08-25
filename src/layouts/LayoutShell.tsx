@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { MotionConfig } from "motion/react";
 import NavigationProgress from "@/components/NavigationProgress";
 import ScrollProgress from "@/components/ScrollProgress";
 import SiteHeader from "@/components/SiteHeader";
@@ -49,7 +50,7 @@ export default function LayoutShell({
   children,
 }: LayoutShellProps) {
   return (
-    <>
+    <MotionConfig reducedMotion="user">
       <NavigationProgress />
       <ScrollProgress />
       <AuthProvider initialUser={initialUser}>
@@ -88,6 +89,6 @@ export default function LayoutShell({
       </SidebarProvider>
     </div>
     </AuthProvider>
-    </>
+    </MotionConfig>
   );
 }

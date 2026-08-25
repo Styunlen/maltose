@@ -35,6 +35,24 @@ const pageTitle = `${title} | ${generalSettings.title}`;
     <meta name="generator" content={Astro.generator} />
     <title>{`${title} | ${generalSettings.title}`}</title>
     <meta name="description" content={description} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Nunito:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <script is:inline>
+      // Apply theme before first paint to avoid a flash of the wrong mode.
+      // is:inline → emitted verbatim (not TS-bundled by Astro).
+      (() => {
+        const stored = localStorage.getItem("theme");
+        const dark =
+          stored === "dark" ||
+          (stored !== "light" &&
+            matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.classList.toggle("dark", dark);
+      })();
+    </script>
     <ClientRouter fallback="swap" />
   </head>
   <body>
@@ -79,12 +97,11 @@ const pageTitle = `${title} | ${generalSettings.title}`;
 </script>
 
 <style>
-  /* @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap'); */
-
   body {
-    /* font-family: "Nunito", "Open Sans", sans-serif; */
-    font-family: "Nunito", "Open Sans", sans-serif;
+    font-family: "Nunito", "MiSans", "PingFang SC", "Hiragino Sans GB",
+      "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
     font-size: 18px;
+    /* Subtle dot grid — kept light so prose stays readable; dark mode dims it. */
     background-image: radial-gradient(var(--border) 1px, transparent 1px);
     background-size: 24px 24px;
   }

@@ -40,9 +40,86 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* ── Brand ramp utilities (bg-mint-500 / text-magenta-300 …) ─────────── */
+  --color-mint-50: var(--mint-50);
+  --color-mint-100: var(--mint-100);
+  --color-mint-200: var(--mint-200);
+  --color-mint-300: var(--mint-300);
+  --color-mint-400: var(--mint-400);
+  --color-mint-500: var(--mint-500);
+  --color-mint-600: var(--mint-600);
+  --color-mint-700: var(--mint-700);
+  --color-mint-800: var(--mint-800);
+  --color-mint-900: var(--mint-900);
+  --color-mint-950: var(--mint-950);
+  --color-magenta-50: var(--magenta-50);
+  --color-magenta-100: var(--magenta-100);
+  --color-magenta-200: var(--magenta-200);
+  --color-magenta-300: var(--magenta-300);
+  --color-magenta-400: var(--magenta-400);
+  --color-magenta-500: var(--magenta-500);
+  --color-magenta-600: var(--magenta-600);
+  --color-magenta-700: var(--magenta-700);
+  --color-violet-100: var(--violet-100);
+  --color-violet-300: var(--violet-300);
+  --color-violet-500: var(--violet-500);
+  --color-violet-700: var(--violet-700);
+  --color-coral-100: var(--coral-100);
+  --color-coral-300: var(--coral-300);
+  --color-coral-500: var(--coral-500);
+  --color-coral-700: var(--coral-700);
+  --color-amber-100: var(--amber-100);
+  --color-amber-300: var(--amber-300);
+  --color-amber-500: var(--amber-500);
+  --color-amber-700: var(--amber-700);
 }
 
 :root {
+  /* ── Extended brand ramp (playful-technical, ADR-less) ──────────────────
+   * Indigo is the primary hue (255° — cool technical blue). mint-600 is the
+   * light-mode --primary (white text, ≈4.5:1), mint-300 the dark-mode one.
+   * Energy hues (magenta/coral/amber) are warm contrasts — indigo is cool, so
+   * warmth carries the playful energy. #00f0a0 (--primary-color) stays as a
+   * neon accent (hero glow, selection) for the indigo↔neon tension. Keep
+   * energy hues ≤10% of any screen.
+   */
+  --mint-50:  oklch(0.970 0.030 255);
+  --mint-100: oklch(0.930 0.050 255);
+  --mint-200: oklch(0.860 0.090 255);
+  --mint-300: oklch(0.780 0.120 255);
+  --mint-400: oklch(0.700 0.135 255);
+  --mint-500: oklch(0.620 0.140 255);
+  --mint-600: oklch(0.540 0.135 255);
+  --mint-700: oklch(0.460 0.120 255);
+  --mint-800: oklch(0.380 0.100 255);
+  --mint-900: oklch(0.290 0.070 255);
+  --mint-950: oklch(0.190 0.040 255);
+
+  --magenta-50:  oklch(0.950 0.030 340);
+  --magenta-100: oklch(0.900 0.050 340);
+  --magenta-200: oklch(0.820 0.090 340);
+  --magenta-300: oklch(0.740 0.130 340);
+  --magenta-400: oklch(0.670 0.150 340);
+  --magenta-500: oklch(0.620 0.160 340);
+  --magenta-600: oklch(0.540 0.140 340);
+  --magenta-700: oklch(0.460 0.120 340);
+
+  --violet-100: oklch(0.900 0.050 300);
+  --violet-300: oklch(0.740 0.120 300);
+  --violet-500: oklch(0.620 0.140 300);
+  --violet-700: oklch(0.460 0.120 300);
+
+  --coral-100: oklch(0.930 0.070 30);
+  --coral-300: oklch(0.780 0.130 30);
+  --coral-500: oklch(0.660 0.150 30);
+  --coral-700: oklch(0.480 0.120 30);
+
+  --amber-100: oklch(0.930 0.080 78);
+  --amber-300: oklch(0.800 0.130 78);
+  --amber-500: oklch(0.680 0.150 78);
+  --amber-700: oklch(0.460 0.109 78);
+
   --primary-color: #00f0a0;
   --primary-color-10: #00f0a01a;
   --primary-color-25: #00f0a040;
@@ -91,19 +168,19 @@
   --card-foreground: var(--base-color-black);
   --popover: var(--base-color-white);
   --popover-foreground: var(--base-color-black);
-  --primary: var(--primary-color);
-  --primary-foreground: var(--base-color-blackbtn);
+  --primary: var(--mint-600);
+  --primary-foreground: var(--base-color-white);
   --secondary: var(--base-color-tertiarybg);
   --secondary-foreground: var(--base-color-black);
   --muted: var(--base-color-secondbg);
   --muted-foreground: color-mix(in oklch, var(--foreground) 60%, transparent);
-  --accent: var(--base-color-lightgreen);
+  --accent: var(--magenta-100);
   --accent-foreground: var(--base-color-black);
   --destructive: var(--base-color-red);
   --destructive-foreground: var(--base-color-white);
   --border: var(--base-color-black-10);
   --input: var(--base-color-deepgrey);
-  --ring: var(--primary-color);
+  --ring: var(--mint-600);
   --radius: 0.75rem;
 
   --sidebar: var(--base-color-white);
@@ -165,19 +242,19 @@
   --card-foreground: var(--base-color-black);
   --popover: var(--base-color-white);
   --popover-foreground: var(--base-color-black);
-  --primary: var(--primary-color);
-  --primary-foreground: var(--base-color-blackbtn);
+  --primary: var(--mint-300);
+  --primary-foreground: var(--base-color-black);
   --secondary: var(--base-color-tertiarybg);
   --secondary-foreground: var(--base-color-black);
   --muted: var(--base-color-secondbg);
   --muted-foreground: color-mix(in oklch, var(--foreground) 60%, transparent);
-  --accent: var(--base-color-lightgreen);
+  --accent: var(--magenta-200);
   --accent-foreground: var(--base-color-black);
   --destructive: var(--base-color-red);
-  --destructive-foreground: var(--base-color-whiteboth);
+  --destructive-foreground: var(--base-color-white);
   --border: var(--base-color-black-10);
   --input: var(--base-color-deepgrey);
-  --ring: var(--primary-color);
+  --ring: var(--mint-300);
   --radius: 0.75rem;
 
   --sidebar: var(--base-color-primarybg);
@@ -197,6 +274,19 @@
   body {
     @apply bg-background text-foreground;
   }
+  code,
+  pre,
+  kbd {
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas,
+      monospace;
+  }
+}
+
+/* Plain global rules (outside @layer so they survive dev-server caching;
+ * Tailwind v4 @utility had a dev-mode staleness issue). */
+.font-display {
+  font-family: "Space Grotesk", "Smiley Sans", "得意黑", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
 }
 
 @layer anime {

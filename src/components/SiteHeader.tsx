@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Search, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import ThemeToggle from "@/components/ThemeToggle";
 
 interface SiteHeaderProps {
   menu?: {
@@ -51,6 +52,8 @@ export default function SiteHeader({ menu, generalSettings }: SiteHeaderProps) {
         </nav>
 
         <div className="ml-auto flex items-center gap-1">
+          <ThemeToggle />
+
           <Button
             variant="ghost"
             size="icon"

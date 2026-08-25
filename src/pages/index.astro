@@ -1,5 +1,6 @@
 ---
 import PostCard from "../components/PostCard.astro";
+import Hero from "../components/Hero.astro";
 import PopularPosts from "../components/PopularPosts.astro";
 import StickyCarousel from "../components/StickyCarousel.astro";
 import Pagination from "../components/Pagination.astro";
@@ -72,6 +73,8 @@ Astro.response.headers.set("Cache-Control", "no-cache, must-revalidate");
       sidebarData={sidebarData}
     >
       <div style="margin-top: 1.5rem;">
+        <Hero />
+
         <StickyCarousel posts={stickyPosts} />
 
         <PopularPosts first={8} posts={popularPosts} />

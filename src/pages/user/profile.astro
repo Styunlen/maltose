@@ -1,21 +1,21 @@
 ---
 export const prerender = false;
 import MainLayout from "@/layouts/MainLayout.astro";
-import UserComments from "@/components/UserComments";
+import ProfileForm from "@/components/ProfileForm";
 
 const wpToken = Astro.locals.wpToken;
 const user = Astro.locals.user;
 ---
 
-<MainLayout title="我的评论">
+<MainLayout title="个人资料">
   <div>
     {!wpToken || !user ? (
       <div style="text-align: center; padding: 3rem 1rem; max-width: 800px; margin: 1.5rem auto 0;">
         <p style="font-size: 1rem; color: var(--muted-foreground); margin-bottom: 1rem;">
-          请先登录后查看评论
+          请先登录后编辑资料
         </p>
         <a
-          href="/login?redirect=/user/comments"
+          href="/login?redirect=/user/profile"
           style={{
             display: "inline-block",
             padding: "0.55rem 1.5rem",
@@ -31,7 +31,7 @@ const user = Astro.locals.user;
         </a>
       </div>
     ) : (
-      <UserComments client:load />
+      <ProfileForm client:load />
     )}
   </div>
 </MainLayout>

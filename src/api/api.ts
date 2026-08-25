@@ -503,6 +503,7 @@ export async function getNodeByURI(uri, wpToken) {
                     name
                     databaseId
                     email
+                    url
                     avatar {
                       url
                       size
@@ -553,6 +554,7 @@ export async function getNodeByURI(uri, wpToken) {
                     name
                     databaseId
                     email
+                    url
                     avatar {
                       url
                       size

@@ -63,7 +63,9 @@ dayjs.locale("zh-cn");
 /* ─── Types ─── */
 interface CommentAuthor {
   name: string;
+  databaseId?: number;
   email?: string;
+  url?: string;
   avatar: { url: string; size: number };
 }
 
@@ -215,9 +217,21 @@ function ChatBubble({
       </MessageAvatar>
       <MessageContent>
         <MessageHeader>
-          <span data-author={comment.author.node.name} className="font-bold">
-            {comment.author.node.name}
-          </span>
+          {comment.author.node.url ? (
+            <a
+              href={comment.author.node.url}
+              target="_blank"
+              rel="nofollow ugc noopener"
+              data-author={comment.author.node.name}
+              className="font-bold hover:underline"
+            >
+              {comment.author.node.name}
+            </a>
+          ) : (
+            <span data-author={comment.author.node.name} className="font-bold">
+              {comment.author.node.name}
+            </span>
+          )}
           <time dateTime={comment.date}>
             {dayjs(comment.date).format("YYYY-MM-DD HH:mm")}
           </time>

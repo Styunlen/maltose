@@ -53,6 +53,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
                 author {
                   node {
                     name
+                    url
                     avatar { url }
                   }
                 }

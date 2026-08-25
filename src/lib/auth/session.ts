@@ -6,6 +6,10 @@ export interface SessionPayload {
   email?: string;
   name?: string;
   preferred_username?: string;
+  /** Identity provider: "authentik" or "wp" (email OTP / password login). */
+  provider?: "authentik" | "wp";
+  /** WP user database id — set for provider="wp". */
+  wpUserId?: string;
   iat?: number;
   exp?: number;
 }
@@ -31,6 +35,28 @@ export function createSessionToken(user: AuthentikUser): string {
     email: user.email,
     name: user.name,
     preferred_username: user.preferred_username,
+    provider: "authentik",
+  };
+  return jwt.sign(payload, getSecret(), { expiresIn: "7d" });
+}
+
+/**
+ * Create a session token for a non-Authentik login (email OTP or password).
+ * The identity comes from WordPress — `sub` is synthesized as `wp-{id}`
+ * since there is no Authentik UUID, and wpUserId carries the WP id.
+ */
+export function createWpSessionToken(input: {
+  wpUserId: string;
+  email?: string;
+  name?: string;
+}): string {
+  const payload: SessionPayload = {
+    sub: `wp-${input.wpUserId}`,
+    email: input.email,
+    name: input.name,
+    preferred_username: input.name,
+    provider: "wp",
+    wpUserId: input.wpUserId,
   };
   return jwt.sign(payload, getSecret(), { expiresIn: "7d" });
 }

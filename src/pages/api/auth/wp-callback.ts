@@ -6,6 +6,7 @@ import {
 import { randomBytes } from "node:crypto";
 
 import { getProxyUrl } from '@lib/graphql-proxy';
+import { setWpTokenCookies } from "@lib/auth/wp-token";
 
 function errorRedirect(error: string, hint: string) {
   const params = new URLSearchParams({
@@ -97,23 +98,10 @@ export const GET: APIRoute = async ({ url, redirect, cookies }) => {
     const wpData = await wpResponse.json();
 
     if (wpData?.data?.login?.authToken) {
-      cookies.set("wp_token", wpData.data.login.authToken, {
-        path: "/",
-        httpOnly: true,
-        sameSite: "lax",
-        maxAge: 60 * 60 * 24 * 7,
-        secure: import.meta.env.PROD,
+      setWpTokenCookies(cookies, {
+        authToken: wpData.data.login.authToken,
+        refreshToken: wpData.data.login.refreshToken,
       });
-
-      if (wpData.data.login.refreshToken) {
-        cookies.set("wp_refresh", wpData.data.login.refreshToken, {
-          path: "/",
-          httpOnly: true,
-          sameSite: "lax",
-          maxAge: 60 * 60 * 24 * 30,
-          secure: import.meta.env.PROD,
-        });
-      }
     } else {
       const status = wpResponse.status;
       const errors = wpData?.errors || [];

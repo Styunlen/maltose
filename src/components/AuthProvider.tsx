@@ -61,7 +61,7 @@ export default function AuthProvider({
 
   const login = React.useCallback((redirectTo?: string) => {
     const target = redirectTo || window.location.pathname + window.location.search;
-    window.location.href = `/api/auth/login?redirect=${encodeURIComponent(target)}`;
+    window.location.href = `/login?redirect=${encodeURIComponent(target)}`;
   }, []);
 
   const register = React.useCallback((redirectTo?: string) => {

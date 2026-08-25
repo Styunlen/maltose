@@ -1,13 +1,17 @@
 import { ApolloLink, Observable, type Operation, type FetchResult } from "@apollo/client";
-import { LRUCache } from "lru-cache";
 import { createHash } from "node:crypto";
+import type { CacheEntry, CacheStore } from "./cache/types";
+import { MemoryStore } from "./cache/memory-store";
 
 /*
- * In-process LRU caching link with stale-while-revalidate (SWR).
- * Sits at the head of the Apollo link chain. Serves every query from a
- * process-local cache: fresh hits return instantly, revalidatable hits
- * refresh in the background, and only STRONG_CONSISTENCY operations block
- * on the network once fully expired. See ADR-0024.
+ * SWR caching link with a pluggable backend (ADR-0032).
+ *
+ * request() returns an Observable synchronously (Apollo's contract — the core
+ * calls .pipe/.subscribe on the return value), but the hit/miss decision runs
+ * inside the executor where the store is awaited. This lets a shared backend
+ * (redis) be read directly and synchronously-perceived by callers, while
+ * memory/lmdb resolve immediately. See ADR-0032 for the Apollo Link async
+ * analysis.
  */
 
 export interface LruLinkOptions {
@@ -16,12 +20,9 @@ export interface LruLinkOptions {
   revalidateThreshold?: number;
   strongConsistency?: Set<string>;
   maxEntries?: number;
+  /** Pluggable backend; defaults to an in-process MemoryStore (ADR-0032). */
+  store?: CacheStore;
   onMetrics?: (m: { hit: boolean; miss: boolean; revalidate: boolean; operationName: string }) => void;
-}
-
-interface CacheEntry {
-  data: unknown;
-  storedAt: number;
 }
 
 /* Sorts object keys recursively so variables field order is irrelevant. */
@@ -61,7 +62,7 @@ export function makeCacheKey(operation: Operation): string {
 }
 
 export class LruLink extends ApolloLink {
-  private cache: LRUCache<string, CacheEntry>;
+  private cache: CacheStore;
   private inflight = new Map<string, Promise<void>>();
   private ttlConfig: Record<string, number>;
   private defaultTtlMs: number;
@@ -78,11 +79,11 @@ export class LruLink extends ApolloLink {
     this.strong = opts.strongConsistency ?? new Set();
     this.onMetrics = opts.onMetrics;
     /*
-     * No ttl at the LRU layer: entries must survive past our per-operation
-     * TTL so SWR can return stale data. Expiry is managed by age checks in
-     * this link; the LRU only bounds memory via `max`.
+     * No ttl at the store layer: entries must survive past our per-operation
+     * TTL so SWR can return stale data. Expiry is managed by age checks here;
+     * MemoryStore's LRU only bounds memory via `max`.
      */
-    this.cache = new LRUCache<string, CacheEntry>({ max: opts.maxEntries ?? 1000 });
+    this.cache = opts.store ?? new MemoryStore(opts.maxEntries ?? 1000);
   }
 
   private ttlMs(opName: string): number {
@@ -94,7 +95,6 @@ export class LruLink extends ApolloLink {
   }
 
   request(operation: Operation, forward: (op: Operation) => Observable<FetchResult>): Observable<FetchResult> {
-    // Capture the chain's forward for background revalidation.
     this.nextForward = forward;
 
     const def = operation.query.definitions[0] as { operation?: string };
@@ -105,50 +105,73 @@ export class LruLink extends ApolloLink {
     const key = makeCacheKey(operation);
     const opName = operation.operationName;
     const ttl = this.ttlMs(opName);
-    const entry = this.cache.get(key);
     const isStrong = this.strong.has(opName);
 
-    // Fresh hit → return cached; refresh in background if inside revalidate window.
-    if (entry && this.ageMs(entry) < ttl) {
-      if (this.ageMs(entry) >= ttl * this.threshold) {
-        this.revalidate(operation, key);
-        this.onMetrics?.({ hit: true, miss: false, revalidate: true, operationName: opName });
-      } else {
-        this.onMetrics?.({ hit: true, miss: false, revalidate: false, operationName: opName });
-      }
-      return ofData(entry.data as FetchResult);
-    }
-
-    // Expired, non-strong → serve stale now, refresh in background.
-    if (entry && !isStrong) {
-      this.revalidate(operation, key);
-      this.onMetrics?.({ hit: true, miss: false, revalidate: true, operationName: opName });
-      return ofData(entry.data as FetchResult);
-    }
-
-    // Miss, or expired strong-consistency → hit the network.
-    this.onMetrics?.({ hit: false, miss: true, revalidate: false, operationName: opName });
     return new Observable((observer) => {
-      const sub = forward(operation).subscribe({
-        next: (result) => {
-          if (result && !result.errors) {
-            this.cache.set(key, { data: result, storedAt: Date.now() });
-          }
-          observer.next(result);
-        },
-        error: (err) => {
-          // Fall back to stale data on network failure.
-          const anyEntry = this.cache.get(key);
-          if (anyEntry) {
-            observer.next(anyEntry.data as FetchResult);
+      let cancelled = false;
+      let sub: { unsubscribe: () => void } | null = null;
+
+      const run = async () => {
+        try {
+          // Synchronous stores (memory/lmdb) resolve here in the same JS
+          // stack — no microtask hop on hot hits. Async stores (redis) await.
+          const res = this.cache.get(key);
+          const entry = res instanceof Promise ? await res : res;
+          if (cancelled) return;
+
+          // Fresh hit → serve cached; revalidate in background inside window.
+          if (entry && this.ageMs(entry) < ttl) {
+            const shouldRevalidate = this.ageMs(entry) >= ttl * this.threshold;
+            if (shouldRevalidate) {
+              this.revalidate(operation, key);
+            }
+            this.onMetrics?.({ hit: true, miss: false, revalidate: shouldRevalidate, operationName: opName });
+            observer.next(entry.data as FetchResult);
             observer.complete();
-          } else {
-            observer.error(err);
+            return;
           }
-        },
-        complete: () => observer.complete(),
-      });
-      return () => sub.unsubscribe();
+
+          // Expired, non-strong → serve stale now, refresh in background.
+          if (entry && !isStrong) {
+            this.revalidate(operation, key);
+            this.onMetrics?.({ hit: true, miss: false, revalidate: true, operationName: opName });
+            observer.next(entry.data as FetchResult);
+            observer.complete();
+            return;
+          }
+
+          // Miss, or expired strong-consistency → hit the network.
+          this.onMetrics?.({ hit: false, miss: true, revalidate: false, operationName: opName });
+          sub = forward(operation).subscribe({
+            next: (result) => {
+              if (result && !result.errors) {
+                this.cache.set(key, { data: result, storedAt: Date.now() });
+              }
+              observer.next(result);
+            },
+            error: async (err) => {
+              // Fall back to stale data on network failure.
+              const anyEntry = await this.cache.get(key);
+              if (anyEntry) {
+                observer.next(anyEntry.data as FetchResult);
+                observer.complete();
+              } else {
+                observer.error(err);
+              }
+            },
+            complete: () => observer.complete(),
+          });
+        } catch (err) {
+          observer.error(err as Error);
+        }
+      };
+
+      run();
+
+      return () => {
+        cancelled = true;
+        sub?.unsubscribe();
+      };
     });
   }
 
@@ -179,24 +202,20 @@ export class LruLink extends ApolloLink {
   }
 
   deleteKey(key: string): void {
-    this.cache.delete(key);
+    this.cache.delete(key).catch(() => {});
   }
 
   deleteByPrefix(prefix: string): void {
-    for (const k of this.cache.keys()) {
-      if (k.startsWith(prefix)) this.cache.delete(k);
-    }
+    this.cache.deleteByPrefix(prefix).catch(() => {});
+  }
+
+  /** Swap the backend after a fail-open retry connects (ADR-0032). */
+  setStore(store: CacheStore): void {
+    this.cache = store;
   }
 }
 
-function ofData(data: FetchResult): Observable<FetchResult> {
-  return new Observable((observer) => {
-    observer.next(data);
-    observer.complete();
-  });
-}
-
-/** In-process cache handles for post-mutation invalidation. */
+/** Cache handles for post-mutation invalidation. */
 export interface LruCacheApi {
   makeCacheKey: typeof makeCacheKey;
   deleteKey(key: string): void;

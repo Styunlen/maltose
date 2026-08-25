@@ -15,6 +15,7 @@ import {
 } from "@apollo/client/errors";
 import { RetryLink } from "@apollo/client/link/retry";
 import { LruLink, attachLruCacheApi, makeCacheKey } from "@/lib/lru-link";
+import { createCacheStoreSync, startCacheRedis, startCleanupTimer } from "@/lib/cache";
 
 const loggerLink = new ApolloLink((operation, forward) => {
   console.log(`Starting request for ${operation.operationName}`);
@@ -101,13 +102,40 @@ const TTL_CONFIG: Record<string, number> = {
 
 const STRONG_CONSISTENCY = new Set<string>(["GetNodeByURI", "GetPost"]);
 
+// Cache backend selection (ADR-0032): memory (default) | redis | lmdb.
+// Shared backends (redis/lmdb) enable cross-process cache coherence under
+// pm2 cluster. redis requires REDIS_URL; lmdb uses GRAPHQL_CACHE_PATH.
+const CACHE_DRIVER = (import.meta.env.GRAPHQL_CACHE_DRIVER as string) || "memory";
+
+const cacheCfg = {
+  driver: (CACHE_DRIVER as any) ?? "memory",
+  path: import.meta.env.GRAPHQL_CACHE_PATH || ".cache/graphql",
+  mapSize: Number(import.meta.env.GRAPHQL_CACHE_MAP_SIZE) || 64 * 1024 * 1024,
+  maxEntries: 1000,
+  cleanupIntervalMs: Number(import.meta.env.GRAPHQL_CACHE_CLEANUP_MS) || 0,
+  // Fail-open reconnect: swap the live store when the backend comes back.
+  onReconnect: (store: any) => lruLink?.setStore(store),
+};
+
+const cacheStore = createCacheStoreSync(cacheCfg);
+
+// Redis connects asynchronously; drive it so the shared backend becomes active
+// (the store starts as a no-op until setClient is called).
+if (cacheStore.driver === "redis") {
+  startCacheRedis(cacheStore.store as any, cacheCfg).catch(() => {});
+}
+
 export const lruLink = new LruLink({
   ttlConfig: TTL_CONFIG,
   defaultTtl: 60,
   revalidateThreshold: 0.5,
   strongConsistency: STRONG_CONSISTENCY,
   maxEntries: 1000,
+  store: cacheStore.store,
 });
+
+// Periodic stale-entry cleanup for shared backends.
+export const stopCacheCleanup = startCleanupTimer(cacheStore.store, cacheCfg);
 
 /** In-process cache handles for post-mutation invalidation. */
 export const __internalLruCache = attachLruCacheApi(lruLink);
@@ -779,7 +807,6 @@ export async function previewByUriQuery(
           title
           uri
           date
-          excerpt
           content
           commentCount
           featuredImage {

@@ -2,6 +2,8 @@ allowBuilds:
   '@parcel/watcher': false
   bcrypt: true
   esbuild: true
+  lmdb: true
+  msgpackr-extract: true
   sharp: true
   vue-demi: true
 minimumReleaseAgeExclude:

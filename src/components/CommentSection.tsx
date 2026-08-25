@@ -78,6 +78,10 @@ interface FlatComment {
   date: string;
   parentAuthorName?: string;
   parentDatabaseId?: number;
+  /** Plain-text excerpt of the parent comment (for the quote chip). */
+  parentContent?: string;
+  /** Sanitized rendered HTML of the parent comment (for the quote chip). */
+  parentRenderedHtml?: string;
   children: FlatComment[];
 }
 
@@ -97,11 +101,31 @@ interface Props {
 }
 
 /* ─── Helpers ─── */
+// Comment raw content can be either markdown (from our editor) or plain HTML
+// (legacy/WP-authored comments). Reduce either to readable plain text for the
+// parent-quote chip: strip HTML tags first, then markdown symbols.
+function toPlainText(src: string): string {
+  return src
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&[a-z#0-9]+;/gi, " ")
+    .replace(/[#>*`~\-\[\]()!]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function buildCommentMap(flat: any[]): Map<number, FlatComment> {
   const map = new Map<number, FlatComment>();
   const nameMap = new Map<number, string>();
+  const contentMap = new Map<number, string>();
+  const htmlMap = new Map<number, string>();
   for (const c of flat) {
     nameMap.set(c.databaseId, c.author?.node?.name || "Anonymous");
+    // toPlainText: rawContent may be markdown or HTML; strip both for the
+    // plain-text tooltip. The quote chip's HTML reuses the parent's `content`
+    // (already server-rendered + sanitized by renderCommentMd) instead of
+    // re-rendering client-side, which crashed in SSR with DOMPurify.
+    contentMap.set(c.databaseId, toPlainText(c.rawContent || c.content || ""));
+    htmlMap.set(c.databaseId, c.content || "");
   }
   for (const c of flat) {
     const p = c.parentDatabaseId ?? c.parentId ?? null;
@@ -116,6 +140,8 @@ function buildCommentMap(flat: any[]): Map<number, FlatComment> {
       date: c.date,
       parentAuthorName: p ? nameMap.get(p) : undefined,
       parentDatabaseId: p,
+      parentContent: p ? contentMap.get(p) : undefined,
+      parentRenderedHtml: p ? htmlMap.get(p) : undefined,
       children: [],
     });
   }
@@ -226,6 +252,40 @@ function ChatBubble({
               }}
             >
               <span className="chat-body-inline">
+                {comment.parentRenderedHtml &&
+                  comment.parentAuthorName &&
+                  comment.parentDatabaseId && (
+                    <span
+                      className="chat-parent-quote cursor-pointer"
+                      title={comment.parentContent}
+                      onClick={() =>
+                        onMention(`chat-comment-${comment.parentDatabaseId}`)
+                      }
+                      onMouseEnter={() =>
+                        document
+                          .getElementById(
+                            `chat-comment-${comment.parentDatabaseId}`,
+                          )
+                          ?.classList.add("chat-highlight-hover")
+                      }
+                      onMouseLeave={() =>
+                        document
+                          .getElementById(
+                            `chat-comment-${comment.parentDatabaseId}`,
+                          )
+                          ?.classList.remove("chat-highlight-hover")
+                      }
+                    >
+                      {/* Full markdown render (already sanitized) clipped by
+                          CSS line-clamp; avoids mid-tag truncation. */}
+                      <span
+                        className="chat-parent-quote-content"
+                        dangerouslySetInnerHTML={{
+                          __html: comment.parentRenderedHtml,
+                        }}
+                      />
+                    </span>
+                  )}
                 {comment.parentAuthorName && comment.parentDatabaseId && (
                   <span
                     className={
@@ -1086,6 +1146,10 @@ export default function CommentSection({
                       key={c.id}
                       comment={c}
                       onReply={openPopup}
+                      onStartReply={(id, name) => {
+                        cancelEdit();
+                        startReply(id, name);
+                      }}
                       onMention={scrollTo}
                       showAvatar={ci === 0}
                       isOwn={
@@ -1284,7 +1348,7 @@ export default function CommentSection({
                   <button
                     type="button"
                     onClick={() => {
-                      const loginHref = `/api/auth/login?redirect=${encodeURIComponent(window.location.pathname)}`;
+                      const loginHref = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
                       window.location.href = loginHref;
                     }}
                     style={{

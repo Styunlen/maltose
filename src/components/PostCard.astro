@@ -206,8 +206,8 @@ const imageSeed = encodeURIComponent(
   }
 
   .post-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.08);
+    transform: translateY(-3px);
+    border-color: var(--mint-300);
   }
 
   /* ─── Image ─── */
@@ -217,31 +217,6 @@ const imageSeed = encodeURIComponent(
     color: inherit;
   }
 
-  .card-image-wrap {
-    position: relative;
-    aspect-ratio: 5 / 2;
-    overflow: hidden;
-    background: var(--muted);
-  }
-
-  .card-image {
-    display: block;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transition: transform 0.4s ease;
-  }
-
-  .post-card:hover .card-image {
-    transform: scale(1.05);
-  }
-
-  .post-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.08);
-  }
-
-  /* ─── Image ─── */
   .card-image-wrap {
     position: relative;
     aspect-ratio: 5 / 2;

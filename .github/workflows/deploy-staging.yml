@@ -1,0 +1,69 @@
+# Deploy staging — triggered on push to develop (ADR-0033).
+# Same pipeline as production but targets the staging server/path.
+name: Deploy Staging
+
+on:
+  push:
+    branches: [develop]
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: Test & Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: |
+            dist/
+            ecosystem.config.cjs
+            package.json
+            pnpm-lock.yaml
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy to Staging
+    needs: ci
+    runs-on: ubuntu-latest
+    # Staging environment — no approval gate; develops deploy automatically.
+    environment: staging
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+
+      - name: Deploy via rsync + server script
+        uses: easingthemes/ssh-deploy@v5.1.0
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          REMOTE_HOST: ${{ vars.STAGING_HOST }}
+          REMOTE_PORT: ${{ vars.STAGING_SSH_PORT || 22 }}
+          REMOTE_USER: ${{ vars.STAGING_USER || 'deploy' }}
+          SOURCE: "."
+          TARGET: ${{ vars.STAGING_PATH }}
+          ARGS: -rlgoDzvc -i
+          EXCLUDE: "/.git/, /.cache/, .github/, node_modules/"
+          # Pass the deploy directory (env var) so the server script works in
+          # the exact dir the artifacts were synced into (ADR-0033).
+          SCRIPT: "deploy staging ${{ vars.STAGING_PATH }}"

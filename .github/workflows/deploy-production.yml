@@ -1,0 +1,78 @@
+# Deploy production — triggered on push to main (ADR-0033).
+# CI (test + build) then CD: rsync artifacts + trigger server deploy.sh.
+# The SSH key is restricted via authorized_keys `command=` whitelist — every
+# ssh session runs deploy-gate.sh, which validates the target and invokes the
+# real deploy script. The CI never runs arbitrary remote commands.
+name: Deploy Production
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: Test & Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: |
+            dist/
+            ecosystem.config.cjs
+            package.json
+            pnpm-lock.yaml
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy to Production
+    needs: ci
+    runs-on: ubuntu-latest
+    # Production environment — enable "required reviewers" in GitHub settings
+    # for a manual approval gate (optional, configurable per ADR-0033).
+    environment: production
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+
+      # rsync-over-SSH: incremental upload of built artifacts. The remote
+      # side is wrapped by deploy-gate.sh (authorized_keys `command=`), which
+      # permits this rsync path and then runs the post-sync deploy script.
+      # PRODUCTION_SSH_KEY is a secret (sensitive); host/port/user/path are
+      # non-sensitive environment variables (ADR-0033).
+      - name: Deploy via rsync + server script
+        uses: easingthemes/ssh-deploy@v5.1.0
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_KEY }}
+          REMOTE_HOST: ${{ vars.PRODUCTION_HOST }}
+          REMOTE_PORT: ${{ vars.PRODUCTION_SSH_PORT || 22 }}
+          REMOTE_USER: ${{ vars.PRODUCTION_USER || 'deploy' }}
+          SOURCE: "."
+          TARGET: ${{ vars.PRODUCTION_PATH }}
+          ARGS: -rlgoDzvc -i
+          EXCLUDE: "/.git/, /.cache/, .github/, node_modules/"
+          # Pass the deploy directory (env var) so the server script works in
+          # the exact dir the artifacts were synced into (ADR-0033).
+          SCRIPT: "deploy production ${{ vars.PRODUCTION_PATH }}"

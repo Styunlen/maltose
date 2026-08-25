@@ -18,6 +18,10 @@ export default defineConfig({
 
   adapter: node({
     mode: "standalone",
+    // Serve dist/client static assets with cache headers: hashed files under
+    // _astro/ get immutable, others get a short public cache. Keeps nginx a
+    // pure proxy (no hardcoded deploy dir) — see deploy/nginx.conf.
+    staticHeaders: true,
   }),
 
   prefetch: {
@@ -37,6 +41,7 @@ export default defineConfig({
         allow: [path.resolve(dirname)],
         deny: [path.resolve(dirname, "../blogFriends")],
       },
+      allowedHosts: true,
     },
     resolve: {
       alias: {
@@ -57,4 +62,3 @@ export default defineConfig({
 
   integrations: [vue(), react()],
 });
-

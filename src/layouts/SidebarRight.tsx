@@ -30,6 +30,7 @@ import {
   LogOut,
   MessageSquare,
   Sparkles,
+  UserRound,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -219,6 +220,15 @@ function NavUser() {
             >
               <MessageSquare className="size-4" />
               我的评论
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                window.location.href = "/user/profile";
+              }}
+              className="cursor-pointer"
+            >
+              <UserRound className="size-4" />
+              个人资料
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => {

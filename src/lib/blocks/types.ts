@@ -8,6 +8,7 @@ export interface BlockBase {
   clientId: string;
   parentClientId?: string;
   cssClassNames?: string[];
+  renderedHtml?: string;
   innerBlocks?: SupportedBlock[];
   attributes: BlockAttributes;
   type: string;

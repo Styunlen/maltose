@@ -217,7 +217,7 @@ ol.wp-block-list {
       top: 0.1em;
       width: 1.25rem;
       height: 1.25rem;
-      background: var(--secondary);
+      background: var(--primary);
       color: white;
       font-size: 0.7rem;
       font-weight: 700;
@@ -227,6 +227,19 @@ ol.wp-block-list {
       justify-content: center;
       line-height: 1;
     }
+  }
+}
+
+// ─── CoreSeparator ───
+.wp-block-separator {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2rem 0;
+  width: 100%;
+
+  // WP 的 "薄/短" 变体（className 含 is-style-wide 或默认）：短居中线
+  &:not(.is-style-wide):not(.is-style-dots) {
+    width: 100%;
   }
 }
 

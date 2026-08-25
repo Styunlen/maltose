@@ -38,9 +38,9 @@ export default function CoreColumn({
     .join(" ");
 
   return (
-      <div className={columnClass}>
-        <div className="h-full p-3 bg-card/50 rounded-xl border border-border/40">{children}</div>
-      </div>
+    <div className={columnClass}>
+      <div className="h-full p-3">{children}</div>
+    </div>
   );
 }
 

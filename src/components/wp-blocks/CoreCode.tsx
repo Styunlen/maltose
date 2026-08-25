@@ -11,7 +11,7 @@ import { bundledLanguages, createHighlighter, type Highlighter } from "shiki";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 import type { BlockRendererProps } from "@lib/blocks/types";
-import hljs from "highlight.js";
+import { resolveCodeLanguage } from "@/lib/code-lang";
 import lodash from "lodash-es";
 
 // Singleton highlighter instance to avoid recreating it
@@ -47,29 +47,26 @@ export default function CoreCode({ block, className }: BlockRendererProps) {
   const cssClassName = block.attributes?.cssClassName || "";
   const codeRef = useRef<HTMLDivElement>(null);
 
-  // Extract explicit language from className or use state
-  const explicitLanguage = useMemo(() => {
-    const match = cssClassName.match(/language-(\w+)/);
-    return match ? match[1] : null;
-  }, [cssClassName]);
-  const detectedLanguage = useMemo(() => {
-    try {
-      const result = hljs.highlightAuto(content);
-      return result.language || "text";
-    } catch (e) {
-      console.warn("Language detection failed:", e);
-      return "text";
-    }
-  }, [cssClassName, content]);
-
-  // Use explicit language if available, otherwise use detected language
+  // Resolve the code language: explicit hints (WP classes / rendered HTML)
+  // take priority, then hljs auto-detection with a confidence threshold.
+  const languageInfo = useMemo(
+    () =>
+      resolveCodeLanguage({
+        content,
+        cssClassName,
+        cssClassNames: block.cssClassNames,
+        renderedHtml: block.renderedHtml,
+      }),
+    [content, cssClassName, block],
+  );
+  // Badge label: explicit/detected language name, "text" for plain fallback.
   const displayLanguage = useMemo(() => {
-    return explicitLanguage
-      ? explicitLanguage
-      : detectedLanguage
-        ? `${detectedLanguage} (Auto identified)`
-        : "identifying...";
-  }, [explicitLanguage, detectedLanguage]);
+    if (languageInfo.source === "explicit") return languageInfo.lang;
+    if (languageInfo.source === "detected") {
+      return `${languageInfo.lang} (Auto identified)`;
+    }
+    return "text";
+  }, [languageInfo]);
 
   useEffect(() => {
     let mounted = true;
@@ -83,9 +80,8 @@ export default function CoreCode({ block, className }: BlockRendererProps) {
         setIsLoading(true);
         highlighter = await getHighlighterInstance();
 
-        // Language detection logic
-
-        let langToUse = explicitLanguage || detectedLanguage || "text";
+        // Language resolution is handled by resolveCodeLanguage (src/lib/code-lang).
+        let langToUse = languageInfo.lang || "text";
 
         const loadedLangs = highlighter.getLoadedLanguages();
         // If detection returned something not loaded, fall back to text
@@ -163,7 +159,7 @@ export default function CoreCode({ block, className }: BlockRendererProps) {
     return () => {
       mounted = false;
     };
-  }, [content, explicitLanguage, detectedLanguage]);
+  }, [content, languageInfo.lang]);
 
   const handleCopy = async () => {
     try {

@@ -18,6 +18,7 @@ import CoreButtons from "./CoreButtons.tsx";
 import CoreButton from "./CoreButton.tsx";
 import CoreFile from "./CoreFile.tsx";
 import CoreShortcode from "./CoreShortcode.tsx";
+import CoreSeparator from "./CoreSeparator.tsx";
 
 export default {
   CoreCode,
@@ -40,4 +41,5 @@ export default {
   CoreButton,
   CoreFile,
   CoreShortcode,
+  CoreSeparator,
 };

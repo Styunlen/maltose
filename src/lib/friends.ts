@@ -1,3 +1,6 @@
+import type { CacheEntry } from "@/lib/cache/types";
+import { cacheStore } from "@/api/api";
+
 export type FriendStatus = "alive" | "dead" | "unknown";
 
 export interface FriendLink {
@@ -18,8 +21,10 @@ export interface FriendsResult {
   lastCheckAt: number;
 }
 
-const FRIENDS_JSON_URL =
-  "https://styunlen.cn/friends.json";
+const FRIENDS_JSON_URL = "https://styunlen.cn/friends.json";
+// Probe results are fresh for 1h; the shared CacheStore backend (memory/redis/
+// lmdb, ADR-0032) gives cross-process coherence under pm2 cluster — unlike the
+// previous module-global, which was per-process.
 const CACHE_TTL = 60 * 60 * 1000;
 // 放宽到 8s：网络波动时 3s 容易把正常站点误判为失效。
 // 超时/网络错误会归入 "unknown" 而非 "dead"，不直接判死。
@@ -29,16 +34,16 @@ const CHECK_TIMEOUT = 8000;
 const BROWSER_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
-interface CacheEntry {
-  data: FriendsResult;
-  expiresAt: number;
-}
+// Cache key lives in the same store as LruLink's GraphQL entries (shared
+// backend per GRAPHQL_CACHE_DRIVER). The "friends:" prefix keeps it out of any
+// operation-family deleteByPrefix("GetNodeByURI:") calls.
+const FRIENDS_CACHE_KEY = "friends:status";
 
-declare global {
-  var __friendCache: CacheEntry | undefined;
-}
-
-let refreshing = false;
+// Cross-process refresh lock: keyed in the shared store so two pm2 workers
+// don't both run the probe set simultaneously. The value is any non-empty
+// marker; a tiny TTL (5 min) bounds how long a crashed worker's lock lingers.
+const FRIENDS_LOCK_KEY = "friends:refreshing";
+const LOCK_TTL = 5 * 60 * 1000;
 
 interface ProbeResult {
   status: number | null; // null = 请求被 abort / 网络错误
@@ -125,34 +130,50 @@ async function doRefresh(): Promise<FriendsResult> {
   };
 }
 
+// Write the result into the shared store, then release the refresh lock.
+async function storeResult(data: FriendsResult): Promise<void> {
+  const entry: CacheEntry = { data, storedAt: Date.now() };
+  await cacheStore.store.set(FRIENDS_CACHE_KEY, entry);
+  await cacheStore.store.delete(FRIENDS_LOCK_KEY);
+}
+
+// Stale — try to become the refresher via a lock in the shared store.
+// Only one pm2 worker proceeds; others return the stale data immediately.
+async function tryAcquireLock(): Promise<boolean> {
+  const existing = await cacheStore.store.get(FRIENDS_LOCK_KEY);
+  if (existing && Date.now() - existing.storedAt < LOCK_TTL) {
+    return false;
+  }
+  // Best-effort: set and re-check. The store is the arbiter; concurrent
+  // writers may both pass here on a non-atomic backend, but the harm is only
+  // a duplicate probe run (acceptable).
+  await cacheStore.store.set(FRIENDS_LOCK_KEY, { data: true, storedAt: Date.now() });
+  return true;
+}
+
 export async function getFriends(): Promise<FriendsResult> {
   const now = Date.now();
-  const cache = globalThis.__friendCache;
+  const cached = await cacheStore.store.get(FRIENDS_CACHE_KEY);
+  const data = cached?.data as FriendsResult | undefined;
 
   // Cold start — must wait
-  if (!cache) {
-    const data = await doRefresh();
-    globalThis.__friendCache = { data, expiresAt: now + CACHE_TTL };
-    return data;
+  if (!cached) {
+    const fresh = await doRefresh();
+    await storeResult(fresh);
+    return fresh;
   }
 
   // Cache still fresh
-  if (now < cache.expiresAt) {
-    return cache.data;
+  if (now - cached.storedAt < CACHE_TTL) {
+    return data;
   }
 
-  // Stale — return old data, refresh in background
-  if (!refreshing) {
-    refreshing = true;
+  // Stale — return old data, refresh in background (single-writer via lock)
+  if (await tryAcquireLock()) {
     doRefresh()
-      .then((data) => {
-        globalThis.__friendCache = { data, expiresAt: Date.now() + CACHE_TTL };
-      })
-      .catch(() => {})
-      .finally(() => {
-        refreshing = false;
-      });
+      .then(storeResult)
+      .catch(() => {});
   }
 
-  return cache.data;
+  return data;
 }

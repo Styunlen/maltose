@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 import { createHash } from "node:crypto";
 import { RateLimiterMemory, RateLimiterRedis } from "rate-limiter-flexible";
 import { connectRedisIfConfigured } from "@lib/auth/redis";
+import RateLimiterLmdb from "@/lib/rate-limit/lmdb-limiter";
 
 const WP_GRAPHQL_URL =
   process.env.WORDPRESS_API_URL || "https://styunlen.cn/graphql";
@@ -20,42 +21,55 @@ const OTP_SEND_RATE_LIMIT_OPTS = {
   keyPrefix: "otp_send",
 };
 
-// Lazy-initialized rate limiter. Uses Redis when REDIS_URL is configured
-// (multi-instance pm2 deployments) and an in-memory limiter otherwise
-// (single-instance deployments, no Redis dependency).
-let viewRateLimiterPromise: Promise<RateLimiterMemory | RateLimiterRedis> | null =
-  null;
+// Lazy-initialized rate limiter. The backend follows the cache driver
+// (GRAPHQL_CACHE_DRIVER, ADR-0032): redis → shared via Redis (multi-instance
+// pm2), lmdb → shared via LMDB file (multi-process, no server), anything else
+// → in-process memory (single-instance). The CACHE_DRIVER is the single source
+// of truth for "is a shared backend available in this environment".
+interface ConsumeLimiter {
+  consume(key: string): Promise<unknown>;
+}
+type AnyLimiter =
+  | (RateLimiterMemory & ConsumeLimiter)
+  | (RateLimiterRedis & ConsumeLimiter)
+  | (RateLimiterLmdb & ConsumeLimiter);
 
-function getViewRateLimiter(): Promise<RateLimiterMemory | RateLimiterRedis> {
+async function createLimiter(opts: {
+  points: number;
+  duration: number;
+  keyPrefix: string;
+}): Promise<AnyLimiter> {
+  const driver = process.env.GRAPHQL_CACHE_DRIVER || "memory";
+
+  if (driver === "redis") {
+    const client = await connectRedisIfConfigured();
+    if (client) {
+      return new RateLimiterRedis({ storeClient: client, ...opts });
+    }
+    console.warn("[rate-limit] redis driver requested but Redis unavailable — using memory");
+  }
+
+  if (driver === "lmdb") {
+    return new RateLimiterLmdb(opts);
+  }
+
+  return new RateLimiterMemory(opts);
+}
+
+let viewRateLimiterPromise: Promise<AnyLimiter> | null = null;
+
+function getViewRateLimiter(): Promise<AnyLimiter> {
   if (!viewRateLimiterPromise) {
-    viewRateLimiterPromise = (async () => {
-      const client = await connectRedisIfConfigured();
-      if (client) {
-        return new RateLimiterRedis({
-          storeClient: client,
-          ...VIEW_RATE_LIMIT_OPTS,
-        });
-      }
-      return new RateLimiterMemory(VIEW_RATE_LIMIT_OPTS);
-    })();
+    viewRateLimiterPromise = createLimiter(VIEW_RATE_LIMIT_OPTS);
   }
   return viewRateLimiterPromise;
 }
 
-let otpSendLimiterPromise: Promise<RateLimiterMemory | RateLimiterRedis> | null = null;
+let otpSendLimiterPromise: Promise<AnyLimiter> | null = null;
 
-function getOtpSendLimiter(): Promise<RateLimiterMemory | RateLimiterRedis> {
+function getOtpSendLimiter(): Promise<AnyLimiter> {
   if (!otpSendLimiterPromise) {
-    otpSendLimiterPromise = (async () => {
-      const client = await connectRedisIfConfigured();
-      if (client) {
-        return new RateLimiterRedis({
-          storeClient: client,
-          ...OTP_SEND_RATE_LIMIT_OPTS,
-        });
-      }
-      return new RateLimiterMemory(OTP_SEND_RATE_LIMIT_OPTS);
-    })();
+    otpSendLimiterPromise = createLimiter(OTP_SEND_RATE_LIMIT_OPTS);
   }
   return otpSendLimiterPromise;
 }

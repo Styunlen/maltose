@@ -1,4 +1,15 @@
 import { defineConfig } from "astro/config";
+import { loadEnv } from "vite";
+
+// Astro injects `.env` into `import.meta.env`, but NOT into `process.env`.
+// Our server-side code reads business secrets via `process.env.X` (ADR-0034),
+// so for local dev we explicitly load `.env` into the process before the
+// config is evaluated. Production is unaffected: pm2 already injects the
+// deploy-dir `.env` via `node_args: --env-file=.env`.
+const env = loadEnv(process.env.NODE_ENV || "development", process.cwd(), "");
+for (const [k, v] of Object.entries(env)) {
+  if (process.env[k] === undefined) process.env[k] = v;
+}
 
 // https://astro.build/config
 import node from "@astrojs/node";

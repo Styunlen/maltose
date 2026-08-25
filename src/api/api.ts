@@ -117,7 +117,10 @@ const cacheCfg = {
   onReconnect: (store: any) => lruLink?.setStore(store),
 };
 
-const cacheStore = createCacheStoreSync(cacheCfg);
+/** Shared cache backend (ADR-0032). Exported so non-GraphQL features (e.g.
+ * friends health-check in src/lib/friends.ts) reuse the same backend and get
+ * cross-process coherence under pm2 cluster. */
+export const cacheStore = createCacheStoreSync(cacheCfg);
 
 // Redis connects asynchronously; drive it so the shared backend becomes active
 // (the store starts as a no-op until setClient is called).

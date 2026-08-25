@@ -18,13 +18,34 @@ redisClient.on('error', (err) => {
 /**
  * Connect to Redis if a REDIS_URL is configured. Returns the client when
  * configured and connected, or null when Redis is intentionally unused.
+ *
+ * Bounded connect (2s): node-redis's default reconnectStrategy retries forever
+ * when Redis is unreachable, so an unguarded `await connect()` would hang the
+ * caller indefinitely (rate limiter init / cache activation). On timeout we
+ * destroy the client and return null — the caller falls back to a local
+ * limiter/cache. A later call re-creates the client and retries.
  */
+const CONNECT_TIMEOUT_MS = 2000;
+
 export async function connectRedisIfConfigured() {
   if (!REDIS_URL) {
     return null;
   }
   if (!redisClient.isOpen) {
-    await redisClient.connect();
+    try {
+      await Promise.race([
+        redisClient.connect(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("redis connect timeout")), CONNECT_TIMEOUT_MS),
+        ),
+      ]);
+    } catch (err) {
+      console.warn(
+        `[redis] connect failed (${err instanceof Error ? err.message : String(err)}) — using local fallback`,
+      );
+      redisClient.destroy();
+      return null;
+    }
   }
   return redisClient;
 }

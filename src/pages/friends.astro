@@ -1,14 +1,19 @@
 ---
+import "@/styles/tailwind.css";
+import "@/styles/global.scss";
 import { getFriends } from "@lib/friends";
 import FriendCard from "@/components/FriendCard";
-import MainLayout from "../layouts/MainLayout.astro";
 
+// This page is meant to be embedded inside the wrap-gate WordPress page via
+// an <iframe> (CoreHtml block). It deliberately renders WITHOUT MainLayout /
+// LayoutShell so no double-shell nesting occurs — the outer page already
+// provides the site chrome. Global styles are imported directly here (same
+// pattern as MaintenancePage.astro) because there is no layout importing them.
 const { active, unknown, dead, lastCheckAt } = await getFriends();
 const total = active.length + unknown.length + dead.length;
 const checkedTime = new Date(lastCheckAt).toLocaleString("zh-CN");
 ---
 
-<MainLayout title="友情链接" description="好友博客友情链接">
   <div style="margin-top: 1.5rem; max-width: 800px; margin-inline: auto;">
     <h1 style="font-size: 1.5rem; font-weight: 800; margin-bottom: 0.25rem;">
       🌐 友情链接
@@ -85,7 +90,6 @@ const checkedTime = new Date(lastCheckAt).toLocaleString("zh-CN");
       </a>
     </div>
   </div>
-</MainLayout>
 
 <style>
   .friend-card:hover {

@@ -1,0 +1,111 @@
+---
+import PostCard from "@/components/PostCard.astro";
+import Hero from "@/components/Hero.astro";
+import PopularPosts from "@/components/PopularPosts.astro";
+import StickyCarousel from "@/components/StickyCarousel.astro";
+import Pagination from "@/components/Pagination.astro";
+import CategoryTabs from "@/components/CategoryTabs.astro";
+import MaintenancePage from "@/components/MaintenancePage.astro";
+import MainLayout from "@/layouts/MainLayout.astro";
+import {
+  homePagePostsQuery,
+  megaQuery,
+  getTimelineStats,
+  getTotalComments,
+  shuffle,
+} from "@api/api";
+
+interface Props {
+  currentPage: number;
+  title?: string;
+}
+
+const { currentPage } = Astro.props;
+const perPage = 10;
+const offset = (currentPage - 1) * perPage;
+
+let posts: any[] = [];
+let stickyPosts: any[] = [];
+let popularPosts: any[] = [];
+let sidebarData: any = null;
+let total = 0;
+let hasError = false;
+
+try {
+  const [data, mega, archivePosts, totalComments] = await Promise.all([
+    homePagePostsQuery(perPage, offset),
+    megaQuery({
+      sidebarPosts: 5,
+      recentComments: 5,
+      randomFirst: 30,
+      includeSticky: true,
+    }),
+    getTimelineStats(),
+    getTotalComments(),
+  ]);
+  posts = data.posts.nodes;
+  total = data.posts.pageInfo?.offsetPagination?.total ?? 0;
+  stickyPosts = mega.stickyPosts ?? [];
+  popularPosts = shuffle(mega.mostViewedPosts ?? []).slice(0, 8);
+  sidebarData = {
+    posts: mega.recentPosts?.nodes ?? [],
+    tags: mega.allTags?.nodes ?? [],
+    categories: mega.allCategories?.nodes ?? [],
+    comments: mega.recentComments?.nodes ?? [],
+    totalPosts: total,
+    totalComments,
+    archivePosts,
+  };
+} catch (err) {
+  console.warn("Failed to fetch homepage data:", err);
+  hasError = true;
+}
+
+const totalPages = Math.max(1, Math.ceil(total / perPage));
+
+// Homepage contains live view counts, so it must not be cached by proxies.
+Astro.response.headers.set("Cache-Control", "no-cache, must-revalidate");
+---
+
+{
+  hasError ? (
+    <MaintenancePage />
+  ) : (
+    <MainLayout title={Astro.props.title ?? "Home Page"} sidebarData={sidebarData}>
+      <div style="margin-top: 1.5rem;">
+        <Hero />
+
+        {currentPage === 1 && <StickyCarousel posts={stickyPosts} />}
+
+        {currentPage === 1 && <PopularPosts first={8} posts={popularPosts} />}
+
+        <h2 style="font-weight: 700; font-size: 1.25rem; color: var(--foreground); margin-top: 2.5rem; margin-bottom: 1rem; letter-spacing: 0.02em;">
+          {currentPage === 1 ? "Recent Posts" : `Page ${currentPage}`}
+        </h2>
+
+        {currentPage === 1 && (
+          <CategoryTabs
+            categories={sidebarData?.categories ?? []}
+            currentUri={Astro.url.pathname}
+          />
+        )}
+
+        <div class="post-grid">
+          {posts.map((post) => (
+            <PostCard post={post} />
+          ))}
+        </div>
+
+        {totalPages > 1 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            hasNextPage={currentPage < totalPages}
+            hasPreviousPage={currentPage > 1}
+            basePath="/"
+          />
+        )}
+      </div>
+    </MainLayout>
+  )
+}

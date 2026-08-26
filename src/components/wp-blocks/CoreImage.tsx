@@ -1,7 +1,7 @@
 import React from "react";
 import type { ImageBlock, BlockRendererProps } from "@lib/blocks/types";
 import { gql } from "@apollo/client";
-import { LAZY_PLACEHOLDER } from "../../lib/lazy";
+import LazyImage from "@/components/LazyImage";
 import { sanitizeHtml } from "@/lib/sanitize";
 
 export default function CoreImage({ block, className }: BlockRendererProps) {
@@ -9,20 +9,15 @@ export default function CoreImage({ block, className }: BlockRendererProps) {
   const { url, alt, caption, href, width, height, sizeSlug } =
     imageBlock.attributes;
 
-  // className 中已经存在 size-${sizeSlug} 类名了
-  // const imgClass = [className, sizeSlug ? `size-${sizeSlug}` : ""]
-  //   .filter(Boolean)
-  //   .join(" ");
   const imgClass = className;
 
   const imageElement = (
-    <img
-      src={LAZY_PLACEHOLDER}
-      data-src={url}
+    <LazyImage
+      src={url}
       alt={alt || ""}
       width={width}
       height={height}
-      className="lazy-img"
+      className="react-lazy-img"
     />
   );
 

@@ -1,5 +1,20 @@
 import { defineConfig } from "astro/config";
 import { loadEnv } from "vite";
+import { execSync } from "node:child_process";
+
+// ── Build metadata (injected into the client console) ─────────────────────
+// Read the current commit + a build timestamp at config-evaluation time so
+// the running bundle can report "which build is this" in the browser console.
+// Falls back to "unknown" when git is unavailable (e.g. non-git deploy copy).
+function gitCommit() {
+  try {
+    return execSync("git rev-parse HEAD", { encoding: "utf8" }).trim();
+  } catch {
+    return "unknown";
+  }
+}
+const BUILD_COMMIT = gitCommit();
+const BUILD_TIME = new Date().toISOString();
 
 // Astro injects `.env` into `import.meta.env`, but NOT into `process.env`.
 // Our server-side code reads business secrets via `process.env.X` (ADR-0034),
@@ -41,6 +56,10 @@ export default defineConfig({
   },
 
   vite: {
+    define: {
+      __BUILD_COMMIT__: JSON.stringify(BUILD_COMMIT),
+      __BUILD_TIME__: JSON.stringify(BUILD_TIME),
+    },
     plugins: [
       viteCommonjs(),
       tailwindcss(),

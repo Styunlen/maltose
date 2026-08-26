@@ -468,7 +468,7 @@ export async function recordPostView(postId: number | string): Promise<number | 
   return (data as any)?.recordPostView?.viewCount as number | undefined;
 }
 
-export async function getNodeByURI(uri, wpToken) {
+export async function getNodeByURI(uri, wpToken, opts: { page?: number; perPage?: number } = {}) {
   const context = wpToken
     ? { headers: { Authorization: `Bearer ${wpToken}` } }
     : {};
@@ -525,6 +525,12 @@ export async function getNodeByURI(uri, wpToken) {
                 uri
               }
             }
+            tags {
+              nodes {
+                name
+                uri
+              }
+            }
             featuredImage {
               node {
                 srcSet
@@ -543,6 +549,7 @@ export async function getNodeByURI(uri, wpToken) {
             title
             uri
             date
+            modified
             content
             commentCount
             commentStatus
@@ -578,7 +585,8 @@ export async function getNodeByURI(uri, wpToken) {
           ... on Category {
             id
             name
-            posts {
+            count
+            posts(first: 100) {
               nodes {
                 date
                 title
@@ -590,6 +598,12 @@ export async function getNodeByURI(uri, wpToken) {
                   nodes {
                     name
                     databaseId
+                    uri
+                  }
+                }
+                tags {
+                  nodes {
+                    name
                     uri
                   }
                 }
@@ -610,7 +624,8 @@ export async function getNodeByURI(uri, wpToken) {
           ... on Tag {
             id
             name
-            posts {
+            count
+            posts(first: 100) {
               nodes {
                 date
                 title
@@ -622,6 +637,12 @@ export async function getNodeByURI(uri, wpToken) {
                   nodes {
                     name
                     databaseId
+                    uri
+                  }
+                }
+                tags {
+                  nodes {
+                    name
                     uri
                   }
                 }
@@ -654,6 +675,56 @@ export async function getNodeByURI(uri, wpToken) {
     fetchPolicy: "no-cache",
   });
   return data;
+}
+
+// Adjacent posts for the prev/next navigation under an article. WPGraphQL has
+// no native prev/next field, so we query the posts nearest in publication
+// date on either side via dateQuery (before/after by calendar date).
+// `date` is the current post's ISO date (e.g. 2020-02-19T21:58:59).
+export async function getAdjacentPosts(date: string) {
+  const d = new Date(date);
+  const y = d.getFullYear();
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  const { data } = (await client.query({
+    query: gql`
+      query AdjacentPosts($y: Int!, $m: Int!, $day: Int!) {
+        prevPost: posts(
+          first: 1
+          where: {
+            dateQuery: { before: { year: $y, month: $m, day: $day } }
+            orderby: { field: DATE, order: DESC }
+          }
+        ) {
+          nodes {
+            databaseId
+            title
+            uri
+            date
+          }
+        }
+        nextPost: posts(
+          first: 1
+          where: {
+            dateQuery: { after: { year: $y, month: $m, day: $day } }
+            orderby: { field: DATE, order: ASC }
+          }
+        ) {
+          nodes {
+            databaseId
+            title
+            uri
+            date
+          }
+        }
+      }
+    `,
+    variables: { y, m, day },
+  })) as any;
+  return {
+    prevPost: data.prevPost?.nodes?.[0] ?? null,
+    nextPost: data.nextPost?.nodes?.[0] ?? null,
+  };
 }
 
 export async function getAllUris() {

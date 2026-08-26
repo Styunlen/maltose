@@ -256,6 +256,8 @@ ol.wp-block-list {
 .is-vertically-aligned-stretch {
   align-self: stretch;
 }
+// 移动端 columns 的 align-self 覆盖与 flex-wrap 修复见 tailwind.css 的
+// @layer utilities 块——那里的 !important 在层内，才能胜过 WP 的非层规则。
 
 // ─── CoreGroup ───
 .wp-block-group {

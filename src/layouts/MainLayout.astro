@@ -35,6 +35,8 @@ const pageTitle = `${title} | ${generalSettings.title}`;
     <meta name="generator" content={Astro.generator} />
     <title>{`${title} | ${generalSettings.title}`}</title>
     <meta name="description" content={description} />
+    {/* canonical 去掉查询参数（如 ?page=N、?x=），分页页指向自身路径 */}
+    <link rel="canonical" href={Astro.url.origin + Astro.url.pathname} />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -69,6 +71,10 @@ const pageTitle = `${title} | ${generalSettings.title}`;
     </LayoutShell>
   </body>
 </html>
+
+<script>
+  import "../scripts/build-info.ts";
+</script>
 
 <script>
   import LazyLoad from "vanilla-lazyload";

@@ -5,13 +5,28 @@ import { gql } from "@apollo/client/core";
 const { node } = Astro.props;
 import { LiquidButton } from "@components/animate-ui/buttons/liquid.tsx";
 import dayjs from "dayjs";
-import { getQuery, getRandomPosts, layoutQuery, countContentWords } from "@api/api";
+import {
+  getQuery,
+  getRandomPosts,
+  getAdjacentPosts,
+  layoutQuery,
+  countContentWords,
+} from "@api/api";
 import { renderCommentMd } from "@lib/markdown";
 import CommentSection from "../CommentSection";
 
-// Blogger's WordPress user id (from env, default 1 = WordPress admin) used
-// to badge "博主" on comments.
-const siteOwnerUserId = Number(process.env.BLOG_OWNER_USER_ID || 1) || 1;
+// Blogger's WordPress user ids (from env, comma-separated, default [1]).
+// Multiple ids cover legacy duplicate accounts (e.g. 1 and 97) so every
+// comment by the owner gets the 博主 badge.
+const siteOwnerUserIds = (
+  process.env.BLOG_OWNER_USER_IDS ||
+  process.env.BLOG_OWNER_USER_ID ||
+  "1"
+)
+  .split(",")
+  .map((s: string) => Number(s.trim()))
+  .filter((n: number) => !Number.isNaN(n) && n > 0);
+const siteOwnerUserId = siteOwnerUserIds[0] || 1;
 import ArticlePagination from "../ArticlePagination";
 import PostViewCounter from "../PostViewCounter";
 export const prerender = false;
@@ -136,6 +151,32 @@ const featuredImage = node.featuredImage?.node?.sourceUrl;
 const wordCount = countContentWords(node.content ?? "");
 const readingMinutes = Math.max(1, Math.round(wordCount / 300));
 
+// ── Info-staleness notice: flag posts last modified long ago ───────────────
+// Days since the last modification; used to decide whether to show the
+// "信息可能已经过时" hint under the timestamps.
+const modifiedDate = node.modified ? new Date(node.modified) : null;
+const daysSinceModified = modifiedDate
+  ? Math.max(
+      0,
+      Math.floor(
+        (Date.now() - modifiedDate.getTime()) / (1000 * 60 * 60 * 24),
+      ),
+    )
+  : 0;
+const STALENESS_THRESHOLD_DAYS = 90;
+const showStalenessNotice = isPost && daysSinceModified > STALENESS_THRESHOLD_DAYS;
+// 文章标签（旧站的"信息过期提醒"下方曾直接显示标签行，现放正文末尾）。
+const postTags = node.tags?.nodes ?? [];
+// 与 PostCard 相同的确定性五色 mood 映射，保证同站标签颜色一致。
+const TAG_HUES = ["mint", "magenta", "violet", "coral", "amber"];
+function tagHue(name: string): string {
+  if (!name) return "mint";
+  let hash = 0;
+  for (let i = 0; i < name.length; i++)
+    hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  return TAG_HUES[hash % TAG_HUES.length];
+}
+
 // Plain text for the summary block: strip tags + entities, collapse spaces
 const bodyText = (node.content ?? "")
   .replace(/<[^>]*>/g, " ")
@@ -166,99 +207,133 @@ try {
 } catch (err) {
   console.warn("[Single] getRandomPosts failed:", err);
 }
+// 上一篇/下一篇（按发布时间邻接；仅 Post 有，Page 无）
+let prevPost: any = null;
+let nextPost: any = null;
+if (isPost && node.date) {
+  try {
+    const adj = await getAdjacentPosts(node.date);
+    prevPost = adj.prevPost;
+    nextPost = adj.nextPost;
+  } catch (err) {
+    console.warn("[Single] getAdjacentPosts failed:", err);
+  }
+}
 ---
 
-<header
-  class:list={[
-    "post-hero",
-    featuredImage ? "post-hero--cover" : "post-hero--plain",
-  ]}
->
-  {
-    featuredImage && (
-      <div class="post-hero__media">
-        <img
-          class="post-hero__img"
-          src={featuredImage}
-          srcset={node.featuredImage?.node?.srcSet}
-          sizes="(min-width: 768px) 800px, 100vw"
-          alt={node.featuredImage?.node?.altText ?? ""}
-          width={node.featuredImage?.node?.mediaDetails?.width}
-          height={node.featuredImage?.node?.mediaDetails?.height}
-          loading="eager"
-          fetchpriority="high"
-        />
-        <div class="post-hero__overlay" aria-hidden="true" />
+{
+  isPost ? (
+    <header
+      class:list={[
+        "post-hero",
+        featuredImage ? "post-hero--cover" : "post-hero--plain",
+      ]}
+    >
+      {
+        featuredImage && (
+          <div class="post-hero__media">
+            <img
+              class="post-hero__img"
+              src={featuredImage}
+              srcset={node.featuredImage?.node?.srcSet}
+              sizes="(min-width: 768px) 800px, 100vw"
+              alt={node.featuredImage?.node?.altText ?? ""}
+              width={node.featuredImage?.node?.mediaDetails?.width}
+              height={node.featuredImage?.node?.mediaDetails?.height}
+              loading="eager"
+              fetchpriority="high"
+            />
+            <div class="post-hero__overlay" aria-hidden="true" />
+          </div>
+        )
+      }
+
+      <div class="post-hero__content">
+        <h1 class="post-hero__title font-display">{node.title}</h1>
+
+        <div class="term-links">
+          {
+            node.categories?.nodes?.length > 0
+              ? node.categories.nodes.map((category) => (
+                  <LiquidButton
+                    className="term-link"
+                    href={category.uri}
+                    style={{
+                      background:
+                        "var(--term-link-bg, color-mix(in oklch, var(--muted) 100%, transparent)) !important",
+                      color: "var(--term-link-fg, var(--muted-foreground)) !important",
+                      border:
+                        "1px solid var(--term-link-border, var(--border)) !important",
+                    }}
+                  >
+                    {category.name}
+                  </LiquidButton>
+                ))
+              : null
+          }
+        </div>
+
+        <div class="post-meta">
+          <PostViewCounter
+            postId={node.databaseId}
+            initialCount={node.viewCount ?? 0}
+            client:load
+          />
+          {wordCount > 0 && (
+            <>
+              <span class="meta-item" title="字数">
+                <span class="meta-icon-chip chip-coral" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17 10H3" />
+                    <path d="M21 6H3" />
+                    <path d="M21 14H3" />
+                    <path d="M17 18H3" />
+                  </svg>
+                </span>
+                {wordCount.toLocaleString("en-US")} 字
+              </span>
+              <span class="meta-item" title="阅读时长">
+                <span class="meta-icon-chip chip-violet" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                </span>
+                {readingMinutes} 分钟
+              </span>
+            </>
+          )}
+        </div>
       </div>
-    )
-  }
-
-  <div class="post-hero__content">
-    <h1 class="post-hero__title font-display">{node.title}</h1>
-
-    {
-      isPost && (
-        <>
-          <div class="term-links">
-            {
-              node.categories?.nodes?.length > 0
-                ? node.categories.nodes.map((category) => (
-                    <LiquidButton
-                      className="term-link"
-                      href={category.uri}
-                      style={{
-                        background:
-                          "var(--term-link-bg, color-mix(in oklch, var(--muted) 100%, transparent)) !important",
-                        color: "var(--term-link-fg, var(--muted-foreground)) !important",
-                        border:
-                          "1px solid var(--term-link-border, var(--border)) !important",
-                      }}
-                    >
-                      {category.name}
-                    </LiquidButton>
-                  ))
-                : null
-            }
-          </div>
-
-          <div class="post-meta">
-            {isPost && (
-              <PostViewCounter
-                postId={node.databaseId}
-                initialCount={node.viewCount ?? 0}
-                client:load
-              />
-            )}
-            {wordCount > 0 && (
-              <>
-                <span class="meta-item" title="字数">
-                  <span class="meta-icon-chip chip-coral" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M17 10H3" />
-                      <path d="M21 6H3" />
-                      <path d="M21 14H3" />
-                      <path d="M17 18H3" />
-                    </svg>
-                  </span>
-                  {wordCount.toLocaleString("en-US")} 字
-                </span>
-                <span class="meta-item" title="阅读时长">
-                  <span class="meta-icon-chip chip-violet" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <circle cx="12" cy="12" r="10" />
-                      <polyline points="12 6 12 12 16 14" />
-                    </svg>
-                  </span>
-                  {readingMinutes} 分钟
-                </span>
-              </>
-            )}
-          </div>
-        </>
-      )
-    }
-  </div>
-</header>
+    </header>
+  ) : (
+    <header class="page-header">
+      <h1 class="page-header__title font-display">{node.title}</h1>
+      <div class="page-header__meta">
+        {node.date && (
+          <time datetime={node.date}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect width="18" height="18" x="3" y="4" rx="2" />
+              <path d="M16 2v4" />
+              <path d="M8 2v4" />
+              <path d="M3 10h18" />
+            </svg>
+            发布于 {dayjs(node.date).format("YYYY-MM-DD")}
+          </time>
+        )}
+        {node.modified && node.modified !== node.date && (
+          <time datetime={node.modified} title="最后修改">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+              <path d="M21 3v5h-5" />
+            </svg>
+            更新于 {dayjs(node.modified).format("YYYY-MM-DD")}
+          </time>
+        )}
+      </div>
+    </header>
+  )
+}
 
 {
   isPost ? (
@@ -284,6 +359,21 @@ try {
             更新于 {dayjs(node.modified).format("YYYY-MM-DD HH:mm")}
           </time>
         </div>
+        {
+          showStalenessNotice && (
+            <div class="staleness-notice" role="note">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 9v4" />
+                <path d="M12 17h.01" />
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+              </svg>
+              <span>
+                本文发布于 {dayjs(node.date).format("YYYY-MM-DD")}，
+                最后更新于 {daysSinceModified} 天前，其中的信息可能已经有所发展或是发生改变。
+              </span>
+            </div>
+          )
+        }
         {
           showSummary && (
             <section class="summary-card" aria-labelledby="article-summary-title">
@@ -321,6 +411,28 @@ try {
           <ArticlePagination totalPages={totalPages} client:load />
         )}
 
+        {
+          postTags.length > 0 && (
+            <div class="post-tags" aria-label="文章标签">
+              <div class="post-tags-list">
+                {postTags.map((tag: any) => (
+                  <a
+                    class={`post-tag tag-${tagHue(tag.name)}`}
+                    href={tag.uri}
+                    key={tag.uri}
+                  >
+                    <svg class="post-tag-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" />
+                      <circle cx="7.5" cy="7.5" r=".5" fill="currentColor" />
+                    </svg>
+                    {tag.name}
+                  </a>
+                ))}
+              </div>
+            </div>
+          )
+        }
+
         <section class="post-end" aria-label="作者与相关推荐">
           {
             siteInfo.title && (
@@ -356,45 +468,47 @@ try {
             )
           }
 
-          {
-            relatedPosts.length > 0 && (
-              <div class="related-section">
-                <h2 class="related-title font-display">喜欢这篇文章的人也看了</h2>
-                <div class="related-grid">
-                  {relatedPosts.map((p) => (
-                    <a class="related-card" href={p.uri}>
-                      {p.featuredImage?.node?.sourceUrl ? (
-                        <img
-                          class="related-thumb"
-                          src={p.featuredImage.node.sourceUrl}
-                          alt=""
-                          loading="lazy"
-                          width={p.featuredImage?.node?.mediaDetails?.width}
-                          height={p.featuredImage?.node?.mediaDetails?.height}
-                        />
-                      ) : (
-                        <span class="related-thumb related-thumb--empty" aria-hidden="true" />
-                      )}
-                      <span class="related-body">
-                        <span class="related-card-title">{p.title}</span>
-                        <span class="related-card-meta">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <rect width="18" height="18" x="3" y="4" rx="2" />
-                            <path d="M16 2v4" />
-                            <path d="M8 2v4" />
-                            <path d="M3 10h18" />
-                          </svg>
-                          {dayjs(p.date).format("YYYY-MM-DD")}
-                          <span aria-hidden="true">·</span>
-                          {p.viewCount ?? 0} 浏览
-                        </span>
-                      </span>
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )
-          }
+          <div class="copyright-card" aria-label="著作权声明">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M14.5 9a3.5 3.5 0 1 0 0 6" />
+            </svg>
+            <div class="copyright-body">
+              <p class="copyright-license">
+                本文采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener">CC BY-NC-SA 4.0</a> 协议进行授权，如无注明均为原创，转载请注明出处。
+              </p>
+              <p class="copyright-facts">
+                <span>标题：{node.title}</span>
+                <span>作者：{siteInfo.title || "本站"}</span>
+                <span>
+                  链接：
+                  <a href={Astro.url.href} rel="nofollow">{Astro.url.href}</a>
+                </span>
+              </p>
+            </div>
+          </div>
+
+          {/* 上一篇/下一篇：读完正文 → 分享/评论互动 → 继续阅读邻接文章 */}
+          {(prevPost || nextPost) && (
+            <nav class="adjacent-nav" aria-label="上一篇下一篇">
+              {prevPost ? (
+                <a class="adjacent-link adjacent-link--prev" href={prevPost.uri}>
+                  <span class="adjacent-direction">← 上一篇</span>
+                  <span class="adjacent-title">{prevPost.title}</span>
+                </a>
+              ) : (
+                <span class="adjacent-link adjacent-link--empty" aria-hidden="true" />
+              )}
+              {nextPost ? (
+                <a class="adjacent-link adjacent-link--next" href={nextPost.uri}>
+                  <span class="adjacent-direction">下一篇 →</span>
+                  <span class="adjacent-title">{nextPost.title}</span>
+                </a>
+              ) : (
+                <span class="adjacent-link adjacent-link--empty" aria-hidden="true" />
+              )}
+            </nav>
+          )}
         </section>
 
         <CommentSection 
@@ -406,8 +520,48 @@ try {
           postDatabaseId={node.databaseId}
           user={Astro.locals.user}
           currentUserId={Astro.locals.wpUserId}
-          siteOwnerUserId={siteOwnerUserId}
+          siteOwnerUserIds={siteOwnerUserIds}
         />
+
+        {
+          relatedPosts.length > 0 && (
+            <div class="related-section">
+              <h2 class="related-title font-display">喜欢这篇文章的人也看了</h2>
+              <div class="related-grid">
+                {relatedPosts.map((p) => (
+                  <a class="related-card" href={p.uri}>
+                    {p.featuredImage?.node?.sourceUrl ? (
+                      <img
+                        class="related-thumb"
+                        src={p.featuredImage.node.sourceUrl}
+                        alt=""
+                        loading="lazy"
+                        width={p.featuredImage?.node?.mediaDetails?.width}
+                        height={p.featuredImage?.node?.mediaDetails?.height}
+                      />
+                    ) : (
+                      <span class="related-thumb related-thumb--empty" aria-hidden="true" />
+                    )}
+                    <span class="related-body">
+                      <span class="related-card-title">{p.title}</span>
+                      <span class="related-card-meta">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <rect width="18" height="18" x="3" y="4" rx="2" />
+                          <path d="M16 2v4" />
+                          <path d="M8 2v4" />
+                          <path d="M3 10h18" />
+                        </svg>
+                        {dayjs(p.date).format("YYYY-MM-DD")}
+                        <span aria-hidden="true">·</span>
+                        {p.viewCount ?? 0} 浏览
+                      </span>
+                    </span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )
+        }
       </article>
 
 
@@ -450,7 +604,7 @@ try {
           postDatabaseId={node.databaseId}
           user={Astro.locals.user}
           currentUserId={Astro.locals.wpUserId}
-          siteOwnerUserId={siteOwnerUserId}
+          siteOwnerUserIds={siteOwnerUserIds}
         />
       </article>
 
@@ -647,6 +801,41 @@ try {
     gap: 0.5rem 1.25rem;
   }
 
+  /* ── Page header（简洁：大标题 + 时间，不用 Hero 区块）── */
+  .page-header {
+    max-width: 800px;
+    width: 100%;
+    margin: 1.5rem auto 0;
+    padding: 0 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .page-header__title {
+    margin: 0;
+    font-size: clamp(1.6rem, 4vw, 2.4rem);
+    font-weight: 800;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+  .page-header__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.25rem;
+    font-size: 0.8rem;
+    color: var(--muted-foreground);
+  }
+  .page-header__meta time {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+  .page-header__meta svg {
+    width: 0.8rem;
+    height: 0.8rem;
+    flex-shrink: 0;
+  }
+
   .meta-item {
     display: inline-flex;
     align-items: center;
@@ -736,6 +925,133 @@ try {
     width: 0.8rem;
     height: 0.8rem;
     flex-shrink: 0;
+  }
+
+  /* ── Staleness notice (信息过期提醒) ── */
+  .staleness-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin: -0.5rem 0 1.5rem;
+    padding: 0.65rem 0.9rem;
+    font-size: 0.8rem;
+    line-height: 1.55;
+    color: var(--amber-700);
+    background: color-mix(in oklch, var(--amber-100) 55%, transparent);
+    border: 1px solid var(--amber-200);
+    border-radius: var(--radius);
+  }
+  :global(.dark) .staleness-notice {
+    color: var(--amber-200);
+    background: color-mix(in oklch, var(--amber-700) 25%, transparent);
+    border-color: var(--amber-700);
+  }
+  .staleness-notice svg {
+    width: 0.95rem;
+    height: 0.95rem;
+    flex-shrink: 0;
+    margin-top: 0.15rem;
+  }
+
+  /* ── Post tags (文章标签，与首页 PostCard 的 card-tag 同款五色 mood) ── */
+  .post-tags {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 2rem 0 0;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--border);
+  }
+  .post-tags-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .post-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.12rem 0.55rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    line-height: 1.4;
+    text-decoration: none;
+    border-radius: 999px;
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+  .post-tag:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px -2px color-mix(in oklch, var(--foreground) 25%, transparent);
+  }
+  .post-tag-icon {
+    width: 0.7rem;
+    height: 0.7rem;
+    flex-shrink: 0;
+  }
+  .post-tag.tag-mint { background: var(--mint-100); color: var(--mint-700); }
+  .post-tag.tag-magenta { background: var(--magenta-100); color: var(--magenta-700); }
+  .post-tag.tag-violet { background: var(--violet-100); color: var(--violet-700); }
+  .post-tag.tag-coral { background: var(--coral-100); color: var(--coral-700); }
+  .post-tag.tag-amber { background: var(--amber-100); color: var(--amber-700); }
+  :global(.dark) .post-tag.tag-mint { background: var(--mint-900); color: var(--mint-300); }
+  :global(.dark) .post-tag.tag-magenta { background: var(--magenta-600); color: var(--magenta-50); }
+  :global(.dark) .post-tag.tag-violet { background: var(--violet-700); color: var(--violet-100); }
+  :global(.dark) .post-tag.tag-coral { background: var(--coral-500); color: var(--coral-100); }
+  :global(.dark) .post-tag.tag-amber { background: var(--amber-700); color: var(--amber-100); }
+
+  /* ── Copyright card (页脚著作权声明) ── */
+  .copyright-card {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    margin-top: 1rem;
+    padding: 0.9rem 1rem;
+    font-size: 0.82rem;
+    line-height: 1.6;
+    color: var(--muted-foreground);
+    background: var(--muted);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+  }
+  .copyright-card > svg {
+    width: 1.1rem;
+    height: 1.1rem;
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+    color: var(--primary-color);
+  }
+  .copyright-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 0;
+  }
+  .copyright-license {
+    margin: 0;
+  }
+  .copyright-license a {
+    color: var(--primary-color);
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .copyright-license a:hover {
+    text-decoration: underline;
+  }
+  .copyright-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1.25rem;
+    margin: 0;
+  }
+  .copyright-facts a {
+    color: var(--primary-color);
+    text-decoration: none;
+  }
+  .copyright-facts a:hover {
+    text-decoration: underline;
   }
 
   .divider {
@@ -844,6 +1160,68 @@ try {
   /* ── Author card + related posts ── */
   .post-end {
     margin-top: 2.5rem;
+  }
+
+  /* 上一篇/下一篇导航：双栏，左"上一篇"右"下一篇"，窄屏堆叠 */
+  .adjacent-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+  }
+  .adjacent-link {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    min-width: 0;
+    padding: 0.85rem 1rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--foreground);
+    text-decoration: none;
+    transition:
+      transform 0.15s ease,
+      border-color 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+  .adjacent-link:hover {
+    transform: translateY(-2px);
+    border-color: var(--mint-300);
+    box-shadow: 4px 4px 0 var(--border);
+  }
+  .adjacent-link--empty {
+    visibility: hidden;
+  }
+  .adjacent-direction {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--muted-foreground);
+  }
+  .adjacent-link--next .adjacent-direction {
+    text-align: right;
+  }
+  .adjacent-title {
+    font-size: 0.88rem;
+    font-weight: 600;
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .adjacent-link--next .adjacent-title {
+    text-align: right;
+  }
+  @media (max-width: 640px) {
+    .adjacent-nav {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .adjacent-link--next .adjacent-direction,
+    .adjacent-link--next .adjacent-title {
+      text-align: left;
+    }
   }
 
   .author-card {

@@ -34,29 +34,39 @@ export default function CoreColumns({
   const baseClasses = [
     "wp-block-columns",
     "flex",
-    "flex-wrap",
-    "-mx-2", // negative margin for column gutters
+    "min-w-0",
+    "max-w-full", // in grid parents, -mx-2 would overflow the track
+    "gap-4",
+    "md:gap-6",
   ];
 
-  // Handle stacking behavior
+  // Handle stacking behavior.
+  // flex-col + flex-wrap would lay each 100%-wide column out on its own
+  // "line" that wraps to the NEXT ROW, i.e. pushes subsequent columns to the
+  // right — overflowing the container on mobile. Only wrap in row mode.
   if (isStackedOnMobile) {
-    baseClasses.push("flex-col", "md:flex-row");
+    baseClasses.push("flex-col", "md:flex-row", "md:flex-wrap");
   } else {
-    baseClasses.push("flex-row");
+    baseClasses.push("flex-row", "flex-wrap");
   }
 
-  baseClasses.push("gap-4", "md:gap-6");
-
-  // Handle vertical alignment
+  // Handle vertical alignment.
+  // `verticalAlignment` is WP's "vertical" axis (row direction = align-items).
+  // On mobile the columns stack to flex-column, where that axis becomes the
+  // cross axis of the WRAPPED row — align-items:center then centers each
+  // column horizontally, which combined with width:100% children pushes them
+  // past the container (observed as right-side overflow on mobile). So:
+  //   - mobile (flex-col): stretch columns to full width, center via justify
+  //   - desktop (md:flex-row): align-items = the WP vertical alignment
   if (verticalAlignment) {
     const alignmentMap: Record<string, string> = {
-      top: "items-start",
-      center: "items-center",
-      bottom: "items-end",
-      "space-between": "items-stretch",
+      top: "justify-start md:items-start",
+      center: "justify-center md:items-center",
+      bottom: "justify-end md:items-end",
+      "space-between": "justify-between md:items-stretch",
     };
     baseClasses.push(
-      alignmentMap[verticalAlignment] || `items-${verticalAlignment}`,
+      alignmentMap[verticalAlignment] || `md:items-${verticalAlignment}`,
     );
   }
 

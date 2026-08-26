@@ -5,7 +5,18 @@ import Archive from "@/components/wp-templates/Archive.astro";
 import Single from "@/components/wp-templates/Single.astro";
 import { getNodeByURI, getAllUris } from "@api/api";
 
-const uri = `/${Astro.params.uri}`;
+const rawUri = `/${Astro.params.uri}`;
+// 路径式分页：/archives/xxx/page/2 → uri=/archives/xxx, page=2
+// （?page=N 参数形式保留兼容，但不再用于生成分页链接）
+const PAGE_SUFFIX_RE = /\/page\/(\d+)\/?$/;
+const pageSuffixMatch = rawUri.match(PAGE_SUFFIX_RE);
+const currentPage = pageSuffixMatch
+  ? Math.max(1, parseInt(pageSuffixMatch[1], 10) || 1)
+  : Math.max(1, parseInt(Astro.url.searchParams.get("page") || "1", 10) || 1);
+const uri = pageSuffixMatch
+  ? rawUri.slice(0, rawUri.lastIndexOf("/page/"))
+  : rawUri;
+const ARCHIVE_PER_PAGE = 10;
 
 // Skip SSR for static asset requests — avoid rendering cascade for non-page URLs
 const STATIC_EXT_RE = /\.(css|js|mjs|json|ico|png|jpg|jpeg|gif|svg|webp|avif|woff2?|ttf|eot|map|ts|tsx)$/;
@@ -19,7 +30,10 @@ let fetchError = false;
 let fetchErrorMessage = "";
 
 try {
-  const data = await getNodeByURI(uri, Astro.locals.wpToken);
+  const data = await getNodeByURI(uri, Astro.locals.wpToken, {
+    page: currentPage,
+    perPage: ARCHIVE_PER_PAGE,
+  });
   node = data.nodeByUri;
 } catch (err) {
   console.warn(`Failed to fetch node for URI ${uri}:`, err);
@@ -91,7 +105,12 @@ if (node?.__typename === "Post" || node?.__typename === "Page") {
     </MainLayout>
   ) : (
     <MainLayout title={node.title || node.name} description={node.excerpt}>
-      <Template node={node} />
-    </MainLayout>
+      <Template
+        node={node}
+        page={currentPage}
+        perPage={ARCHIVE_PER_PAGE}
+        totalPosts={node?.count ?? 0}
+        basePath={uri}
+      />    </MainLayout>
   )
 }

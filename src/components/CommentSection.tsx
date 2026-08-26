@@ -101,7 +101,8 @@ interface Props {
     preferred_username?: string;
   } | null;
   currentUserId?: number | null;
-  siteOwnerUserId?: number | null;
+  /** Blogger WP user ids (comma-separated env); any match gets the 博主 badge. */
+  siteOwnerUserIds?: number[];
 }
 
 /* ─── Helpers ─── */
@@ -286,9 +287,9 @@ function ChatBubble({
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                     aria-hidden="true"
                     className="chat-geo-icon"
                   >
@@ -677,7 +678,7 @@ function ReplyPopupModal({
   isEditing,
   onEditRequest,
   currentUserId,
-  siteOwnerUserId,
+  siteOwnerUserIds,
 }: {
   parentDbId: number;
   children: FlatComment[];
@@ -691,7 +692,7 @@ function ReplyPopupModal({
   isEditing: (id: string, scope: EditScope) => boolean;
   onEditRequest: (id: string, scope: EditScope) => void;
   currentUserId?: number | null;
-  siteOwnerUserId?: number | null;
+  siteOwnerUserIds?: number[];
 }) {
   // Navigation stack: each entry is a focused comment plus its direct replies.
   // The bottom entry is the original parent from the main list; clicking a
@@ -900,8 +901,8 @@ function ReplyPopupModal({
                         c.author?.node?.databaseId === currentUserId
                       }
                       isOwner={
-                        siteOwnerUserId != null &&
-                        c.author?.node?.databaseId === siteOwnerUserId
+                        siteOwnerUserIds?.includes(c.author?.node?.databaseId) ??
+                        false
                       }
                       editing={isEditing(c.id, "popup")}
                       onEdit={(id) => onEditRequest(id, "popup")}
@@ -932,7 +933,7 @@ export default function CommentSection({
   postDatabaseId,
   user,
   currentUserId,
-  siteOwnerUserId,
+  siteOwnerUserIds,
 }: Props) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const [popup, setPopup] = React.useState<{
@@ -1229,8 +1230,8 @@ export default function CommentSection({
                         (!!user?.email && c.author?.node?.email === user.email)
                       }
                       isOwner={
-                        siteOwnerUserId != null &&
-                        c.author?.node?.databaseId === siteOwnerUserId
+                        siteOwnerUserIds?.includes(c.author?.node?.databaseId) ??
+                        false
                       }
                       editing={isEditing(c.id, "main")}
                       onEdit={(commentId) => onEditRequest(commentId, "main")}
@@ -1513,7 +1514,7 @@ export default function CommentSection({
           }}
           onEditCancel={cancelEdit}
           currentUserId={currentUserId}
-          siteOwnerUserId={siteOwnerUserId}
+          siteOwnerUserIds={siteOwnerUserIds}
           onDeleteComment={(dbId) => {
             const c = localComments.find(
               (cc: any) => String(cc.databaseId) === dbId,

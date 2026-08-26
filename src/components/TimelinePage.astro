@@ -5,8 +5,7 @@ import GitHubCalendar from "@/components/timeline/GitHubCalendar";
 import StatsCards from "@/components/timeline/StatsCards";
 import TimelineList from "@/components/timeline/TimelineList";
 import ProgressBars from "@/components/stats/ProgressBars";
-import Leaderboard from "@/components/stats/Leaderboard";
-import {
+import Leaderboard from "@/components/stats/Leaderboard";import {
   getTimelinePosts,
   getTimelineStats,
   getTotalComments,
@@ -14,10 +13,12 @@ import {
   commentGeoStatsQuery,
 } from "@api/api";
 
+interface Props {
+  currentPage: number;
+}
+
+const { currentPage } = Astro.props;
 const PER_PAGE = 100;
-const url = new URL(Astro.url);
-const pageParam = url.searchParams.get("page");
-const currentPage = Math.max(1, parseInt(pageParam || "1", 10) || 1);
 
 let posts: any[] = [];
 let statsPosts: any[] = [];
@@ -66,9 +67,12 @@ try {
 }
 
 const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
+const isFirstPage = currentPage === 1;
 ---
 
-<MainLayout title="时光轴">
+<MainLayout
+  title={isFirstPage ? "时光轴" : `时光轴 - 第 ${currentPage} 页`}
+>
   <div
     style={{
       maxWidth: 760,
@@ -79,6 +83,11 @@ const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
   >
     <h1 style={{ fontSize: "1.5rem", fontWeight: 800, marginBottom: "0.25rem" }}>
       🌐 时光轴
+      {!isFirstPage && (
+        <span style={{ fontSize: "0.85rem", color: "var(--muted-foreground)", fontWeight: 400, marginLeft: "0.5rem" }}>
+          第 {currentPage} 页
+        </span>
+      )}
     </h1>
     <p style={{ fontSize: "0.85rem", color: "var(--muted-foreground)", marginBottom: "1rem" }}>
       把每一次写作，钉在属于它的那一天
@@ -90,11 +99,10 @@ const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
       </p>
     ) : (
       <>
-        <GitHubCalendar posts={statsPosts} client:load />
-        <StatsCards posts={statsPosts} totalComments={totalComments} />
+        {isFirstPage && <GitHubCalendar posts={statsPosts} client:load />}
+        {isFirstPage && <StatsCards posts={statsPosts} totalComments={totalComments} />}
 
-        {/* 分类占比 */}
-        {categoryItems.length > 0 && (
+        {isFirstPage && categoryItems.length > 0 && (
           <section
             style={{
               background: "var(--card)",
@@ -111,8 +119,7 @@ const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
           </section>
         )}
 
-        {/* 评论者地域分布 */}
-        {provinces.length + countries.length > 0 && (
+        {isFirstPage && provinces.length + countries.length > 0 && (
           <section
             style={{
               background: "var(--card)",

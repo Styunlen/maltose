@@ -398,3 +398,32 @@
     margin: 1.5rem 0;
   }
 }
+
+/* CoreColumns mobile fix — must live inside @layer utilities so these
+   !important rules tie with Tailwind's (layer order) and win over both the
+   WP .is-layout-flex { flex-wrap: wrap } and the pre-existing md:flex-wrap.
+   In flex-col (stacked) mode, wrapping each basis-full column onto its own
+   horizontal line overflows grid-item parents; force nowrap on mobile and
+   restore wrap at md:. */
+@layer utilities {
+  .wp-block-columns {
+    flex-wrap: nowrap !important;
+  }
+  @media (min-width: 768px) {
+    .wp-block-columns.md\:flex-row {
+      flex-wrap: wrap !important;
+    }
+  }
+  /* Same layering reason: WP's .is-vertically-aligned-* { align-self: center }
+     is outside any layer, but inside @layer utilities an !important rule wins
+     over it on mobile (flex-col) where align-self acts horizontally and would
+     push 100%-wide columns past the container edge. */
+  @media (max-width: 767px) {
+    .is-vertically-aligned-top,
+    .is-vertically-aligned-center,
+    .is-vertically-aligned-bottom,
+    .is-vertically-aligned-stretch {
+      align-self: stretch !important;
+    }
+  }
+}

@@ -17,7 +17,11 @@ const {
 
 function getPageUrl(page: number): string {
   if (page <= 1) return basePath;
-  return `${basePath}?page=${page}`;
+  // 路径式分页（SEO 友好）：basePath 结尾加 /page/N
+  const base = basePath.endsWith("/")
+    ? basePath.slice(0, -1)
+    : basePath;
+  return `${base}/page/${page}`;
 }
 
 // Build visible page numbers

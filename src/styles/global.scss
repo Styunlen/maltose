@@ -236,13 +236,14 @@ img.lazy-img[data-ll-status="loading"] {
 
   // 作者标签（博主/我）：薄荷浅底胶囊，与 postcard 的五色 tag 同风格
   // （--mint-100 底 / --mint-700 字 / 999px 圆角 / 小 icon）。
+  // 不加 margin——与相邻元素的间距完全由 message-header 的 gap 统一控制，
+  // 避免"徽章前 17px、其他 12px"的间隔不统一。
   .chat-badge {
     display: inline-flex;
     align-items: center;
     gap: 0.2rem;
     height: 1.15rem;
     padding: 0 0.45rem;
-    margin-left: 0.3rem;
     font-size: 0.66rem;
     font-weight: 600;
     line-height: 1;
@@ -262,6 +263,11 @@ img.lazy-img[data-ll-status="loading"] {
     width: 0.7rem;
     height: 0.7rem;
     flex-shrink: 0;
+  }
+  // 连续多个徽章（如"博主"+"我"）之间的间隔收紧到一半，
+  // 避免两个胶囊之间的 12px gap 显得松散。
+  .chat-badge + .chat-badge {
+    margin-left: -0.4rem;
   }
 
   .chat-geo {
@@ -421,7 +427,7 @@ img.lazy-img[data-ll-status="loading"] {
 
     .chat-bubble [data-slot="message-header"] {
       flex-wrap: wrap;
-      row-gap: 0.15rem;
+      row-gap: 0.4rem;
       padding-inline: 0.35rem;
     }
 

@@ -8,6 +8,10 @@ import dayjs from "dayjs";
 import { getQuery, getRandomPosts, layoutQuery, countContentWords } from "@api/api";
 import { renderCommentMd } from "@lib/markdown";
 import CommentSection from "../CommentSection";
+
+// Blogger's WordPress user id (from env, default 1 = WordPress admin) used
+// to badge "博主" on comments.
+const siteOwnerUserId = Number(process.env.BLOG_OWNER_USER_ID || 1) || 1;
 import ArticlePagination from "../ArticlePagination";
 import PostViewCounter from "../PostViewCounter";
 export const prerender = false;
@@ -402,6 +406,7 @@ try {
           postDatabaseId={node.databaseId}
           user={Astro.locals.user}
           currentUserId={Astro.locals.wpUserId}
+          siteOwnerUserId={siteOwnerUserId}
         />
       </article>
 
@@ -445,6 +450,7 @@ try {
           postDatabaseId={node.databaseId}
           user={Astro.locals.user}
           currentUserId={Astro.locals.wpUserId}
+          siteOwnerUserId={siteOwnerUserId}
         />
       </article>
 
@@ -1086,10 +1092,25 @@ try {
 
     .author-card {
       padding: 1rem;
+      /* 移动端纵向堆叠：头像+名字+简介在上，按钮占满整行在下。
+         需要 align-items 从 center 改为 flex-start，否则按钮换行后
+         会与第一行垂直居中挤压（作者信息区在窄屏被压到几 px）。 */
+      align-items: flex-start;
+    }
+
+    .author-actions {
+      flex-basis: 100%;
+      justify-content: flex-start;
     }
 
     .related-grid {
       grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* 单列卡片下 body 很窄，nowrap 的日期+浏览数会横向溢出，允许换行。 */
+    .related-card-meta {
+      white-space: normal;
+      flex-wrap: wrap;
     }
   }
 </style>

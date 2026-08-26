@@ -95,6 +95,10 @@ img.lazy-img[data-ll-status="loading"] {
 }
 
 #comments-section {
+  .chat-time--short {
+    display: none;
+  }
+
   .chat-bubble {
     padding: 0.35rem 0.5rem;
     border-radius: calc(var(--radius) - 2px);
@@ -228,6 +232,47 @@ img.lazy-img[data-ll-status="loading"] {
     ) !important;
     border-left: 3px solid var(--primary);
     transition: all 0.3s ease;
+  }
+
+  // 作者标签（博主/我）：薄荷浅底胶囊，与 postcard 的五色 tag 同风格
+  // （--mint-100 底 / --mint-700 字 / 999px 圆角 / 小 icon）。
+  .chat-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    height: 1.15rem;
+    padding: 0 0.45rem;
+    margin-left: 0.3rem;
+    font-size: 0.66rem;
+    font-weight: 600;
+    line-height: 1;
+    border-radius: 999px;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  .chat-badge--owner {
+    background: var(--mint-100);
+    color: var(--mint-700);
+  }
+  .chat-badge--self {
+    background: color-mix(in oklch, var(--primary) 14%, transparent);
+    color: var(--primary);
+  }
+  .chat-badge-icon {
+    width: 0.7rem;
+    height: 0.7rem;
+    flex-shrink: 0;
+  }
+
+  .chat-geo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+  }
+  .chat-geo-icon {
+    width: 0.7rem;
+    height: 0.7rem;
+    flex-shrink: 0;
   }
   .chat-highlight-hover {
     background: color-mix(in oklch, var(--primary) 10%, transparent) !important;
@@ -367,4 +412,56 @@ img.lazy-img[data-ll-status="loading"] {
     background: var(--border);
     border-radius: 9999px;
   }
+
+  /* ── 移动端微信式紧凑适配 ─────────────────────────── */
+  // 头像缩小到 28px（微信小头像感）；时间缩为 MM-DD HH:mm；UA/geo 换行到
+  // 头部第二行小字；气泡收窄到 72%；Cherry 工具栏横向滚动防溢出。
+  @media (max-width: 640px) {
+    --chat-avatar-size: 28px;
+
+    .chat-bubble [data-slot="message-header"] {
+      flex-wrap: wrap;
+      row-gap: 0.15rem;
+      padding-inline: 0.35rem;
+    }
+
+    .chat-time--full {
+      display: none;
+    }
+    .chat-time--short {
+      display: inline;
+    }
+
+    // UA/geo 独立成第二行（占满整行、与姓名/时间分离），不再隐藏。
+    .chat-meta-line {
+      flex-basis: 100%;
+      font-size: 0.68rem;
+    }
+
+    .chat-bubble [data-slot="bubble"] {
+      max-width: 72%;
+    }
+
+    // 评论表单容器跟随视口
+    .comments-section-form {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .cherry-toolbar {
+      overflow-x: auto;
+    }
+  }
+}
+
+// 顶层 dark 覆盖：不能写在 #comments-section 嵌套内（会编译成错误的后代
+// 选择器）。注意：这是 .scss（走 sass 编译），:global() 是 CSS Modules
+// 语法，sass 不认；dark 类挂在 <html> 上，所以用 html.dark 祖先选择器。
+html.dark #comments-section .chat-badge--owner {
+  background: var(--mint-900);
+  color: var(--mint-300);
+}
+html.dark #comments-section .chat-badge--self {
+  background: color-mix(in oklch, var(--primary) 22%, transparent);
+  color: var(--mint-300);
 }

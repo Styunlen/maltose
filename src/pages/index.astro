@@ -11,6 +11,7 @@ import {
   homePagePostsQuery,
   megaQuery,
   getTimelineStats,
+  getTotalComments,
   shuffle,
 } from "@api/api";
 
@@ -30,7 +31,7 @@ let total = 0;
 let hasError = false;
 
 try {
-  const [data, mega, archivePosts] = await Promise.all([
+  const [data, mega, archivePosts, totalComments] = await Promise.all([
     homePagePostsQuery(perPage, offset),
     megaQuery({
       sidebarPosts: 5,
@@ -39,6 +40,7 @@ try {
       includeSticky: true,
     }),
     getTimelineStats(),
+    getTotalComments(),
   ]);
   posts = data.posts.nodes;
   total = data.posts.pageInfo?.offsetPagination?.total ?? 0;
@@ -47,18 +49,15 @@ try {
   popularPosts = shuffle(mega.mostViewedPosts ?? []).slice(0, 8);
   // Homepage sidebar is homepage-only content — fetched here and passed down
   // through MainLayout so article/utility pages never fetch it (see ADR-0013).
-  // totalComments sums the FULL post set via getTimelineStats (paged past the
-  // 100-post cap); megaQuery's allCommentCounts only covers posts(first:100).
+  // totalComments covers BOTH posts and pages (getTotalComments); the old
+  // getTimelineStats-only sum undercounted comments left on pages.
   sidebarData = {
     posts: mega.recentPosts?.nodes ?? [],
     tags: mega.allTags?.nodes ?? [],
     categories: mega.allCategories?.nodes ?? [],
     comments: mega.recentComments?.nodes ?? [],
     totalPosts: total,
-    totalComments: archivePosts.reduce(
-      (sum, p) => sum + (p?.commentCount ?? 0),
-      0,
-    ),
+    totalComments,
     archivePosts,
   };
 } catch (err) {

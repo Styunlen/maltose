@@ -11,6 +11,7 @@ import ProgressBars from "@/components/stats/ProgressBars";
 import Leaderboard from "@/components/stats/Leaderboard";
 import {
   getTimelineStats,
+  getTotalComments,
   statsCategoriesQuery,
   getAllComments,
   commentGeoStatsQuery,
@@ -34,16 +35,17 @@ let siteBirthday: string | null = null;
 let hasError = false;
 
 try {
-  const [allPosts, catData, comments, geoData, contents] = await Promise.all([
-    getTimelineStats(),
-    statsCategoriesQuery(),
-    getAllComments(),
-    commentGeoStatsQuery(),
-    getStatsContents(),
-  ]);
+  const [allPosts, catData, comments, geoData, contents, totalComments] =
+    await Promise.all([
+      getTimelineStats(),
+      statsCategoriesQuery(),
+      getAllComments(),
+      commentGeoStatsQuery(),
+      getStatsContents(),
+      getTotalComments(),
+    ]);
 
   posts = allPosts;
-  totalComments = posts.reduce((s, p) => s + (p.commentCount || 0), 0);
   totalWords = contents.reduce((s, html) => s + countContentWords(html), 0);
 
   categories = (catData.categories?.nodes || [])
@@ -133,7 +135,14 @@ const categoryItems = categories.slice(0, 12).map((c: any) => ({
 ---
 
 <MainLayout title="站点数据看板">
-  <div style={{ maxWidth: 760, margin: "1.5rem auto 0", padding: "0 1.25rem" }}>
+  <div
+    style={{
+      maxWidth: 760,
+      width: "100%",
+      margin: "1.5rem auto 0",
+      padding: "0 1.25rem",
+    }}
+  >
     <h1 style={{ fontSize: "1.5rem", fontWeight: 800, marginBottom: "0.25rem" }}>
       📊 站点数据看板
     </h1>

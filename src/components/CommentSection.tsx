@@ -18,7 +18,7 @@ import IconWindows from "virtual:icons/tabler/brand-windows";
 import IconApple from "virtual:icons/tabler/brand-apple";
 import IconAndroid from "virtual:icons/tabler/brand-android";
 import IconLinux from "virtual:icons/tabler/brand-ubuntu";
-import { Edit2, Trash2, MessageSquare } from "lucide-react";
+import { Edit2, Trash2, MessageSquare, Crown } from "lucide-react";
 import {
   Message,
   MessageGroup,
@@ -76,6 +76,7 @@ interface FlatComment {
   content: string;
   rawContent?: string;
   ua?: UaInfo | null;
+  commentGeo?: { country?: string | null; province?: string | null } | null;
   author: { node: CommentAuthor };
   date: string;
   parentAuthorName?: string;
@@ -100,6 +101,7 @@ interface Props {
     preferred_username?: string;
   } | null;
   currentUserId?: number | null;
+  siteOwnerUserId?: number | null;
 }
 
 /* ─── Helpers ─── */
@@ -138,6 +140,7 @@ function buildCommentMap(flat: any[]): Map<number, FlatComment> {
       content: c.content,
       rawContent: c.rawContent,
       ua: parseUa(c.agentPublic || c.agent || ""),
+      commentGeo: c.commentGeo ?? null,
       author: c.author,
       date: c.date,
       parentAuthorName: p ? nameMap.get(p) : undefined,
@@ -175,6 +178,7 @@ function ChatBubble({
   onStartReply,
   onMention,
   isOwn = false,
+  isOwner = false,
   onEdit,
   onDelete,
   showAvatar = true,
@@ -187,6 +191,7 @@ function ChatBubble({
   onStartReply?: (id: number, name: string) => void;
   onMention: (targetId: string) => void;
   isOwn?: boolean;
+  isOwner?: boolean;
   onEdit?: (commentId: string) => void;
   onDelete?: (commentId: string) => void;
   showAvatar?: boolean;
@@ -202,7 +207,13 @@ function ChatBubble({
     >
       <MessageAvatar>
         {showAvatar ? (
-          <Avatar style={{ width: 36, height: 36 }}>
+          <Avatar
+            className="chat-avatar"
+            style={{
+              width: "var(--chat-avatar-size, 36px)",
+              height: "var(--chat-avatar-size, 36px)",
+            }}
+          >
             {comment.author.node.avatar?.url && (
               <AvatarImage
                 src={comment.author.node.avatar.url}
@@ -223,32 +234,70 @@ function ChatBubble({
               target="_blank"
               rel="nofollow ugc noopener"
               data-author={comment.author.node.name}
-              className="font-bold hover:underline"
+              className="chat-author-name font-bold hover:underline"
             >
               {comment.author.node.name}
             </a>
           ) : (
-            <span data-author={comment.author.node.name} className="font-bold">
+            <span
+              data-author={comment.author.node.name}
+              className="chat-author-name font-bold"
+            >
               {comment.author.node.name}
             </span>
           )}
-          <time dateTime={comment.date}>
+          {isOwner && (
+            <span className="chat-badge chat-badge--owner">
+              <Crown className="chat-badge-icon" />
+              博主
+            </span>
+          )}
+          {isOwn && <span className="chat-badge chat-badge--self">我</span>}
+          <time dateTime={comment.date} className="chat-time chat-time--full">
             {dayjs(comment.date).format("YYYY-MM-DD HH:mm")}
           </time>
-          {comment.ua && (
+          <time dateTime={comment.date} className="chat-time chat-time--short">
+            {dayjs(comment.date).format("MM-DD HH:mm")}
+          </time>
+          {(comment.ua || comment.commentGeo) && (
             <span
+              className="chat-meta-line inline-flex items-center gap-1 opacity-60"
               title={
-                comment.ua.browser +
-                " / " +
-                comment.ua.os +
-                " / " +
-                comment.ua.device
+                comment.ua
+                  ? comment.ua.browser +
+                    " / " +
+                    comment.ua.os +
+                    " / " +
+                    comment.ua.device
+                  : undefined
               }
-              className="inline-flex items-center gap-0.5 opacity-60"
             >
-              <UaBrowser name={comment.ua.browser} />
-              {comment.ua.browser} · <UaOs name={comment.ua.os} />{" "}
-              {comment.ua.os}
+              {comment.ua && (
+                <>
+                  <UaBrowser name={comment.ua.browser} />
+                  {comment.ua.browser} · <UaOs name={comment.ua.os} />{" "}
+                  {comment.ua.os}
+                  {comment.commentGeo && <span aria-hidden="true">·</span>}
+                </>
+              )}
+              {comment.commentGeo && (
+                <span className="chat-geo">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                    className="chat-geo-icon"
+                  >
+                    <path d="M12 21s-7-5.1-7-11a7 7 0 0 1 14 0c0 5.9-7 11-7 11Z" />
+                    <circle cx="12" cy="10" r="2.5" />
+                  </svg>
+                  {comment.commentGeo.province || comment.commentGeo.country}
+                </span>
+              )}
             </span>
           )}
         </MessageHeader>
@@ -628,6 +677,7 @@ function ReplyPopupModal({
   isEditing,
   onEditRequest,
   currentUserId,
+  siteOwnerUserId,
 }: {
   parentDbId: number;
   children: FlatComment[];
@@ -641,6 +691,7 @@ function ReplyPopupModal({
   isEditing: (id: string, scope: EditScope) => boolean;
   onEditRequest: (id: string, scope: EditScope) => void;
   currentUserId?: number | null;
+  siteOwnerUserId?: number | null;
 }) {
   // Navigation stack: each entry is a focused comment plus its direct replies.
   // The bottom entry is the original parent from the main list; clicking a
@@ -848,6 +899,10 @@ function ReplyPopupModal({
                         currentUserId != null &&
                         c.author?.node?.databaseId === currentUserId
                       }
+                      isOwner={
+                        siteOwnerUserId != null &&
+                        c.author?.node?.databaseId === siteOwnerUserId
+                      }
                       editing={isEditing(c.id, "popup")}
                       onEdit={(id) => onEditRequest(id, "popup")}
                       onEditSave={onEditSave}
@@ -877,6 +932,7 @@ export default function CommentSection({
   postDatabaseId,
   user,
   currentUserId,
+  siteOwnerUserId,
 }: Props) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const [popup, setPopup] = React.useState<{
@@ -1106,7 +1162,8 @@ export default function CommentSection({
       id="comments-section"
       className="comments-section-global"
       style={{
-        width: "800px",
+        width: "100%",
+        maxWidth: 800,
         margin: "5rem auto 0",
         padding: "1.5rem 1.25rem",
         background: "var(--card)",
@@ -1170,6 +1227,10 @@ export default function CommentSection({
                         (currentUserId != null &&
                           c.author?.node?.databaseId === currentUserId) ||
                         (!!user?.email && c.author?.node?.email === user.email)
+                      }
+                      isOwner={
+                        siteOwnerUserId != null &&
+                        c.author?.node?.databaseId === siteOwnerUserId
                       }
                       editing={isEditing(c.id, "main")}
                       onEdit={(commentId) => onEditRequest(commentId, "main")}
@@ -1276,6 +1337,7 @@ export default function CommentSection({
               </div>
             )}
             <form
+              className="comments-section-form"
               onSubmit={async (e) => {
                 e.preventDefault();
                 const text =
@@ -1451,6 +1513,7 @@ export default function CommentSection({
           }}
           onEditCancel={cancelEdit}
           currentUserId={currentUserId}
+          siteOwnerUserId={siteOwnerUserId}
           onDeleteComment={(dbId) => {
             const c = localComments.find(
               (cc: any) => String(cc.databaseId) === dbId,

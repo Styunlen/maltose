@@ -29,6 +29,11 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     // Read the real browser UA from the incoming request instead of trusting
     // a client-supplied value. WordPress records this as the comment agent.
     const realUserAgent = request.headers.get("user-agent") || "";
+    // The client's real IP arrives via nginx-set X-Forwarded-For. This route
+    // forwards to the local proxy (getProxyUrl), which would otherwise see a
+    // loopback client and lose the real IP; pass it through so the proxy can
+    // forward it to WordPress (which records comment_author_IP for geo).
+    const realClientIp = request.headers.get("x-forwarded-for") || "";
 
     const fetchHeaders: Record<string, string> = {
       "Content-Type": "application/json",
@@ -36,6 +41,9 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     };
     if (realUserAgent) {
       fetchHeaders["User-Agent"] = realUserAgent;
+    }
+    if (realClientIp) {
+      fetchHeaders["X-Forwarded-For"] = realClientIp;
     }
 
     const wpResponse = await fetch(getProxyUrl(), {

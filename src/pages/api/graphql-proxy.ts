@@ -245,6 +245,14 @@ function isPublicMutation(query: string): boolean {
     if (uaHeader) {
       forwardHeaders["User-Agent"] = uaHeader;
     }
+    // Forward the client IP so WordPress records the real commenter IP in
+    // comment_author_IP (nginx sets X-Forwarded-For; Astro resolves it into
+    // clientAddress). The WP theme's pre_comment_user_ip filter then trusts
+    // it. Without this every comment would carry the Astro server's IP and
+    // commentGeo / geo stats would all point at the server's location.
+    if (clientAddress) {
+      forwardHeaders["X-Forwarded-For"] = clientAddress;
+    }
 
     // Add signature headers
     Object.assign(forwardHeaders, buildSignatureHeaders());

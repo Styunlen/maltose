@@ -513,6 +513,10 @@ export async function getNodeByURI(uri, wpToken) {
                 date
                 agentPublic
                 agent
+                commentGeo {
+                  country
+                  province
+                }
               }
             }
             categories {
@@ -564,6 +568,10 @@ export async function getNodeByURI(uri, wpToken) {
                 date
                 agentPublic
                 agent
+                commentGeo {
+                  country
+                  province
+                }
               }
             }
           }
@@ -777,6 +785,60 @@ export async function getTimelineStats(): Promise<any[]> {
     if (offset >= total) break;
   }
   return all;
+}
+
+// Total comment count across BOTH posts and pages. getTimelineStats only
+// covers posts (WPGraphQL exposes them as separate root queries), so sites
+// with comments on pages would otherwise undercount. Pages are few (<100)
+// and need no pagination; posts are paged past the 100-node cap like the
+// timeline query.
+export async function getTotalComments(): Promise<number> {
+  const query = gql`
+    query TotalComments($first: Int!, $offset: Int!) {
+      posts(
+        first: $first
+        where: {
+          offsetPagination: { size: $first, offset: $offset }
+        }
+      ) {
+        pageInfo {
+          offsetPagination {
+            total
+          }
+        }
+        nodes {
+          commentCount
+        }
+      }
+      pages(first: 100) {
+        nodes {
+          commentCount
+        }
+      }
+    }
+  `;
+  let total = 0;
+  let offset = 0;
+  for (;;) {
+    const { data } = (await client.query({
+      query,
+      variables: { first: 100, offset },
+    })) as any;
+    total += (data.posts?.nodes || []).reduce(
+      (sum: number, p: any) => sum + (p.commentCount || 0),
+      0,
+    );
+    if (offset === 0) {
+      total += (data.pages?.nodes || []).reduce(
+        (sum: number, p: any) => sum + (p.commentCount || 0),
+        0,
+      );
+    }
+    const postsTotal = data.posts?.pageInfo?.offsetPagination?.total ?? 0;
+    offset += 100;
+    if (offset >= postsTotal) break;
+  }
+  return total;
 }
 
 // ── Hover link preview (ADR-0025) ──────────────────────────────────────────

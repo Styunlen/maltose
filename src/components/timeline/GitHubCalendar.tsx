@@ -53,7 +53,14 @@ export default function GitHubCalendar({ posts }: GitHubCalendarProps) {
     posts.filter((p) => p.date.startsWith(String(y))).length;
 
   return (
-    <div style={{ position: "relative", display: "inline-block" }}>
+    <div
+      style={{
+        position: "relative",
+        display: "block",
+        maxWidth: "100%",
+        overflowX: "auto",
+      }}
+    >
       <div
         style={{
           display: "flex",

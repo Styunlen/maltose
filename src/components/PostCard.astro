@@ -87,13 +87,56 @@ const hasHiddenTags = hiddenTags.length > 0;
 
   <!-- Content (title is clickable, excerpt/meta are selectable) -->
   <div class="card-body">
-    {
-      primaryCategory && (
-        <span class={`card-category cat-${categoryHue(primaryCategory.name)}`}>
-          {primaryCategory.name}
-        </span>
-      )
-    }
+    <div class="card-terms">
+      {
+        primaryCategory && (
+          <a
+            href={primaryCategory.uri}
+            class={`card-category cat-${categoryHue(primaryCategory.name)}`}
+          >
+            <svg class="term-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+            </svg>
+            {primaryCategory.name}
+          </a>
+        )
+      }
+      {hasTags && (
+        <>
+          {visibleTags.map((tag) => (
+            <a
+              href={tag.uri}
+              class={`card-tag tag-${categoryHue(tag.name)}`}
+            >
+              <svg class="term-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" />
+                <circle cx="7.5" cy="7.5" r=".5" fill="currentColor" />
+              </svg>
+              {tag.name}
+            </a>
+          ))}
+          {hasHiddenTags && (
+            <span class="card-tags-more" tabindex="0" aria-label={`展开其余 ${hiddenTags.length} 个标签`}>
+              {`+${hiddenTags.length}`}
+              <span class="card-tags-popover">
+                {hiddenTags.map((tag) => (
+                  <a
+                    href={tag.uri}
+                    class={`card-tag-pop tag-${categoryHue(tag.name)}`}
+                  >
+                    <svg class="term-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" />
+                      <circle cx="7.5" cy="7.5" r=".5" fill="currentColor" />
+                    </svg>
+                    {tag.name}
+                  </a>
+                ))}
+              </span>
+            </span>
+          )}
+        </>
+      )}
+    </div>
 
     <div class="card-title-row">
       <a href={post.uri} class="card-title-link">
@@ -105,70 +148,58 @@ const hasHiddenTags = hiddenTags.length > 0;
     {excerpt && <p class="card-excerpt">{excerpt}</p>}
 
     <div class="card-meta">
-      <time datetime={post.date} class="card-date">{relativeDate}</time>
-      <span class="card-comments">
-        <svg
-          class="meta-icon"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path
-            d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-          ></path>
-        </svg>
-        {commentCount}
-      </span>
-      <span class="card-comments" title="浏览次数">
-        <svg
-          class="meta-icon"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path
-            d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"
-          ></path>
-        </svg>
-        <span>{viewCount}</span>
-      </span>
-      {hasTags && (
-        <span class="card-tags">
-          {visibleTags.map((tag) => (
-            <a href={tag.uri} class="card-tag">{`#${tag.name}`}</a>
-          ))}
-          {hasHiddenTags && (
-            <span class="card-tags-more" tabindex="0" aria-label={`展开其余 ${hiddenTags.length} 个标签`}>
-              {`+${hiddenTags.length}`}
-              <span class="card-tags-popover">
-                {hiddenTags.map((tag) => (
-                  <a href={tag.uri} class="card-tag-pop">{`#${tag.name}`}</a>
-                ))}
-              </span>
-            </span>
-          )}
+      <span class="card-meta-left">
+        <span class="card-comments">
+          <svg
+            class="meta-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+            ></path>
+          </svg>
+          {commentCount}
         </span>
-      )}
+        <span class="card-comments" title="浏览次数">
+          <svg
+            class="meta-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"
+            ></path>
+          </svg>
+          <span>{viewCount}</span>
+        </span>
+      </span>
+      <time datetime={post.date} class="card-date">{relativeDate}</time>
     </div>
   </div>
 </article>
 
 <style>
-  /* Hallmark · macrostructure: Ecosystem Index · card: horizontal-compact
-   * theme: studied-DNA (source: https://blog.anheyu.com/) · studied: yes
+  /* Hallmark · macrostructure: Ecosystem Index · card: vertical-2col
+   * theme: studied-DNA (source: https://blog.weasel6.cn/) · studied: yes
    * observed-accent: mint #00f0a0 (user identity, preserved) · rhythm: unknown
    * contrast: pass (40–41) · nav: N1b (existing) · footer: Ft3 (existing)
    * mobile: pass (34, 49, 50–57) · icons: pass (30) */
   /* ─── Card ─── */
   .post-card {
+    position: relative;
+    z-index: 0;
     display: flex;
-    gap: 1.25rem;
+    flex-direction: column;
+    gap: 0.5rem;
     padding: 1rem;
     background: var(--card);
     border: 1px solid var(--border);
@@ -181,20 +212,20 @@ const hasHiddenTags = hiddenTags.length > 0;
   .post-card:hover {
     transform: translateY(-3px);
     border-color: var(--mint-300);
+    z-index: 1;
   }
 
   /* ─── Image ─── */
   .card-image-link {
     display: block;
-    flex-shrink: 0;
-    width: 200px;
+    width: 100%;
     text-decoration: none;
     color: inherit;
   }
 
   .card-image-wrap {
     position: relative;
-    aspect-ratio: 1 / 1;
+    aspect-ratio: 2 / 1;
     overflow: hidden;
     border-radius: calc(var(--radius) - 4px);
     background: var(--muted);
@@ -218,19 +249,35 @@ const hasHiddenTags = hiddenTags.length > 0;
     flex-direction: column;
     flex: 1;
     min-width: 0;
-    padding: 0.15rem 0;
+    padding: 0.5rem 0 0;
+  }
+
+  .card-terms {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-bottom: 0.5rem;
   }
 
   .card-category {
-    display: inline-block;
-    align-self: flex-start;
-    margin-bottom: 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
     padding: 0.18rem 0.6rem;
     font-size: 0.7rem;
     font-weight: 700;
     letter-spacing: 0.03em;
     text-transform: uppercase;
     border-radius: 999px;
+    text-decoration: none;
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+  .card-category:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px -2px color-mix(in oklch, var(--foreground) 25%, transparent);
   }
   .cat-mint { background: var(--mint-100); color: var(--mint-700); }
   .cat-magenta { background: var(--magenta-100); color: var(--magenta-700); }
@@ -243,34 +290,40 @@ const hasHiddenTags = hiddenTags.length > 0;
   :global(.dark) .cat-coral { background: var(--coral-500); color: var(--coral-100); }
   :global(.dark) .cat-amber { background: var(--amber-700); color: var(--amber-100); }
 
-  .card-tags {
+  .card-tag {
     display: inline-flex;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 0.35rem;
-  }
-
-  .card-tag {
-    display: inline-block;
-    padding: 0.1rem 0.4rem;
+    gap: 0.25rem;
+    padding: 0.12rem 0.55rem;
     font-size: 0.7rem;
     font-weight: 500;
     line-height: 1.4;
-    color: var(--muted-foreground);
     text-decoration: none;
-    border-radius: 4px;
+    border-radius: 999px;
     transition:
-      color 0.15s ease,
-      background 0.15s ease;
+      transform 0.15s ease,
+      box-shadow 0.15s ease,
+      filter 0.15s ease;
   }
-
   .card-tag:hover {
-    color: var(--mint-700);
-    background: var(--mint-100);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px -2px color-mix(in oklch, var(--foreground) 25%, transparent);
   }
-  :global(.dark) .card-tag:hover {
-    color: var(--mint-300);
-    background: var(--mint-900);
+  .tag-mint { background: var(--mint-100); color: var(--mint-700); }
+  .tag-magenta { background: var(--magenta-100); color: var(--magenta-700); }
+  .tag-violet { background: var(--violet-100); color: var(--violet-700); }
+  .tag-coral { background: var(--coral-100); color: var(--coral-700); }
+  .tag-amber { background: var(--amber-100); color: var(--amber-700); }
+  :global(.dark) .tag-mint { background: var(--mint-900); color: var(--mint-300); }
+  :global(.dark) .tag-magenta { background: var(--magenta-600); color: var(--magenta-50); }
+  :global(.dark) .tag-violet { background: var(--violet-700); color: var(--violet-100); }
+  :global(.dark) .tag-coral { background: var(--coral-500); color: var(--coral-100); }
+  :global(.dark) .tag-amber { background: var(--amber-700); color: var(--amber-100); }
+
+  .term-icon {
+    width: 0.7rem;
+    height: 0.7rem;
+    flex-shrink: 0;
   }
 
   .card-tags-more {
@@ -285,6 +338,15 @@ const hasHiddenTags = hiddenTags.length > 0;
     transition:
       color 0.15s ease,
       background 0.15s ease;
+  }
+
+  .card-tags-more::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    height: 6px;
   }
 
   .card-tags-more:hover,
@@ -319,7 +381,8 @@ const hasHiddenTags = hiddenTags.length > 0;
 
   .card-tags-more:hover .card-tags-popover,
   .card-tags-more:focus-visible .card-tags-popover,
-  .card-tags-more:focus-within .card-tags-popover {
+  .card-tags-more:focus-within .card-tags-popover,
+  .card-tags-popover:hover {
     opacity: 1;
     visibility: visible;
     transform: translateY(0);
@@ -327,25 +390,22 @@ const hasHiddenTags = hiddenTags.length > 0;
   }
 
   .card-tag-pop {
-    display: block;
-    padding: 0.2rem 0.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    align-self: flex-start;
+    padding: 0.12rem 0.55rem;
     font-size: 0.7rem;
     font-weight: 500;
-    color: var(--muted-foreground);
     text-decoration: none;
-    border-radius: 4px;
+    border-radius: 999px;
     transition:
-      color 0.15s ease,
-      background 0.15s ease;
+      transform 0.15s ease,
+      box-shadow 0.15s ease;
   }
-
   .card-tag-pop:hover {
-    color: var(--mint-700);
-    background: var(--mint-100);
-  }
-  :global(.dark) .card-tag-pop:hover {
-    color: var(--mint-300);
-    background: var(--mint-900);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px -2px color-mix(in oklch, var(--foreground) 25%, transparent);
   }
 
   .card-title-row {
@@ -408,15 +468,17 @@ const hasHiddenTags = hiddenTags.length > 0;
   .card-meta {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     flex-wrap: wrap;
     gap: 0.5rem;
     margin-top: auto;
     padding-top: 0.75rem;
   }
 
-  .card-tags {
-    margin-left: auto;
-    gap: 0.35rem;
+  .card-meta-left {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
   }
 
   .card-date {
@@ -441,23 +503,14 @@ const hasHiddenTags = hiddenTags.length > 0;
   /* ─── Responsive ─── */
   @media (max-width: 640px) {
     .post-card {
-      flex-direction: column;
       gap: 0.6rem;
       padding: 0.75rem;
     }
-    .card-image-link {
-      width: 100%;
-      flex-shrink: 1;
-    }
     .card-image-wrap {
       aspect-ratio: 16 / 9;
-      border-radius: calc(var(--radius) - 4px);
     }
     .card-body {
       padding: 0;
-    }
-    .card-category {
-      margin-bottom: 0.4rem;
     }
     .card-title {
       font-size: 1.05rem;
@@ -468,14 +521,7 @@ const hasHiddenTags = hiddenTags.length > 0;
       -webkit-line-clamp: 3;
     }
     .card-meta {
-      flex-wrap: wrap;
       gap: 0.6rem;
-      padding-top: 0.6rem;
-    }
-    .card-tags {
-      width: 100%;
-      margin-left: 0;
-      justify-content: flex-start;
     }
     .card-tag {
       white-space: nowrap;

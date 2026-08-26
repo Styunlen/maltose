@@ -307,7 +307,7 @@ function CalendarWidget() {
     year === today.getFullYear();
 
   return (
-    <SidebarGroup>
+    <SidebarGroup className="group-data-[collapsible=icon]:hidden">
       <SidebarGroupLabel className="font-bold tracking-wider uppercase text-[0.65rem] text-sidebar-foreground/60">
         日历
       </SidebarGroupLabel>
@@ -370,7 +370,7 @@ function TabsSection({ posts, comments }: { posts: any[]; comments: any[] }) {
   );
 
   return (
-    <SidebarGroup>
+    <SidebarGroup className="group-data-[collapsible=icon]:hidden">
       <SidebarGroupLabel className="font-bold tracking-wider uppercase text-[0.65rem] text-sidebar-foreground/60">
         动态
       </SidebarGroupLabel>
@@ -514,7 +514,7 @@ function CategoryList({
   const sortedParents = parents.sort((a, b) => b.count - a.count);
 
   return (
-    <SidebarGroup>
+    <SidebarGroup className="group-data-[collapsible=icon]:hidden">
       <SidebarGroupLabel className="font-bold tracking-wider uppercase text-[0.65rem] text-sidebar-foreground/60">
         文章分类
       </SidebarGroupLabel>
@@ -570,7 +570,7 @@ function ArchiveList({
   const archives = React.useMemo(() => buildArchive(posts), [posts]);
   if (archives.length === 0) return null;
   return (
-    <SidebarGroup>
+    <SidebarGroup className="group-data-[collapsible=icon]:hidden">
       <SidebarGroupLabel className="font-bold tracking-wider uppercase text-[0.65rem] text-sidebar-foreground/60">
         文章归档
       </SidebarGroupLabel>
@@ -625,7 +625,7 @@ function TagCloud({
   tags: { name: string; uri: string; count: number }[];
 }) {
   return (
-    <SidebarGroup>
+    <SidebarGroup className="group-data-[collapsible=icon]:hidden">
       <SidebarGroupLabel className="font-bold tracking-wider uppercase text-[0.65rem] text-sidebar-foreground/60">
         标签云
       </SidebarGroupLabel>
@@ -853,7 +853,7 @@ function ArticleToc({ pathname }: { pathname?: string }) {
 
   if (toc.length === 0) {
     return (
-      <SidebarGroup>
+      <SidebarGroup className="group-data-[collapsible=icon]:hidden">
         <SidebarGroupLabel className="font-bold tracking-wider uppercase text-[0.65rem] text-sidebar-foreground/60">
           文章目录
         </SidebarGroupLabel>
@@ -865,7 +865,7 @@ function ArticleToc({ pathname }: { pathname?: string }) {
   }
 
   return (
-    <SidebarGroup>
+    <SidebarGroup className="group-data-[collapsible=icon]:hidden">
       <SidebarGroupLabel className="font-bold tracking-wider uppercase text-[0.65rem] text-sidebar-foreground/60">
         文章目录
       </SidebarGroupLabel>
@@ -910,7 +910,7 @@ function ArticleComments({ pathname }: { pathname?: string }) {
           className="w-full flex items-center justify-center gap-2 py-2 rounded-lg border border-border bg-sidebar-accent/30 text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors duration-200 cursor-pointer text-[0.75rem] font-semibold"
         >
           <svg
-            className="size-3.5"
+            className="size-3.5 shrink-0"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -920,7 +920,9 @@ function ArticleComments({ pathname }: { pathname?: string }) {
           >
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
-          查看评论 ({commentCount})
+          <span className="group-data-[collapsible=icon]:hidden">
+            查看评论 ({commentCount})
+          </span>
         </button>
       </div>
     </SidebarGroup>
@@ -983,7 +985,7 @@ function SiteStats({
   ];
 
   return (
-    <SidebarGroup>
+    <SidebarGroup className="group-data-[collapsible=icon]:hidden">
       <SidebarGroupLabel className="font-bold tracking-wider uppercase text-[0.65rem] text-sidebar-foreground/60">
         网站统计
       </SidebarGroupLabel>

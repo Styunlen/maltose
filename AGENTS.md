@@ -18,9 +18,10 @@ Single-context: `CONTEXT.md` at the root + ADRs in `docs/adr/` + glossary in `do
 
 ## Release gate (MANDATORY)
 
-**Never push to any remote (GitHub origin) without explicit human approval first.**
+**Never commit, or push to any remote (GitHub origin), without explicit human approval first.**
 
-- Local commits are fine; anything that would reach a remote (`git push`, force-push, PR creation, release) **must be proposed and await the user's explicit go-ahead**.
-- When you have unpushed work ready to publish, present: what will be pushed, the commit list, and any sensitive-content check — then wait.
-- Before proposing a push, verify the diff/commits contain **no secrets, real IPs, or credentials**. If in doubt, ask.
-- If the user rejects a push, do not push — rebase/amend locally as requested and re-present.
+- **Commits also require approval**: do not create commits on the user's behalf unless the user has explicitly asked for them (e.g. "commit this"). When in doubt, stage the work and ask before committing.
+- Local work-in-progress is fine; anything that would create a commit or reach a remote (`git commit`, `git push`, force-push, PR creation, release) **must be proposed and await the user's explicit go-ahead**.
+- When you have staged or committed work ready to publish, present: what will be committed/pushed, the commit list, and any sensitive-content check — then wait.
+- Before proposing a commit or push, verify the diff contains **no secrets, real IPs, or credentials**. If in doubt, ask.
+- If the user rejects a commit or push, do not proceed — rebase/amend locally as requested and re-present.

@@ -2,6 +2,13 @@
 
 Headless WordPress blog built with Astro.
 
+## 文档
+
+- **[Wiki（FAQ + 部署指南）](docs/wiki/)** — 部署 Maltose 主题、评论 IP 地理位置链路配置与排障
+- **[CI/CD 部署与 SSH 安全](deploy/README.md)** — GitHub Actions 双环境部署（ADR-0033）
+- **[ADR 决策记录](docs/adr/)** — 架构决策（`0001`–`0035`）
+- **[术语表](docs/glossary/)** — 领域术语（评论、缓存、安全、时间轴等）
+
 ## GraphQL 缓存架构
 
 所有 GraphQL 查询流经进程内 LRU 缓存 link（`LruLink`，`src/lib/lru-link.ts`），实现 **stale-while-revalidate（SWR）** 策略。详见 `docs/adr/0024-inprocess-lru-cache.md` 与 `docs/glossary/lru-cache.md`。

@@ -3,7 +3,7 @@ import { getProxyUrl } from "@lib/graphql-proxy";
 import { sanitizeMarkdownSource } from "@lib/markdown";
 import { __internalLruCache } from "@api/api";
 
-export const POST: APIRoute = async ({ request, cookies }) => {
+export const POST: APIRoute = async ({ request, cookies, clientAddress }) => {
   try {
     const wpToken = cookies.get("wp_token")?.value;
     if (!wpToken) {
@@ -29,11 +29,16 @@ export const POST: APIRoute = async ({ request, cookies }) => {
     // Read the real browser UA from the incoming request instead of trusting
     // a client-supplied value. WordPress records this as the comment agent.
     const realUserAgent = request.headers.get("user-agent") || "";
-    // The client's real IP arrives via nginx-set X-Forwarded-For. This route
-    // forwards to the local proxy (getProxyUrl), which would otherwise see a
-    // loopback client and lose the real IP; pass it through so the proxy can
-    // forward it to WordPress (which records comment_author_IP for geo).
-    const realClientIp = request.headers.get("x-forwarded-for") || "";
+    // The client's real IP: the browser never sends X-Forwarded-For itself —
+    // Astro's clientAddress (resolved from the trusted proxy headers via
+    // security.allowedDomains) holds the real visitor IP. Fall back to the
+    // raw header only when clientAddress is unavailable (direct/local dev).
+    // This route forwards to the local proxy (getProxyUrl), which would
+    // otherwise see a loopback client and lose the real IP.
+    const realClientIp =
+      (clientAddress && clientAddress !== "::1" && clientAddress !== "127.0.0.1"
+        ? clientAddress
+        : "") || request.headers.get("x-forwarded-for") || "";
 
     const fetchHeaders: Record<string, string> = {
       "Content-Type": "application/json",

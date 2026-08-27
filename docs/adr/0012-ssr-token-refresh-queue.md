@@ -139,5 +139,5 @@ const expiringSoon = !expired && expMs - now < 30 * 1000;
 ## 参考文献
 
 - vue-pure-admin 无感刷新：`src/utils/http/index.ts`（`isRefreshing` + `requests` 队列 + `retryOriginalRequest`）
-- ADR-0011（WP 登录两段式降级）：`docs/decisions/0011-wp-login-prompt-fallback.md`
+- ADR-0011（WP 登录两段式降级）：`docs/adr/0011-wp-login-prompt-fallback.md`
 - `src/middleware.ts` 现有 token 刷新逻辑

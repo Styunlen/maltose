@@ -134,7 +134,7 @@ export function useEditStore(): { editingId; scope; startEdit; cancelEdit; isEdi
 
 ## 参考文献
 
-- ADR-0004（评论 Message 架构）：`docs/decisions/0004-comment-message-architecture.md`
+- ADR-0004（评论 Message 架构）：`docs/adr/0004-comment-message-architecture.md`
 - 现有删除确认：`CommentSection.tsx` 的 `ConfirmDialog` 用法
 - nanostores 文档: https://github.com/nanostores/nanostores
 - @nanostores/react 文档: https://github.com/nanostores/react

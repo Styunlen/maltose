@@ -118,6 +118,6 @@ export async function getTimelineStats(): Promise<any[]> {
 ## 参考文献
 
 - shadcnblocks timeline19: https://www.shadcnblocks.com/block/timeline19
-- ADR-0016（时间轴页面初版）：`docs/decisions/0016-timeline-page.md`
+- ADR-0016（时间轴页面初版）：`docs/adr/0016-timeline-page.md`
 - WPGraphQL `posts` 连接默认 `first` 上限 100
 - motion 库：项目已装 `motion@^12.38.0`

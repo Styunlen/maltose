@@ -114,6 +114,6 @@ ADR-0007 引入 Cherry markdown CSS 后，暴露了两个此前未发现的问�
 
 ## 参考文献
 
-- ADR-0007（评论 markdown 渲染样式对齐 Cherry）：`docs/decisions/0007-comment-markdown-style-alignment.md`
+- ADR-0007（评论 markdown 渲染样式对齐 Cherry）：`docs/adr/0007-comment-markdown-style-alignment.md`
 - `src/lib/wpautop.ts`（reverseWpautop）
 - `src/components/ui/bubble.tsx`（bubble 变体背景类）

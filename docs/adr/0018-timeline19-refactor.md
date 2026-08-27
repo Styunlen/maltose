@@ -132,5 +132,5 @@ nodes { databaseId date uri title viewCount commentCount }
 ## 参考文献
 
 - shadcnblocks timeline19: https://www.shadcnblocks.com/block/timeline19
-- ADR-0017（时间轴迭代）：`docs/decisions/0017-timeline-iteration.md`
-- ADR-0016（时间轴初版）：`docs/decisions/0016-timeline-page.md`
+- ADR-0017（时间轴迭代）：`docs/adr/0017-timeline-iteration.md`
+- ADR-0016（时间轴初版）：`docs/adr/0016-timeline-page.md`

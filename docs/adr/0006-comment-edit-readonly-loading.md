@@ -130,7 +130,7 @@ rawLoaded:   raw 内容已填充（fetch 成功 setMarkdown / 降级 rawContent 
 
 ## 参考文献
 
-- ADR-0005（评论区原位编辑）：`docs/decisions/0005-comment-in-place-edit.md`
+- ADR-0005（评论区原位编辑）：`docs/adr/0005-comment-in-place-edit.md`
 - cherry-markdown `getCodeMirror()`: 返回 CodeMirror 6 view（dist 源码 `{key:"getCodeMirror",value:function(){return this.editor.editor.view}}`）
 - CodeMirror 6 `EditorState.readOnly` facet: https://codemirror.net/docs/ref/#state.EditorState.readOnly
 - `@codemirror/state`: cherry-markdown 的直接依赖（^6.5.2）

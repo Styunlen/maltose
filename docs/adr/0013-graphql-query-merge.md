@@ -129,6 +129,6 @@ MainLayout（每个页面）
 
 ## 参考文献
 
-- ADR-0003（view-count-cache-invalidation，含 Apollo 缓存移除背景）：`docs/decisions/0003-view-count-cache-invalidation.md`
-- ADR-0012（SSR token 刷新队列）：`docs/decisions/0012-ssr-token-refresh-queue.md`
+- ADR-0003（view-count-cache-invalidation，含 Apollo 缓存移除背景）：`docs/adr/0003-view-count-cache-invalidation.md`
+- ADR-0012（SSR token 刷新队列）：`docs/adr/0012-ssr-token-refresh-queue.md`
 - 性能诊断：页面 TTFB 秒级 + WP 查询耗时实测

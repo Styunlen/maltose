@@ -180,7 +180,7 @@ production, staging, or both?`，按角色只创建/生成对应项：
 - 新增：`deploy/` 目录（服务器脚本模板 + nginx 参考配置 + 安全说明）
 - 修改：`astro.config.mjs`（`staticHeaders: true`——静态资源 immutable 缓存）
 - 修改：`ecosystem.config.cjs`（双 app：`maltose-production`:8080 + `maltose-staging`:8081）
-- 新增：`docs/decisions/0033-...md`（本文档）
+- 新增：`docs/adr/0033-...md`（本文档）
 - 部署：CI 失败阻断、main 仅生产、develop 仅开发
 - 安全：SSH key 命令白名单 + 非 root 用户 + 环境隔离 + sendEmailOtp per-IP 限流 + verifyEmailOtp 失败计数
 - 不改变：应用代码

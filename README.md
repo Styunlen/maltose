@@ -4,7 +4,7 @@ Headless WordPress blog built with Astro.
 
 ## GraphQL 缓存架构
 
-所有 GraphQL 查询流经进程内 LRU 缓存 link（`LruLink`，`src/lib/lru-link.ts`），实现 **stale-while-revalidate（SWR）** 策略。详见 `docs/decisions/0024-inprocess-lru-cache.md` 与 `docs/glossary/lru-cache.md`。
+所有 GraphQL 查询流经进程内 LRU 缓存 link（`LruLink`，`src/lib/lru-link.ts`），实现 **stale-while-revalidate（SWR）** 策略。详见 `docs/adr/0024-inprocess-lru-cache.md` 与 `docs/glossary/lru-cache.md`。
 
 ### 工作原理
 

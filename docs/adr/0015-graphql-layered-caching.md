@@ -136,6 +136,6 @@ megaQuery
 ## 参考文献
 
 - WPGraphQL Performance: https://www.wpgraphql.com/docs/performance（Include Global IDs + Request Only What You Need）
-- ADR-0003（Apollo 缓存移除背景）：`docs/decisions/0003-view-count-cache-invalidation.md`
-- ADR-0013（GraphQL 查询拼接）：`docs/decisions/0013-graphql-query-merge.md`
-- ADR-0014（TTFB 字段瘦身）：`docs/decisions/0014-ttfb-query-field-slimming.md`
+- ADR-0003（Apollo 缓存移除背景）：`docs/adr/0003-view-count-cache-invalidation.md`
+- ADR-0013（GraphQL 查询拼接）：`docs/adr/0013-graphql-query-merge.md`
+- ADR-0014（TTFB 字段瘦身）：`docs/adr/0014-ttfb-query-field-slimming.md`

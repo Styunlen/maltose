@@ -3,7 +3,6 @@ import { verifySessionToken, sessionToUser } from "@lib/auth/session";
 import { getProxyUrl } from "@lib/graphql-proxy";
 import jwt from "jsonwebtoken";
 import { createHash } from "node:crypto";
-
 // WPGraphQL JWT carries the user id as a string; normalize to a number for
 // consistent comparison against numeric databaseId fields.
 function normalizeUserId(raw: unknown): number | null {
@@ -89,6 +88,33 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const wpToken = context.cookies.get("wp_token")?.value || null;
   const wpRefreshToken = context.cookies.get("wp_refresh")?.value || null;
   context.locals.wpToken = wpToken;
+
+  // 幽灵登录态：session 有效（UI 显示已登录）但 WP 双 token 都消失 →
+  // 无法续期也无法操作（发评论/编辑全部 401）。清除 session 并重定向
+  // 回当前页带 auth_error，让全局 AuthErrorToast 提示重新登录。
+  // 只对页面请求生效——API/静态资源不重定向，避免破坏接口调用。
+  if (
+    context.locals.user &&
+    !wpToken &&
+    !wpRefreshToken &&
+    !context.url.pathname.startsWith("/api/") &&
+    !context.url.pathname.startsWith("/_astro/") &&
+    !context.url.pathname.startsWith("/@") &&
+    !/\.(css|js|mjs|json|ico|png|jpg|jpeg|gif|svg|webp|avif|woff2?|ttf|eot|map)$/.test(
+      context.url.pathname,
+    )
+  ) {
+    if (import.meta.env.DEV) console.log("[TOKEN] ghost session: wp_token & wp_refresh gone, prompting re-login");
+    context.cookies.delete("session", { path: "/" });
+    context.locals.user = undefined;
+    const url = new URL(context.url);
+    url.searchParams.set(
+      "auth_error",
+      "登录已失效，请重新登录",
+    );
+    url.searchParams.set("auth_hint", "登录状态已过期，请重新登录后继续操作");
+    return context.redirect(url.toString());
+  }
 
   // If wp_token is missing but wp_refresh exists, try to refresh
   if (!wpToken && wpRefreshToken) {

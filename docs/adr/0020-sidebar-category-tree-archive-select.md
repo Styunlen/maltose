@@ -102,6 +102,6 @@ megaQuery（allCategories 含 parent/children）
 
 ## 参考文献
 
-- ADR-0019（侧边栏分类/归档）：`docs/decisions/0019-sidebar-categories-archive.md`
-- ADR-0016（shadcn Select 组件）：`docs/decisions/0016-timeline-page.md`
+- ADR-0019（侧边栏分类/归档）：`docs/adr/0019-sidebar-categories-archive.md`
+- ADR-0016（shadcn Select 组件）：`docs/adr/0016-timeline-page.md`
 - WPGraphQL `categories` 连接的 `parent`/`children` 字段

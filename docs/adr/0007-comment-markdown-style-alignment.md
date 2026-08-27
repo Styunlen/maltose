@@ -109,5 +109,5 @@ Cherry markdown CSS 自带 `.cherry-markdown table/td/th` 规则（边框、表�
 
 - Cherry Markdown: https://github.com/Tencent/cherry-markdown
 - cherry-markdown 的 markdown 排版 CSS：`node_modules/cherry-markdown/dist/cherry-markdown.markdown.css`（所有规则 `.cherry-markdown` scoped，不依赖全局 CSS 变量）
-- ADR-0004（评论 Message 架构）：`docs/decisions/0004-comment-message-architecture.md`
+- ADR-0004（评论 Message 架构）：`docs/adr/0004-comment-message-architecture.md`
 - `src/lib/markdown.ts` 的 sanitize 白名单（已含 table 标签）

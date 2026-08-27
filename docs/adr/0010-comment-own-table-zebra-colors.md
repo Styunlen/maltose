@@ -101,8 +101,8 @@ ADR-0009 为评论表格添加了斑马纹（偶数行 `--muted` 浅灰 + hover 
 
 ## 参考文献
 
-- ADR-0009（评论标题装饰条与表格斑马纹）：`docs/decisions/0009-comment-heading-bars-and-table-zebra.md`
-- ADR-0008（评论 bubble 背景与表格原文修复）：`docs/decisions/0008-comment-bubble-bg-and-table-fix.md`
-- ADR-0007（评论 markdown 渲染样式对齐 Cherry）：`docs/decisions/0007-comment-markdown-style-alignment.md`
+- ADR-0009（评论标题装饰条与表格斑马纹）：`docs/adr/0009-comment-heading-bars-and-table-zebra.md`
+- ADR-0008（评论 bubble 背景与表格原文修复）：`docs/adr/0008-comment-bubble-bg-and-table-fix.md`
+- ADR-0007（评论 markdown 渲染样式对齐 Cherry）：`docs/adr/0007-comment-markdown-style-alignment.md`
 - `src/styles/global.scss` 的 `#comments-section` 作用域
 

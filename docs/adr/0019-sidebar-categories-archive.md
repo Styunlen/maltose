@@ -110,5 +110,5 @@ function buildArchive(posts: { date: string }[]) {
 ## 参考文献
 
 - styunlen.cn 生产版侧边栏（分类/归档结构）
-- ADR-0015（分层缓存）：`docs/decisions/0015-graphql-layered-caching.md`
-- ADR-0018（时间轴重构，含 getTimelineStats 全量）：`docs/decisions/0018-timeline19-refactor.md`
+- ADR-0015（分层缓存）：`docs/adr/0015-graphql-layered-caching.md`
+- ADR-0018（时间轴重构，含 getTimelineStats 全量）：`docs/adr/0018-timeline19-refactor.md`

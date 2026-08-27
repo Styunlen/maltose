@@ -103,5 +103,5 @@ featuredImage {
 
 ## 参考文献
 
-- ADR-0013（GraphQL 查询拼接）：`docs/decisions/0013-graphql-query-merge.md`
+- ADR-0013（GraphQL 查询拼接）：`docs/adr/0013-graphql-query-merge.md`
 - 组件字段消费分析：`src/components/PopularPosts.astro`（5 字段）、`src/components/PostCard.astro`（sourceUrl）

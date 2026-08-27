@@ -114,4 +114,4 @@ GitHub 热力图（53x7 绿格矩阵，文章日期聚合）
 - lifengdi 时间轴: https://www.lifengdi.com/timeline
 - shadcnblocks timeline19: https://www.shadcnblocks.com/block/timeline19
 - 现有 Pagination 组件: `src/components/Pagination.astro`
-- ADR-0015（分层缓存）：`docs/decisions/0015-graphql-layered-caching.md`
+- ADR-0015（分层缓存）：`docs/adr/0015-graphql-layered-caching.md`

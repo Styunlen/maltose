@@ -109,7 +109,7 @@ ADR-0008 修复后，评论区仍有两个视觉问题：
 
 ## 参考文献
 
-- ADR-0007（评论 markdown 渲染样式对齐 Cherry）：`docs/decisions/0007-comment-markdown-style-alignment.md`
-- ADR-0008（评论 bubble 背景与表格原文修复）：`docs/decisions/0008-comment-bubble-bg-and-table-fix.md`
+- ADR-0007（评论 markdown 渲染样式对齐 Cherry）：`docs/adr/0007-comment-markdown-style-alignment.md`
+- ADR-0008（评论 bubble 背景与表格原文修复）：`docs/adr/0008-comment-bubble-bg-and-table-fix.md`
 - `src/styles/wordpress.scss:62-88`（article 标题装饰条）
 - Cherry markdown CSS 表格规则（`--md-inline-code-bg` 用于 th 背景）

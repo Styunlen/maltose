@@ -42,7 +42,21 @@ import Icons from "unplugin-icons/vite";
 export default defineConfig({
   output: "server",
 
-  adapter: node({
+// Trust the reverse proxy's forwarded headers (X-Forwarded-For/Host) for
+// these hosts so Astro's clientAddress resolves the real visitor IP (used by
+// comment geo + rate limits). This is `security.allowedDomains` — the node
+// adapter's createRequest only reads XFF when the request host matches here;
+// without it clientAddress falls back to socket remoteAddress (127.0.0.1
+// behind nginx). `server.allowedHosts` is dev-server only and unrelated.
+security: {
+  allowedDomains: [
+    { hostname: "dev.styunlen.cn", protocol: "https" },
+    { hostname: "styunlen.cn", protocol: "https" },
+    { hostname: "localhost", protocol: "http" },
+  ],
+},
+
+adapter: node({
     mode: "standalone",
     // Serve dist/client static assets with cache headers: hashed files under
     // _astro/ get immutable, others get a short public cache. Keeps nginx a

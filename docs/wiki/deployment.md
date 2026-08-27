@@ -103,7 +103,7 @@ type = "tcp"
 localIP = "<nginx内网IP>"
 localPort = 443
 remotePort = 443
-transport.proxyProtocolVersion = "v1"   # ← 向 nginx 注入 PROXY 头，透传真实访客 IP
+transport.proxyProtocolVersion = "v2"   # ← 向 nginx 注入 PROXY 头，透传真实访客 IP（v1/v2 均可，推荐 v2）
 ```
 
 对应 nginx：
@@ -124,6 +124,21 @@ server {
 ```
 
 > **排障**：新评论 geo 为空、IP 显示内网/容器地址 → 逐跳核对链路，详见 [FAQ 评论 IP 链路](./faq/comment-ip-chain.md)。
+
+### 套 CDN（EdgeOne 等）
+
+站点前面套 CDN 时，nginx 看到的 `$remote_addr` 是 CDN 节点 IP，真实访客 IP 在 CDN 的回源头里（EdgeOne 用 `EO-Connecting-IP`）。用 nginx `realip` 模块取真实 IP：
+
+```nginx
+# http 块（建议单独文件 include，内容由脚本从 EdgeOne 官方 API 同步）
+set_real_ip_from <EdgeOne节点IPv4段>;
+# …IPv4/v6 全段…
+real_ip_header EO-Connecting-IP;         # EdgeOne 场景的关键指令
+```
+
+- **必须配 `set_real_ip_from`** 限定只信任 EdgeOne 节点 IP，否则任何人都能伪造 `EO-Connecting-IP` 头。
+- EdgeOne 节点 IP 段每日变化，官方提供公开 API（`https://api.edgeone.ai/ips?version=v4|v6`）拉取，建议 cron 每日同步 + reload nginx（脚本见 [FAQ 场景三](./faq/comment-ip-chain.md#场景三套-cdn)）。
+- 其他 CDN 原理相同，换对应回源头即可（Cloudflare `CF-Connecting-IP`、阿里云 `Ali-CDN-Real-IP` 等）。
 
 ## 三、Astro 信任转发头
 
@@ -165,4 +180,6 @@ push 触发自动部署（ADR-0033），见 `.github/workflows/deploy-{productio
 | 502 Bad Gateway | pm2 只绑 `::1`，Docker nginx 经 host-gateway 访问不到 | `.env` 设 `HOST=0.0.0.0` |
 | 评论 geo 全空 / IP 是容器内网地址 | nginx 缺 `X-Forwarded-Host`，Astro 不信任 XFF | nginx 加 `proxy_set_header X-Forwarded-Host $http_host;` |
 | frp 场景 IP 仍是内网 | frpc 隧道没开 PROXY protocol | 加 `transport.proxyProtocolVersion = "v1"` + nginx `listen … proxy_protocol` |
+| 套 CDN 后 IP 是 CDN 节点 IP | nginx 没配 realip 模块解析 CDN 回源头 | 加 `real_ip_header EO-Connecting-IP;` + `set_real_ip_from <CDN节点段>` |
+| 套 CDN 后 IP 可被伪造 | 没限制 `set_real_ip_from` 白名单 | 用 EdgeOne 官方 IP 列表（API 每日同步） |
 | 改了 compose 端口映射不生效 | `nginx -s reload` 不重载端口映射 | `docker compose up -d` recreate 容器 |

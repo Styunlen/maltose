@@ -7,7 +7,7 @@
 | [FAQ](./faq/index.md) | 常见问题排查（每篇独立成文） |
 | [部署指南](./deployment.md) | 反向代理（nginx/frp）、Docker 化、CI/CD 部署配置 |
 | [CI/CD 部署与 SSH 安全](../deploy/README.md) | GitHub Actions 双环境部署 + 受限 SSH key 白名单 |
-| [ADR 决策记录](../adr/) | 架构决策（`0001`–`0035`），load-bearing：`0024`/`0026`/`0033`/`0034` |
+| [ADR 决策记录](../adr/) | 架构决策（`0001`–`0036`），load-bearing：`0024`/`0026`/`0033`/`0034`/`0036` |
 | [术语表](../glossary/) | 领域术语（评论、缓存、安全、时间轴等） |
 
 ## FAQ 索引

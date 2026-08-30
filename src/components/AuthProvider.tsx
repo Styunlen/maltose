@@ -53,6 +53,16 @@ export default function AuthProvider({
           user: data.authenticated ? data.user : null,
           loading: false,
         });
+        // Ghost-login guard (ADR-0012 fix): /api/auth/me now clears the
+        // session and returns authError when WP credentials are gone. Surface
+        // the re-login toast immediately (SPA path — no page navigation).
+        if (!data.authenticated && data.authError) {
+          window.dispatchEvent(
+            new CustomEvent("maltose:auth-error", {
+              detail: { error: data.authError, hint: data.authHint || "" },
+            }),
+          );
+        }
       })
       .catch(() => {
         setState({ user: null, loading: false });

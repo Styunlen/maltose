@@ -89,33 +89,6 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const wpRefreshToken = context.cookies.get("wp_refresh")?.value || null;
   context.locals.wpToken = wpToken;
 
-  // 幽灵登录态：session 有效（UI 显示已登录）但 WP 双 token 都消失 →
-  // 无法续期也无法操作（发评论/编辑全部 401）。清除 session 并重定向
-  // 回当前页带 auth_error，让全局 AuthErrorToast 提示重新登录。
-  // 只对页面请求生效——API/静态资源不重定向，避免破坏接口调用。
-  if (
-    context.locals.user &&
-    !wpToken &&
-    !wpRefreshToken &&
-    !context.url.pathname.startsWith("/api/") &&
-    !context.url.pathname.startsWith("/_astro/") &&
-    !context.url.pathname.startsWith("/@") &&
-    !/\.(css|js|mjs|json|ico|png|jpg|jpeg|gif|svg|webp|avif|woff2?|ttf|eot|map)$/.test(
-      context.url.pathname,
-    )
-  ) {
-    if (import.meta.env.DEV) console.log("[TOKEN] ghost session: wp_token & wp_refresh gone, prompting re-login");
-    context.cookies.delete("session", { path: "/" });
-    context.locals.user = undefined;
-    const url = new URL(context.url);
-    url.searchParams.set(
-      "auth_error",
-      "登录已失效，请重新登录",
-    );
-    url.searchParams.set("auth_hint", "登录状态已过期，请重新登录后继续操作");
-    return context.redirect(url.toString());
-  }
-
   // If wp_token is missing but wp_refresh exists, try to refresh
   if (!wpToken && wpRefreshToken) {
     if (import.meta.env.DEV) console.log("[TOKEN] wp_token missing, wp_refresh exists, attempting silent refresh");
@@ -136,10 +109,13 @@ export const onRequest = defineMiddleware(async (context, next) => {
       const exp = decoded?.exp || 0;
       const now = Date.now();
       const expMs = exp * 1000;
-      const expired = expMs <= now;
+      // WPGraphQL authToken may carry NO `exp` claim (payload is
+      // { data: { user: { id } } }). exp===0 means we can't judge staleness →
+      // treat as NOT expired and rely on the refresh fallback / WP 401s.
+      const expired = exp !== 0 && expMs <= now;
       // Only refresh when truly near expiry (30s) or expired. WP tokens live
       // ~5 min; a 1h window would refresh on every single request (ADR-0012).
-      const expiringSoon = !expired && expMs - now < 30 * 1000;
+      const expiringSoon = exp !== 0 && !expired && expMs - now < 30 * 1000;
       if (import.meta.env.DEV) console.log("[TOKEN] expired:", expired, "expMs:", new Date(expMs).toISOString(), "now:", new Date(now).toISOString());
 
       // Try refresh if expired or expiring soon
@@ -174,6 +150,32 @@ export const onRequest = defineMiddleware(async (context, next) => {
     }
   } else {
     context.locals.wpUserId = null;
+  }
+
+  // 幽灵登录态（ADR-0012 回归修复）：session 有效（UI 显示已登录）但 WP
+  // 凭据最终无效（token 缺失 / 过期 / 刷新失败 → wpUserId 为空）。此时
+  // 发评论/编辑全部 401，UI 却保持登录。清除 session 并重定向回当前页
+  // 带 auth_error，让 AuthErrorToast 提示重新登录。只对页面请求生效。
+  if (
+    context.locals.user &&
+    context.locals.wpUserId === null &&
+    !context.url.pathname.startsWith("/api/") &&
+    !context.url.pathname.startsWith("/_astro/") &&
+    !context.url.pathname.startsWith("/@") &&
+    !/\.(css|js|mjs|json|ico|png|jpg|jpeg|gif|svg|webp|avif|woff2?|ttf|eot|map)$/.test(
+      context.url.pathname,
+    )
+  ) {
+    if (import.meta.env.DEV) console.log("[TOKEN] ghost session: wp token ineffective, prompting re-login");
+    context.cookies.delete("session", { path: "/" });
+    context.locals.user = undefined;
+    const url = new URL(context.url);
+    url.searchParams.set(
+      "auth_error",
+      "登录已失效，请重新登录",
+    );
+    url.searchParams.set("auth_hint", "登录状态已过期，请重新登录后继续操作");
+    return context.redirect(url.toString());
   }
 
   return next();

@@ -9,6 +9,7 @@ export default function AuthErrorToast() {
   const [hint, setHint] = React.useState("");
 
   React.useEffect(() => {
+    // Server-rendered path: middleware redirects with auth_error query params.
     const params = new URLSearchParams(window.location.search);
     const authError = params.get("auth_error");
     const authHint = params.get("auth_hint");
@@ -23,6 +24,17 @@ export default function AuthErrorToast() {
       url.searchParams.delete("auth_hint");
       window.history.replaceState({}, "", url.toString());
     }
+
+    // SPA path (ADR-0012 ghost-login fix): AuthProvider dispatches this when
+    // /api/auth/me detects WP credentials are gone without a page navigation.
+    const onAuthError = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { error?: string; hint?: string };
+      setError(detail.error || "登录已失效，请重新登录");
+      setHint(detail.hint || "");
+      setVisible(true);
+    };
+    window.addEventListener("maltose:auth-error", onAuthError);
+    return () => window.removeEventListener("maltose:auth-error", onAuthError);
   }, []);
 
   if (!visible) return null;

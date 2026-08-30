@@ -15,7 +15,9 @@ export const GET: APIRoute = async ({ cookies }) => {
   try {
     const decoded = jwt.decode(wpToken) as any;
     const exp = decoded?.exp || 0;
-    const expired = exp * 1000 < Date.now();
+    // WPGraphQL authToken may omit `exp`; treat missing exp as connected
+    // (can't judge staleness), mirroring middleware/me.ts behavior.
+    const expired = exp !== 0 && exp * 1000 < Date.now();
 
     return new Response(
       JSON.stringify({

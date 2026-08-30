@@ -14,7 +14,7 @@ export const POST: APIRoute = async ({ request, cookies, clientAddress }) => {
     }
 
     const body = await request.json();
-    const { postDatabaseId, content, parent } = body;
+    const { postDatabaseId, content, parent, blockReference } = body;
 
     if (!postDatabaseId || !content?.trim()) {
       return new Response(
@@ -25,6 +25,20 @@ export const POST: APIRoute = async ({ request, cookies, clientAddress }) => {
 
     // Sanitize raw markdown before storage
     const sanitized = sanitizeMarkdownSource(content.trim());
+
+    // Paragraph-comment anchor (ADR-0036 P3); validate shape + re-truncate snippet.
+    let blockRefInput: string | undefined;
+    if (blockReference && typeof blockReference === "object") {
+      const clientId =
+        typeof blockReference.clientId === "string" ? blockReference.clientId.trim() : "";
+      const snippet =
+        typeof blockReference.snippet === "string"
+          ? blockReference.snippet.trim().slice(0, 80)
+          : "";
+      if (clientId) {
+        blockRefInput = JSON.stringify({ clientId, snippet });
+      }
+    }
 
     // Read the real browser UA from the incoming request instead of trusting
     // a client-supplied value. WordPress records this as the comment agent.
@@ -81,6 +95,7 @@ export const POST: APIRoute = async ({ request, cookies, clientAddress }) => {
             commentOn: postDatabaseId,
             content: sanitized,
             parent: parent || undefined,
+            blockReference: blockRefInput,
           },
         },
       }),

@@ -1,11 +1,11 @@
 ---
 import { LAZY_PLACEHOLDER } from "@/lib/lazy";
-import { formatRelativeTime, isNew } from "@/lib/relative-time";
+import { formatPostRelative, isPostNew } from "@/lib/time";
 
 const { post } = Astro.props;
 
-const relativeDate = formatRelativeTime(post.date);
-const isRecent = isNew(post.date);
+const relativeDate = formatPostRelative(post.date);
+const isRecent = isPostNew(post.date);
 
 const primaryCategory = post.categories?.nodes?.[0] || null;
 const tags = post.tags?.nodes || [];
@@ -75,7 +75,7 @@ const hasHiddenTags = hiddenTags.length > 0;
 <article class="post-card mb-8">
   <!-- Cover (clickable, links to post) -->
   <a href={post.uri} class="card-image-link" tabindex="-1" aria-hidden="true">
-    <div class="card-image-wrap">
+    <div class="card-image-wrap skeleton-shimmer">
       <img
         src={LAZY_PLACEHOLDER}
         data-src={displayImageUrl || `https://picsum.photos/seed/${imageSeed}/400/400`}
@@ -229,6 +229,20 @@ const hasHiddenTags = hiddenTags.length > 0;
     overflow: hidden;
     border-radius: calc(var(--radius) - 4px);
     background: var(--muted);
+    /* Shimmer placeholder until the lazy image loads (ADR-0036 P1). The img
+       covers it once loaded; `background` shorthand here is overridden by the
+       .skeleton-shimmer animation while the placeholder src is active. */
+  }
+
+  .card-image-wrap.skeleton-shimmer:has(img[src^="data:image/svg+xml;base64,PCEtLUFyZ29uTG9hZGluZy0tPg"]) {
+    background: linear-gradient(
+        90deg,
+        var(--muted) 25%,
+        color-mix(in oklch, var(--muted), var(--muted-foreground) 12%) 50%,
+        var(--muted) 75%
+      )
+      0 0 / 200% 100% no-repeat;
+    animation: shimmer 1.6s ease-in-out infinite;
   }
 
   .card-image {

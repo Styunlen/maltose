@@ -41,7 +41,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { emitter } from "@/lib/mitt";
-import dayjs from "dayjs";
+import { formatPostDate } from "@lib/time";
 
 interface SidebarRightProps {
   menu?: {
@@ -414,7 +414,7 @@ function TabsSection({ posts, comments }: { posts: any[]; comments: any[] }) {
                     </p>
                     <div className="flex items-center gap-1.5 w-full">
                       <span className="text-[0.6rem] text-sidebar-foreground/60">
-                        {dayjs(post.date).format("YYYY-MM-DD")}
+                        {formatPostDate(post.date)}
                       </span>
                     </div>
                   </a>

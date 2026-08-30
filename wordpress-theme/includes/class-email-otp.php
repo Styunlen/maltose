@@ -216,6 +216,9 @@ class MaltoseEmailOtp {
                     if (is_wp_error($user_id)) {
                         return ['error' => '用户创建失败，请稍后重试'];
                     }
+                    // 标记为 OTP 自动创建账号（ADR-0036 P2）：卸载向导据此列出
+                    // 「无真实密码、建议删除」的账号；改密后 onPasswordChanged 移除标记。
+                    update_user_meta($user_id, 'maltose_otp_user', time());
                     $user = get_user_by('id', $user_id);
                 }
                 if (!$user) {
@@ -334,5 +337,16 @@ class MaltoseEmailOtp {
         $line = '[' . gmdate('c') . '] ' . $message . "\n";
         // LOCK_EX + FILE_APPEND is atomic enough for single-log-per-request.
         @file_put_contents($file, $line, FILE_APPEND | LOCK_EX);
+    }
+
+    /**
+     * 用户设置真实密码后重分类为正常用户（ADR-0036 P2）：
+     * 移除 maltose_otp_user 标记，卸载向导不再将其列为候选删除账号。
+     * 挂载在 after_password_reset / profile_update。
+     */
+    public static function onPasswordChanged(int $userId): void {
+        if (delete_user_meta($userId, 'maltose_otp_user')) {
+            self::log("user {$userId} set a real password; OTP marker removed");
+        }
     }
 }

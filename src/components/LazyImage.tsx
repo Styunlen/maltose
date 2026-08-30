@@ -24,20 +24,21 @@ export default function LazyImage({
   ...rest
 }: LazyImageProps) {
   const ref = React.useRef<HTMLImageElement>(null);
-  const [loaded, setLoaded] = React.useState(false);
+  const [inView, setInView] = React.useState(false);
+  const [imageLoaded, setImageLoaded] = React.useState(false);
 
   React.useEffect(() => {
     const el = ref.current;
     if (!el) return;
     if (typeof IntersectionObserver === "undefined") {
-      setLoaded(true);
+      setInView(true);
       return;
     }
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
-            setLoaded(true);
+            setInView(true);
             observer.disconnect();
             break;
           }
@@ -49,15 +50,18 @@ export default function LazyImage({
     return () => observer.disconnect();
   }, []);
 
+  const loaded = inView && imageLoaded;
+
   return (
     <img
       ref={ref}
-      src={loaded ? src : LAZY_PLACEHOLDER}
-      srcSet={loaded ? srcSet : undefined}
+      src={inView ? src : LAZY_PLACEHOLDER}
+      srcSet={inView ? srcSet : undefined}
       data-src={src}
       alt={alt}
-      className={className}
+      className={`${className ?? ""}${loaded ? " react-lazy-img--loaded" : ""}`}
       loading="lazy"
+      onLoad={() => setImageLoaded(true)}
       {...rest}
     />
   );

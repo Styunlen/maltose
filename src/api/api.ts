@@ -517,6 +517,10 @@ export async function getNodeByURI(uri, wpToken, opts: { page?: number; perPage?
                   country
                   province
                 }
+                blockReference {
+                  clientId
+                  snippet
+                }
               }
             }
             categories {
@@ -578,6 +582,10 @@ export async function getNodeByURI(uri, wpToken, opts: { page?: number; perPage?
                 commentGeo {
                   country
                   province
+                }
+                blockReference {
+                  clientId
+                  snippet
                 }
               }
             }

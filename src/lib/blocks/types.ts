@@ -247,4 +247,10 @@ export interface BlockRendererProps {
   className?: string;
   children?: React.ReactNode;
   noWrapper?: boolean;
+  /** Paragraph-comment anchor (ADR-0036 P3): the block's clientId, used for data-block-id + hover affordance. */
+  dataBlockId?: string;
+  /** clientId → comment count map, for the per-block count badge (SSR-aggregated). */
+  commentsByBlock?: Record<string, number>;
+  /** Fired when the paragraph-comment affordance is clicked. */
+  onCommentClick?: (clientId: string) => void;
 }

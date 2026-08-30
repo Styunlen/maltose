@@ -1,5 +1,5 @@
 ---
-import dayjs from "dayjs";
+import { formatPostDate } from "@lib/time";
 import { LAZY_PLACEHOLDER }  from "@lib/lazy"
 
 interface StickyPost {
@@ -71,7 +71,7 @@ const enrichedPosts = posts.map((p) => ({
                     <span class="carousel-cat">{post.categories.nodes[0].name}</span>
                   )}
                   <h3 class="carousel-slide-title">{post.title}</h3>
-                  <time class="carousel-date">{dayjs(post.date).format("YYYY-MM-DD")}</time>
+                  <time class="carousel-date">{formatPostDate(post.date)}</time>
                 </div>
               </div>
 

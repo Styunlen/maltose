@@ -1,7 +1,7 @@
 import { atom } from "nanostores";
 import { useStore } from "@nanostores/react";
 
-export type EditScope = "main" | "popup";
+export type EditScope = "main" | "popup" | "panel";
 
 interface EditTarget {
   id: string;

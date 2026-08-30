@@ -356,14 +356,35 @@
     }
   }
   @keyframes slide-up {
+    /* Keep translateX(-50%): the floating panel centers via left:50% + translateX(-50%). */
     from {
       opacity: 0;
-      transform: translateY(20px);
+      transform: translateX(-50%) translateY(20px);
     }
     to {
       opacity: 1;
-      transform: translateY(0);
+      transform: translateX(-50%) translateY(0);
     }
+  }
+
+  /* Neutral-gray shimmer, matches Skeleton component (ADR-0036 P1). */
+  @keyframes shimmer {
+    from {
+      background-position: -200% 0;
+    }
+    to {
+      background-position: 200% 0;
+    }
+  }
+  .skeleton-shimmer {
+    background: linear-gradient(
+      90deg,
+      var(--muted) 25%,
+      color-mix(in oklch, var(--muted), var(--muted-foreground) 12%) 50%,
+      var(--muted) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.6s ease-in-out infinite;
   }
 
   /* Code Block Styling */

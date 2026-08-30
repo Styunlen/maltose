@@ -4,7 +4,7 @@ import wpBlocks from "@components/wp-blocks";
 import { gql } from "@apollo/client/core";
 const { node } = Astro.props;
 import { LiquidButton } from "@components/animate-ui/buttons/liquid.tsx";
-import dayjs from "dayjs";
+import { formatPostDate } from "@lib/time";
 import {
   getQuery,
   getRandomPosts,
@@ -14,6 +14,7 @@ import {
 } from "@api/api";
 import { renderCommentMd } from "@lib/markdown";
 import CommentSection from "../CommentSection";
+import ParagraphComments from "../ParagraphComments";
 
 // Blogger's WordPress user ids (from env, comma-separated, default [1]).
 // Multiple ids cover legacy duplicate accounts (e.g. 1 and 97) so every
@@ -46,6 +47,29 @@ const renderedComments = (node.comments?.nodes ?? []).map((c: any) => ({
     content: renderCommentMd(child.content || ""),
   })),
 }));
+
+// Paragraph-comment aggregation (ADR-0036 P3): clientId → comment count,
+// SSR-computed from the fetched comment list (zero extra requests). The WP
+// response is flat (tree built client-side), so iterate every node incl. replies.
+const commentsByBlock: Record<string, number> = {};
+for (const c of node.comments?.nodes ?? []) {
+  const ref = c.blockReference;
+  if (ref?.clientId) {
+    commentsByBlock[ref.clientId] = (commentsByBlock[ref.clientId] ?? 0) + 1;
+  }
+}
+
+// All block clientIds in this article (for orphan detection: a paragraph
+// comment whose clientId is absent here is "orphaned" and can be re-bound).
+let blockClientIds: string[] = [];
+const collectClientIds = (blocks: any[]): string[] => {
+  const ids: string[] = [];
+  for (const b of blocks ?? []) {
+    if (b?.clientId) ids.push(b.clientId);
+    if (b?.innerBlocks?.length) ids.push(...collectClientIds(b.innerBlocks));
+  }
+  return ids;
+};
 
 // Fetch editor blocks for both Post and Page
 let rootBlocks: any[] = [];
@@ -143,6 +167,9 @@ if (currentPage.length > 0) pageBlocks.push(currentPage);
 
 const hasPages = pageBlocks.length > 1;
 const totalPages = pageBlocks.length;
+
+// Orphan detection: all block clientIds across all pages (ADR-0036 P3).
+blockClientIds = collectClientIds(pageBlocks.flat());
 
 // ── Hero cover ────────────────────────────────────────────────────────────
 const featuredImage = node.featuredImage?.node?.sourceUrl;
@@ -318,7 +345,7 @@ if (isPost && node.date) {
               <path d="M8 2v4" />
               <path d="M3 10h18" />
             </svg>
-            发布于 {dayjs(node.date).format("YYYY-MM-DD")}
+            发布于 {formatPostDate(node.date)}
           </time>
         )}
         {node.modified && node.modified !== node.date && (
@@ -327,7 +354,7 @@ if (isPost && node.date) {
               <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
               <path d="M21 3v5h-5" />
             </svg>
-            更新于 {dayjs(node.modified).format("YYYY-MM-DD")}
+            更新于 {formatPostDate(node.modified)}
           </time>
         )}
       </div>
@@ -349,14 +376,14 @@ if (isPost && node.date) {
               <path d="M8 2v4" />
               <path d="M3 10h18" />
             </svg>
-            发布于 {dayjs(node.date).format("YYYY-MM-DD HH:mm")}
+            发布于 {formatPostDate(node.date, true)}
           </time>
           <time datetime={node.modified} title="最后修改">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
               <path d="M21 3v5h-5" />
             </svg>
-            更新于 {dayjs(node.modified).format("YYYY-MM-DD HH:mm")}
+            更新于 {formatPostDate(node.modified, true)}
           </time>
         </div>
         {
@@ -368,7 +395,7 @@ if (isPost && node.date) {
                 <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
               </svg>
               <span>
-                本文发布于 {dayjs(node.date).format("YYYY-MM-DD")}，
+                本文发布于 {formatPostDate(node.date)}，
                 最后更新于 {daysSinceModified} 天前，其中的信息可能已经有所发展或是发生改变。
               </span>
             </div>
@@ -398,12 +425,20 @@ if (isPost && node.date) {
             <div class="article-pages" id="article-pages">
               {pageBlocks.map((blocks, i) => (
                 <div id={`page-${i + 1}`} class="article-page">
-                  <WordPressBlocks blocks={blocks} client:load />
+                  <WordPressBlocks
+              blocks={blocks}
+              commentsByBlock={commentsByBlock}
+              client:load
+            />
                 </div>
               ))}
             </div>
           ) : (
-            <WordPressBlocks blocks={rootBlocks || []} client:load />
+            <WordPressBlocks
+              blocks={rootBlocks || []}
+              commentsByBlock={commentsByBlock}
+              client:load
+            />
           )
         }
 
@@ -511,6 +546,17 @@ if (isPost && node.date) {
           )}
         </section>
 
+        <ParagraphComments
+          client:load
+          comments={renderedComments}
+          postDatabaseId={node.databaseId}
+          postUri={node.uri}
+          canComment={Boolean(Astro.locals.user)}
+          currentUserId={Astro.locals.wpUserId}
+          siteOwnerUserIds={siteOwnerUserIds}
+          blockClientIds={blockClientIds}
+        />
+
         <CommentSection 
           client:load
           comments={renderedComments}
@@ -521,6 +567,7 @@ if (isPost && node.date) {
           user={Astro.locals.user}
           currentUserId={Astro.locals.wpUserId}
           siteOwnerUserIds={siteOwnerUserIds}
+          blockClientIds={blockClientIds}
         />
 
         {
@@ -551,7 +598,7 @@ if (isPost && node.date) {
                           <path d="M8 2v4" />
                           <path d="M3 10h18" />
                         </svg>
-                        {dayjs(p.date).format("YYYY-MM-DD")}
+                        {formatPostDate(p.date)}
                         <span aria-hidden="true">·</span>
                         {p.viewCount ?? 0} 浏览
                       </span>
@@ -584,17 +631,36 @@ if (isPost && node.date) {
             <div class="article-pages" id="article-pages">
               {pageBlocks.map((blocks, i) => (
                 <div id={`page-${i + 1}`} class="article-page">
-                  <WordPressBlocks blocks={blocks} client:load />
+                  <WordPressBlocks
+              blocks={blocks}
+              commentsByBlock={commentsByBlock}
+              client:load
+            />
                 </div>
               ))}
             </div>
           ) : (
-            <WordPressBlocks blocks={rootBlocks || []} client:load />
+            <WordPressBlocks
+              blocks={rootBlocks || []}
+              commentsByBlock={commentsByBlock}
+              client:load
+            />
           )
         }
         {hasPages && (
           <ArticlePagination totalPages={totalPages} client:load />
         )} 
+        <ParagraphComments
+          client:load
+          comments={renderedComments}
+          postDatabaseId={node.databaseId}
+          postUri={node.uri}
+          canComment={Boolean(Astro.locals.user)}
+          currentUserId={Astro.locals.wpUserId}
+          siteOwnerUserIds={siteOwnerUserIds}
+          blockClientIds={blockClientIds}
+        />
+
         <CommentSection 
           client:load
           comments={renderedComments}
@@ -605,6 +671,7 @@ if (isPost && node.date) {
           user={Astro.locals.user}
           currentUserId={Astro.locals.wpUserId}
           siteOwnerUserIds={siteOwnerUserIds}
+          blockClientIds={blockClientIds}
         />
       </article>
 

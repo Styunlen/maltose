@@ -5,12 +5,16 @@ interface WordPressBlocksProps {
   blocks: SupportedBlock[];
   className?: string;
   noWrapper?: boolean;
+  commentsByBlock?: Record<string, number>;
+  onCommentClick?: (clientId: string) => void;
 }
 
 export default function WordPressBlocks({
   blocks,
   className,
   noWrapper = false,
+  commentsByBlock,
+  onCommentClick,
 }: WordPressBlocksProps) {
   // console.log("Rendering WordPressBlocks with blocks:", blocks);
   if (!blocks || blocks.length === 0) {
@@ -34,6 +38,9 @@ export default function WordPressBlocks({
         block={block}
         className={merged}
         noWrapper={noWrapper}
+        dataBlockId={block.clientId}
+        commentsByBlock={commentsByBlock}
+        onCommentClick={onCommentClick}
       />
     );
   });

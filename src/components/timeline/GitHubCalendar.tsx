@@ -6,6 +6,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@components/animate-ui/components/tooltip";
 
 interface DayCell {
   date: string; // YYYY-MM-DD
@@ -20,7 +26,6 @@ interface GitHubCalendarProps {
 // Recent years get quick buttons; older years go in a Select dropdown.
 // Generated from post publish dates; color intensity maps to posts per day.
 export default function GitHubCalendar({ posts }: GitHubCalendarProps) {
-  const [hovered, setHovered] = useState<DayCell | null>(null);
   const [year, setYear] = useState<number | "all">("all");
 
   const years = useMemo(() => {
@@ -53,6 +58,7 @@ export default function GitHubCalendar({ posts }: GitHubCalendarProps) {
     posts.filter((p) => p.date.startsWith(String(y))).length;
 
   return (
+    <TooltipProvider openDelay={0} closeDelay={0}>
     <div
       style={{
         position: "relative",
@@ -152,19 +158,27 @@ export default function GitHubCalendar({ posts }: GitHubCalendarProps) {
             <div key={row} style={{ display: "flex", gap: "3px" }}>
               {weeks.map((week, wi) => {
                 const cell = week[row];
+                const content = cell ? (
+                  <div className="flex flex-col items-center leading-tight">
+                    <span className="text-[0.8rem] font-semibold">{cell.date}</span>
+                    <span className="text-[0.68rem] opacity-70">{cell.count} 篇文章</span>
+                  </div>
+                ) : null;
                 return (
-                  <div
-                    key={wi}
-                    className={`timeline-heat-cell ${cell ? levelClass(cell.count) : "timeline-heat-0"}`}
-                    onMouseEnter={() => cell && setHovered(cell)}
-                    onMouseLeave={() => setHovered(null)}
-                    style={{
-                      width: 12,
-                      height: 12,
-                      borderRadius: 2,
-                      cursor: cell ? "pointer" : "default",
-                    }}
-                  />
+                  <Tooltip key={wi}>
+                    <TooltipTrigger>
+                      <div
+                        className={`timeline-heat-cell ${cell ? levelClass(cell.count) : "timeline-heat-0"}`}
+                        style={{
+                          width: 12,
+                          height: 12,
+                          borderRadius: 2,
+                          cursor: cell ? "pointer" : "default",
+                        }}
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent>{content}</TooltipContent>
+                  </Tooltip>
                 );
               })}
             </div>
@@ -190,26 +204,6 @@ export default function GitHubCalendar({ posts }: GitHubCalendarProps) {
           <span>多</span>
         </div>
       </div>
-      {hovered && (
-        <div
-          style={{
-            position: "absolute",
-            bottom: "calc(100% - 0.5rem)",
-            left: "50%",
-            transform: "translateX(-50%)",
-            background: "var(--foreground)",
-            color: "var(--background)",
-            padding: "0.25rem 0.6rem",
-            borderRadius: "var(--radius)",
-            fontSize: "0.72rem",
-            whiteSpace: "nowrap",
-            zIndex: 10,
-            pointerEvents: "none",
-          }}
-        >
-          {hovered.date} · {hovered.count} 篇文章
-        </div>
-      )}
       <style>{`
         .timeline-heat-cell { transition: transform 0.15s ease; }
         .timeline-heat-cell:hover { transform: scale(1.3); }
@@ -219,6 +213,7 @@ export default function GitHubCalendar({ posts }: GitHubCalendarProps) {
         .timeline-heat-3 { background: var(--primary); }
       `}</style>
     </div>
+    </TooltipProvider>
   );
 }
 

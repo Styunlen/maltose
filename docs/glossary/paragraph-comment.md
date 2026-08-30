@@ -2,17 +2,21 @@
 
 ## 段落评论（Paragraph Comment）
 
-锚定到文章内**单个内容区块**（`CoreParagraph` / `CoreListItem`）的评论，而非仅文章底部全局评论区。交互参考知乎：悬停区块浮现评论入口，行内展开该区块的评论列表 + 输入框。数据上**不是独立评论流**——它就是普通评论，携带一个可选的 `blockReference`（comment_meta）。
+锚定到文章内**单个内容区块**（`CoreParagraph` / `CoreListItem` / 块级锚定的 `CoreQuote`、`CoreHtml`、`CoreTable`、`CoreCode`、`CorePreformatted`）的评论，而非仅文章底部全局评论区。交互参考知乎：悬停区块浮现评论入口，行内展开该区块的评论列表 + 输入框。数据上**不是独立评论流**——它就是普通评论，携带一个可选的 `blockReference`（comment_meta）。段落弹窗（`ParagraphComments.tsx`）与底部评论区（`CommentSection.tsx`）共享同一套气泡组件（`src/components/comment/`），交互能力一致。
 
 ## 区块引用（blockReference）
 
 段落评论携带的锚定字段，结构为 `{ clientId, snippet }`：
-- `clientId`：Gutenberg 编辑器持久化的每块 UUID（WPGraphQL `editorBlocks.clientId`，存在于块注释定界符 `<!-- wp:paragraph {"clientId":"…"} -->`）。在「块被编辑文本」时保持稳定，仅在「块被复制/粘贴/删除重加」时变化。
+- `clientId`：稳定块锚点。`wp-graphql-content-blocks` 插件**默认每次请求用 `uniqid()` 重写** `clientId`（且从 `$block['clientId']` 而非 `$block['attrs']['clientId']` 读取），所以不能直接信任插件输出。主题过滤器（`wpgraphql_content_blocks_resolve_blocks`）按优先级重建：`attrs.clientId`（`content_save_pre` 钩子写入 post_content 的持久 UUID）→ 内容 hash + 出现序号回退。
 - `snippet`：锚定时段落文本的可读快照，`min(全文, 80 字符)`，不压缩。用于块被删除后，作者重绑时对照原文定位。
+
+## 块树重建（parentClientId）
+
+前端用 `editorBlocks` 扁平数组 + `parentClientId` 指针重建块树。插件在**过滤器运行前**已把树拍平，因此主题过滤器必须三遍处理扁平数组：分配稳定 `clientId` → 收集「旧→新」映射 → 重写每个块的 `parentClientId`。否则父子关系断裂（columns 空壳、list/quote 内容脱离父容器、嵌套段落失去锚点）。
 
 ## 悬空评论（Orphan Comment）
 
-其 `blockReference.clientId` 在当前文章的块集合中**已不存在**的段落评论（块的锚定块被作者删除/重构）。行为：仍完整保留在全局评论区，带「段落已删除」标记；评论作者可重新绑定到任意段落，博主（`BLOG_OWNER_USER_IDS`）可管理全部。
+其 `blockReference.clientId` 在当前文章的块集合中**已不存在**的段落评论（块的锚定块被作者删除/重构）。行为：仍完整保留在全局评论区，带「段落已删除」标记；**重绑按钮仅评论作者或博主可见**（`canRebind` = 严格 databaseId 匹配 + `currentUserIsOwner` = 当前用户是博主）；无权限用户只看到提示。段落弹窗与评论区共享同一孤儿/重绑 UI。
 
 ## 数据注册表（MaltoseDataRegistry）
 

@@ -13,9 +13,11 @@
 ## FAQ 索引
 
 - [评论 IP 地理位置链路（配置与排障）](./faq/comment-ip-chain.md)
+- [WP meta 中文 JSON 变成 `uXXXX` 乱码（wp_unslash 反斜杠陷阱）](./faq/wp-meta-json-unicode.md)
 
 ## 快速导航
 
 - 部署一个 Maltose 站点 → [部署指南](./deployment.md)
 - 评论地理定位（country/province）不生效 → [FAQ：评论 IP 链路](./faq/comment-ip-chain.md)
+- 段落引用中文 snippet 变 `uXXXX` 乱码 → [FAQ：WP meta JSON unicode](./faq/wp-meta-json-unicode.md)
 - 想了解评论 geo 如何实现 → [ADR-0026](../adr/0026-site-stats-dashboard.md) + [glossary/comment-message](../glossary/comment-message.md)

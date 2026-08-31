@@ -1,0 +1,51 @@
+# Manual artifact cleanup (ADR-0033): deletes old build artifacts that the
+# deploy workflows normally clean up after download. Use it to reclaim storage
+# if a deployment failed mid-way or the delete step was skipped. By default it
+# removes EVERY artifact; pass `keep` to retain the newest N.
+name: Cleanup Artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      keep:
+        description: "保留最新的 N 个 artifact（0 = 全部删除）"
+        required: false
+        default: "0"
+        type: number
+  schedule:
+    # Weekly safety net: even if a delete step fails and retention-days is
+    # bypassed somehow, old artifacts never accumulate past a week.
+    - cron: "0 3 * * 0"
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cleanup:
+    name: Delete old artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - name: List and delete artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KEEP: ${{ github.event.inputs.keep || 0 }}
+        run: |
+          set -euo pipefail
+          # All artifacts, newest first (created_at descending).
+          gh api "repos/${{ github.repository }}/actions/artifacts" \
+            --paginate \
+            --jq '.artifacts | sort_by(.created_at) | reverse' > /tmp/artifacts.json
+
+          total=$(jq 'length' /tmp/artifacts.json)
+          echo "total artifacts: $total (keep newest $KEEP)"
+
+          for ((i = KEEP; i < total; i++)); do
+            id=$(jq -r ".[$i].id" /tmp/artifacts.json)
+            name=$(jq -r ".[$i].name" /tmp/artifacts.json)
+            created=$(jq -r ".[$i].created_at" /tmp/artifacts.json)
+            echo "deleting #$id $name (created $created)"
+            gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/$id"
+          done
+
+          echo "done: deleted $((total - KEEP)) artifact(s), kept ${KEEP}"

@@ -193,6 +193,37 @@ production, staging, or both?`，按角色只创建/生成对应项：
 - **完整 SSH 加固**（双 key 分环境 + IP 白名单）：更安全但配置复杂；单用户双目录 + 命令白名单已满足需求，作为后续演进
 - **单 workflow matrix**：代码复用多但生产批准逻辑绕；双 workflow 更清晰
 
+## Update 2026-08-31: Build-artifact cleanup
+
+### Context
+
+Each CI run uploaded a `dist` artifact that the deploy job downloaded but never
+deleted. After repeated pushes the repository held 34 artifacts (~170 MB, all
+`expired=false`); GitHub bills artifact storage at $0.25/GB-month above the free
+quota, so the accumulation cost money indefinitely.
+
+### Decisions
+
+- **Upload with `retention-days: 1`** (both deploy workflows): an artifact is
+  only a delivery vehicle between the CI and deploy jobs; one day of retention
+  is a safety net, not a feature.
+- **Delete after download**: the CI job exposes the uploaded `artifact-id` via
+  job `outputs`; the deploy job calls the GitHub REST API
+  (`DELETE /repos/{owner}/{repo}/actions/artifacts/{id}`) right after
+  downloading, with `permissions: actions: write` on the deploy job.
+  Official API — no third-party action.
+- **Manual cleanup workflow** (`.github/workflows/cleanup-artifacts.yml`):
+  `workflow_dispatch` (with a `keep` input, default 0 = delete all) plus a
+  weekly `schedule` cron as a safety net. Uses `gh api --paginate` + `jq` to
+  list newest-first and delete everything older than the newest `keep`.
+
+### Consequence
+
+- A successful deploy frees its artifact immediately; a failed delete still
+  expires it within 24 h via retention-days. Storage stays near zero.
+- The cleanup workflow can reclaim space manually or weekly without editing
+  deploy configs.
+
 ## 参考文献
 
 - ADR-0032（pm2 可插拔缓存后端，ecosystem.config.cjs 复用）

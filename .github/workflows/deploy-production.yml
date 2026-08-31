@@ -17,6 +17,10 @@ jobs:
   ci:
     name: Test & Build
     runs-on: ubuntu-latest
+    # Expose the uploaded artifact ID so the deploy job can delete it after
+    # download (artifacts would otherwise accumulate and bill storage).
+    outputs:
+      dist-id: ${{ steps.upload.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@v4
 
@@ -34,6 +38,7 @@ jobs:
       - run: pnpm build
 
       - name: Upload build artifact
+        id: upload
         uses: actions/upload-artifact@v4
         with:
           name: dist
@@ -48,6 +53,10 @@ jobs:
             # native package (esbuild/sharp/lmdb/...).
             pnpm-workspace.yaml
           if-no-files-found: error
+          # Belt-and-suspenders: the deploy job deletes this artifact right after
+          # downloading it; even if that fails, it auto-expires after 1 day so
+          # storage never accumulates across runs.
+          retention-days: 1
 
   deploy:
     name: Deploy to Production
@@ -56,6 +65,10 @@ jobs:
     # Production environment — enable "required reviewers" in GitHub settings
     # for a manual approval gate (optional, configurable per ADR-0033).
     environment: production
+    # actions: write is required to delete the artifact via the REST API.
+    permissions:
+      actions: write
+      contents: read
     steps:
       - name: Download build artifact
         uses: actions/download-artifact@v4
@@ -95,3 +108,13 @@ jobs:
           username: ${{ vars.PRODUCTION_USER || 'deploy' }}
           key: ${{ secrets.PRODUCTION_SSH_KEY }}
           script: deploy production ${{ vars.PRODUCTION_PATH }}
+
+      # The artifact was only a delivery vehicle between jobs — delete it now
+      # so it doesn't accumulate storage (retention-days: 1 on upload is the
+      # fallback if this step ever fails).
+      - name: Delete downloaded artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X DELETE \
+            "repos/${{ github.repository }}/actions/artifacts/${{ needs.ci.outputs.dist-id }}"

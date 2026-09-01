@@ -1,0 +1,214 @@
+---
+const { title = "你好，Web 朋友 👋", subtitle = "记录技术、生活与一切有趣的东西" } = Astro.props;
+
+const techStack = [
+  "TypeScript",
+  "Node.js",
+  "React",
+  "Vue",
+  "Astro",
+  "Docker",
+  "Linux",
+  "GraphQL",
+  "Nginx",
+  "pnpm",
+];
+---
+
+<section class="hero">
+  <div class="hero-inner">
+    <p class="hero-eyebrow font-mono">~/$ whoami</p>
+    <h1 class="hero-title font-display">{title}</h1>
+    <p class="hero-subtitle">{subtitle}</p>
+    <div class="hero-tags font-mono">
+      <span class="tag tag-mint">全栈</span>
+      <span class="tag tag-magenta">运维</span>
+      <span class="tag tag-violet">生活</span>
+      <span class="tag tag-coral">音乐</span>
+      <span class="tag tag-amber">折腾</span>
+    </div>
+
+    <div class="hero-stack" role="region" aria-label="技术栈">
+      <div class="stack-track font-mono">
+        <div class="stack-group">
+          {techStack.map((tech) => (
+            <span class="stack-chip">{tech}</span>
+          ))}
+        </div>
+        <div class="stack-group" aria-hidden="true">
+          {techStack.map((tech) => (
+            <span class="stack-chip">{tech}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="hero-bg" aria-hidden="true" />
+</section>
+
+<style>
+  /* Hallmark · macrostructure: Ecosystem Index · hero: whoami + tech-marquee
+   * theme: studied-DNA (source: https://blog.anheyu.com/) · studied: yes
+   * observed-accent: mint #00f0a0 (user identity, preserved) · rhythm: unknown
+   * contrast: pass (40–41) · nav: N1b (existing) · footer: Ft3 (existing)
+   * mobile: pass (34, 49, 50–57) · icons: pass (30) */
+  .hero {
+    position: relative;
+    box-sizing: border-box;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    padding: 3.5rem 2.5rem;
+    margin: 1.5rem 0;
+    background: color-mix(in oklch, var(--mint-50) 60%, var(--background));
+  }
+  :global(.dark) .hero {
+    background: color-mix(in oklch, var(--mint-950) 40%, var(--background));
+  }
+  .hero-inner {
+    position: relative;
+    z-index: 1;
+    max-width: 42rem;
+  }
+  .hero-eyebrow {
+    font-size: 0.8rem;
+    color: var(--mint-700);
+    margin-bottom: 0.6rem;
+    letter-spacing: 0.02em;
+  }
+  :global(.dark) .hero-eyebrow {
+    color: var(--mint-300);
+  }
+  .hero-title {
+    font-size: clamp(1.9rem, 4vw, 3rem);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.75rem;
+    color: var(--foreground);
+    overflow-wrap: anywhere;
+  }
+  .hero-subtitle {
+    font-size: 1.05rem;
+    color: var(--muted-foreground);
+    margin: 0 0 1.5rem;
+    max-width: 36rem;
+  }
+  .hero-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .tag {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.28rem 0.7rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .tag:hover {
+    transform: translateY(-1px);
+  }
+  .tag-mint { background: var(--mint-100); color: var(--mint-700); }
+  .tag-magenta { background: var(--magenta-100); color: var(--magenta-700); }
+  .tag-violet { background: var(--violet-100); color: var(--violet-700); }
+  .tag-coral { background: var(--coral-100); color: var(--coral-700); }
+  .tag-amber { background: var(--amber-100); color: var(--amber-700); }
+  :global(.dark) .tag-mint { background: var(--mint-900); color: var(--mint-300); }
+  :global(.dark) .tag-magenta { background: var(--magenta-600); color: var(--magenta-50); }
+  :global(.dark) .tag-violet { background: var(--violet-700); color: var(--violet-100); }
+  :global(.dark) .tag-coral { background: var(--coral-500); color: var(--coral-100); }
+  :global(.dark) .tag-amber { background: var(--amber-700); color: var(--amber-100); }
+
+  /* ─── Tech-stack marquee wall ─── */
+  .hero-stack {
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .stack-track {
+    display: flex;
+    width: max-content;
+    will-change: transform;
+    animation: stack-scroll 30s linear infinite;
+  }
+
+  .hero-stack:hover .stack-track {
+    animation-play-state: paused;
+  }
+
+  .stack-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  .stack-chip {
+    flex-shrink: 0;
+    padding: 0.3rem 0.8rem;
+    font-size: 0.72rem;
+    white-space: nowrap;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--muted);
+    color: var(--mint-700);
+    transition:
+      color 0.15s ease,
+      border-color 0.15s ease,
+      background-color 0.15s ease;
+  }
+
+  .stack-chip:hover {
+    color: var(--primary-color);
+    border-color: color-mix(in oklch, var(--primary-color) 50%, var(--border));
+    background: color-mix(in oklch, var(--primary-color) 10%, var(--muted));
+  }
+
+  :global(.dark) .stack-chip {
+    color: var(--mint-300);
+  }
+
+  @keyframes stack-scroll {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .stack-track {
+      animation: none;
+      width: auto;
+      flex-wrap: wrap;
+    }
+    .stack-group[aria-hidden="true"] {
+      display: none;
+    }
+  }
+
+  .hero-bg {
+    position: absolute;
+    top: -3rem;
+    right: -3rem;
+    width: 14rem;
+    height: 14rem;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle,
+      color-mix(in oklch, var(--primary-color) 35%, transparent),
+      transparent 70%
+    );
+    opacity: 0.6;
+    filter: blur(2px);
+    pointer-events: none;
+  }
+  :global(.dark) .hero-bg {
+    opacity: 0.5;
+  }
+</style>

@@ -1,0 +1,178 @@
+---
+import MainLayout from "@/layouts/MainLayout.astro";
+import Pagination from "@/components/Pagination.astro";
+import GitHubCalendar from "@/components/timeline/GitHubCalendar";
+import StatsCards from "@/components/timeline/StatsCards";
+import TimelineList from "@/components/timeline/TimelineList";
+import ProgressBars from "@/components/stats/ProgressBars";
+import Leaderboard from "@/components/stats/Leaderboard";import {
+  getTimelinePosts,
+  getTimelineStats,
+  getTotalComments,
+  statsCategoriesQuery,
+  commentGeoStatsQuery,
+} from "@api/api";
+
+interface Props {
+  currentPage: number;
+}
+
+const { currentPage } = Astro.props;
+const PER_PAGE = 100;
+
+let posts: any[] = [];
+let statsPosts: any[] = [];
+let total = 0;
+let totalComments = 0;
+let categoryItems: { label: string; count: number; percent: number }[] = [];
+let provinces: any[] = [];
+let countries: any[] = [];
+let geoResolved = 0;
+let geoTotal = 0;
+let geoUpdatedAt = "";
+let hasError = false;
+
+try {
+  const [pageData, allPosts, allComments, catData, geoData] =
+    await Promise.all([
+      getTimelinePosts(currentPage, PER_PAGE),
+      getTimelineStats(),
+      getTotalComments(),
+      statsCategoriesQuery(),
+      commentGeoStatsQuery(),
+    ]);
+  posts = pageData.nodes;
+  total = pageData.total;
+  statsPosts = allPosts;
+  totalComments = allComments;
+
+  const categories = (catData.categories?.nodes || [])
+    .filter((c: any) => (c.count || 0) > 0)
+    .sort((a: any, b: any) => b.count - a.count);
+  const categoryMax = categories[0]?.count || 1;
+  categoryItems = categories.slice(0, 12).map((c: any) => ({
+    label: c.name,
+    count: c.count,
+    percent: Math.round((c.count / categoryMax) * 100),
+  }));
+
+  provinces = geoData?.commentGeoStats?.provinces || [];
+  countries = geoData?.commentGeoStats?.countries || [];
+  geoResolved = geoData?.commentGeoStats?.resolved || 0;
+  geoTotal = geoData?.commentGeoStats?.total || 0;
+  geoUpdatedAt = geoData?.commentGeoStats?.updatedAt || "";
+} catch (err) {
+  console.warn("Timeline data fetch failed:", err);
+  hasError = true;
+}
+
+const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
+const isFirstPage = currentPage === 1;
+---
+
+<MainLayout
+  title={isFirstPage ? "时光轴" : `时光轴 - 第 ${currentPage} 页`}
+>
+  <div
+    style={{
+      maxWidth: 760,
+      width: "100%",
+      margin: "1.5rem auto 0",
+      padding: "0 1.25rem",
+    }}
+  >
+    <h1 style={{ fontSize: "1.5rem", fontWeight: 800, marginBottom: "0.25rem" }}>
+      🌐 时光轴
+      {!isFirstPage && (
+        <span style={{ fontSize: "0.85rem", color: "var(--muted-foreground)", fontWeight: 400, marginLeft: "0.5rem" }}>
+          第 {currentPage} 页
+        </span>
+      )}
+    </h1>
+    <p style={{ fontSize: "0.85rem", color: "var(--muted-foreground)", marginBottom: "1rem" }}>
+      把每一次写作，钉在属于它的那一天
+    </p>
+
+    {hasError ? (
+      <p style={{ color: "var(--muted-foreground)", textAlign: "center", padding: "2rem" }}>
+        数据加载失败，请稍后重试
+      </p>
+    ) : (
+      <>
+        {isFirstPage && <GitHubCalendar posts={statsPosts} client:load />}
+        {isFirstPage && <StatsCards posts={statsPosts} totalComments={totalComments} />}
+
+        {isFirstPage && categoryItems.length > 0 && (
+          <section
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius)",
+              padding: "1rem",
+              margin: "1rem 0",
+            }}
+          >
+            <h2 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.75rem" }}>
+              分类占比
+            </h2>
+            <ProgressBars items={categoryItems} />
+          </section>
+        )}
+
+        {isFirstPage && provinces.length + countries.length > 0 && (
+          <section
+            style={{
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius)",
+              padding: "1rem",
+              margin: "1rem 0",
+            }}
+          >
+            <h2 style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.25rem" }}>
+              评论者地域分布
+              <span style={{ fontSize: "0.75rem", color: "var(--muted-foreground)", fontWeight: 400, marginLeft: "0.5rem" }}>
+                已定位 {geoResolved.toLocaleString()} / {geoTotal.toLocaleString()} 条评论
+              </span>
+            </h2>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: "1rem",
+                marginTop: "0.75rem",
+              }}
+            >
+              <div>
+                <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--muted-foreground)", marginBottom: "0.5rem" }}>
+                  省份榜
+                </div>
+                <Leaderboard items={provinces} limit={12} />
+              </div>
+              <div>
+                <div style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--muted-foreground)", marginBottom: "0.5rem" }}>
+                  国家 / 地区榜
+                </div>
+                <Leaderboard items={countries} limit={12} />
+              </div>
+            </div>
+            {geoUpdatedAt && (
+              <p style={{ fontSize: "0.72rem", color: "var(--muted-foreground)", marginTop: "0.75rem", textAlign: "right" }}>
+                数据更新于 {geoUpdatedAt}
+              </p>
+            )}
+          </section>
+        )}
+
+        <TimelineList posts={posts} client:load />
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          hasNextPage={currentPage < totalPages}
+          hasPreviousPage={currentPage > 1}
+          basePath="/timeline"
+        />
+      </>
+    )}
+  </div>
+</MainLayout>

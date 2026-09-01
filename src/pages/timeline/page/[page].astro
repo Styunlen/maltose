@@ -1,0 +1,10 @@
+---
+import TimelinePage from "../../../components/TimelinePage.astro";
+
+export const prerender = false;
+
+const pageNum = parseInt(Astro.params.page || "1", 10);
+const currentPage = Number.isNaN(pageNum) ? 1 : Math.max(1, pageNum);
+---
+
+<TimelinePage currentPage={currentPage} />

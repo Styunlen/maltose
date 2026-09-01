@@ -1,0 +1,12 @@
+---
+export const prerender = false;
+import MainLayout from "@/layouts/MainLayout.astro";
+import LoginForm from "@/components/LoginForm";
+import { sanitizeReturnTo } from "@lib/url";
+
+const redirect = sanitizeReturnTo(Astro.url.searchParams.get("redirect") || "/");
+---
+
+<MainLayout title="登录">
+  <LoginForm redirect={redirect} client:load />
+</MainLayout>

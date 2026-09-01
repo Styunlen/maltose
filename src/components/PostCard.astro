@@ -1,0 +1,544 @@
+---
+import { LAZY_PLACEHOLDER } from "@/lib/lazy";
+import { formatPostRelative, isPostNew } from "@/lib/time";
+
+const { post } = Astro.props;
+
+const relativeDate = formatPostRelative(post.date);
+const isRecent = isPostNew(post.date);
+
+const primaryCategory = post.categories?.nodes?.[0] || null;
+const tags = post.tags?.nodes || [];
+const hasTags = tags.length > 0;
+const commentCount = post.commentCount ?? 0;
+const viewCount = post.viewCount ?? 0;
+const hasImage = !!post.featuredImage?.node?.sourceUrl;
+
+// Deterministic category → energy-hue mapping (mood system): each category
+// picks one of the accent ramps so the archive reads colorful without noise.
+const CATEGORY_HUES = ["mint", "magenta", "violet", "coral", "amber"];
+function categoryHue(name) {
+  if (!name) return "mint";
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  return CATEGORY_HUES[hash % CATEGORY_HUES.length];
+}
+
+// Extract first image from content as fallback when no featuredImage
+let fallbackImageUrl = "";
+if (!hasImage && post.content) {
+  const imgMatch = post.content.match(
+    /<img[^>]+data-original=["']([^"']+)["']/i,
+  );
+  if (imgMatch && imgMatch[1]) {
+    fallbackImageUrl = imgMatch[1];
+  }
+}
+const displayImageUrl = hasImage
+  ? post.featuredImage.node.sourceUrl
+  : fallbackImageUrl;
+
+// Clean excerpt: strip HTML, decode entities, remove WordPress [...] markers
+function cleanExcerpt(html) {
+  if (!html) return "";
+  let text = html.replace(/<[^>]*>/g, "");
+  text = text
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&hellip;/g, "…")
+    .replace(/&mdash;/g, "—")
+    .replace(/&nbsp;/g, " ")
+    .trim();
+  text = text.replace(/\[(?:&hellip;|…)\]|(?:&hellip;|…)/g, "…").trim();
+  return text.length > 320 ? text.slice(0, 320) + "…" : text;
+}
+// Prefer the full post body (much longer than WP's auto excerpt) so cards read
+// fuller; fall back to the WP excerpt when content is unavailable.
+const excerptSource = post.content?.length > post.excerpt?.length ? post.content : post.excerpt;
+const excerpt = cleanExcerpt(excerptSource);
+
+// Generate a deterministic seed from the post title for random nature images
+const imageSeed = encodeURIComponent(
+  (post.title ?? "").replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, "").slice(0, 20),
+);
+
+// Tagline: show up to MAX_TAGS inline, rest behind a hover popover.
+const MAX_TAGS = 3;
+const visibleTags = tags.slice(0, MAX_TAGS);
+const hiddenTags = tags.slice(MAX_TAGS);
+const hasHiddenTags = hiddenTags.length > 0;
+---
+
+<article class="post-card mb-8">
+  <!-- Cover (clickable, links to post) -->
+  <a href={post.uri} class="card-image-link" tabindex="-1" aria-hidden="true">
+    <div class="card-image-wrap skeleton-shimmer">
+      <img
+        src={LAZY_PLACEHOLDER}
+        data-src={displayImageUrl || `https://picsum.photos/seed/${imageSeed}/400/400`}
+        alt=""
+        class="card-image lazy-img"
+      />
+    </div>
+  </a>
+
+  <!-- Content (title is clickable, excerpt/meta are selectable) -->
+  <div class="card-body">
+    <div class="card-terms">
+      {
+        primaryCategory && (
+          <a
+            href={primaryCategory.uri}
+            class={`card-category cat-${categoryHue(primaryCategory.name)}`}
+          >
+            <svg class="term-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+            </svg>
+            {primaryCategory.name}
+          </a>
+        )
+      }
+      {hasTags && (
+        <>
+          {visibleTags.map((tag) => (
+            <a
+              href={tag.uri}
+              class={`card-tag tag-${categoryHue(tag.name)}`}
+            >
+              <svg class="term-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" />
+                <circle cx="7.5" cy="7.5" r=".5" fill="currentColor" />
+              </svg>
+              {tag.name}
+            </a>
+          ))}
+          {hasHiddenTags && (
+            <span class="card-tags-more" tabindex="0" aria-label={`展开其余 ${hiddenTags.length} 个标签`}>
+              {`+${hiddenTags.length}`}
+              <span class="card-tags-popover">
+                {hiddenTags.map((tag) => (
+                  <a
+                    href={tag.uri}
+                    class={`card-tag-pop tag-${categoryHue(tag.name)}`}
+                  >
+                    <svg class="term-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" />
+                      <circle cx="7.5" cy="7.5" r=".5" fill="currentColor" />
+                    </svg>
+                    {tag.name}
+                  </a>
+                ))}
+              </span>
+            </span>
+          )}
+        </>
+      )}
+    </div>
+
+    <div class="card-title-row">
+      <a href={post.uri} class="card-title-link">
+        <h3 class="card-title">{post.title}</h3>
+      </a>
+      {isRecent && <span class="new-badge">NEW</span>}
+    </div>
+
+    {excerpt && <p class="card-excerpt">{excerpt}</p>}
+
+    <div class="card-meta">
+      <span class="card-meta-left">
+        <span class="card-comments">
+          <svg
+            class="meta-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+            ></path>
+          </svg>
+          {commentCount}
+        </span>
+        <span class="card-comments" title="浏览次数">
+          <svg
+            class="meta-icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"
+            ></path>
+          </svg>
+          <span>{viewCount}</span>
+        </span>
+      </span>
+      <time datetime={post.date} class="card-date">{relativeDate}</time>
+    </div>
+  </div>
+</article>
+
+<style>
+  /* Hallmark · macrostructure: Ecosystem Index · card: vertical-2col
+   * theme: studied-DNA (source: https://blog.weasel6.cn/) · studied: yes
+   * observed-accent: mint #00f0a0 (user identity, preserved) · rhythm: unknown
+   * contrast: pass (40–41) · nav: N1b (existing) · footer: Ft3 (existing)
+   * mobile: pass (34, 49, 50–57) · icons: pass (30) */
+  /* ─── Card ─── */
+  .post-card {
+    position: relative;
+    z-index: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    transition:
+      transform 0.3s ease,
+      box-shadow 0.3s ease;
+  }
+
+  .post-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--mint-300);
+    z-index: 1;
+  }
+
+  /* ─── Image ─── */
+  .card-image-link {
+    display: block;
+    width: 100%;
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .card-image-wrap {
+    position: relative;
+    aspect-ratio: 2 / 1;
+    overflow: hidden;
+    border-radius: calc(var(--radius) - 4px);
+    background: var(--muted);
+    /* Shimmer placeholder until the lazy image loads (ADR-0036 P1). The img
+       covers it once loaded; `background` shorthand here is overridden by the
+       .skeleton-shimmer animation while the placeholder src is active. */
+  }
+
+  .card-image-wrap.skeleton-shimmer:has(img[src^="data:image/svg+xml;base64,PCEtLUFyZ29uTG9hZGluZy0tPg"]) {
+    background: linear-gradient(
+        90deg,
+        var(--muted) 25%,
+        color-mix(in oklch, var(--muted), var(--muted-foreground) 12%) 50%,
+        var(--muted) 75%
+      )
+      0 0 / 200% 100% no-repeat;
+    animation: shimmer 1.6s ease-in-out infinite;
+  }
+
+  .card-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.4s ease;
+  }
+
+  .post-card:hover .card-image {
+    transform: scale(1.05);
+  }
+
+  /* ─── Body ─── */
+  .card-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    padding: 0.5rem 0 0;
+  }
+
+  .card-terms {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .card-category {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.18rem 0.6rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    border-radius: 999px;
+    text-decoration: none;
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+  .card-category:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px -2px color-mix(in oklch, var(--foreground) 25%, transparent);
+  }
+  .cat-mint { background: var(--mint-100); color: var(--mint-700); }
+  .cat-magenta { background: var(--magenta-100); color: var(--magenta-700); }
+  .cat-violet { background: var(--violet-100); color: var(--violet-700); }
+  .cat-coral { background: var(--coral-100); color: var(--coral-700); }
+  .cat-amber { background: var(--amber-100); color: var(--amber-700); }
+  :global(.dark) .cat-mint { background: var(--mint-900); color: var(--mint-300); }
+  :global(.dark) .cat-magenta { background: var(--magenta-600); color: var(--magenta-50); }
+  :global(.dark) .cat-violet { background: var(--violet-700); color: var(--violet-100); }
+  :global(.dark) .cat-coral { background: var(--coral-500); color: var(--coral-100); }
+  :global(.dark) .cat-amber { background: var(--amber-700); color: var(--amber-100); }
+
+  .card-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.12rem 0.55rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    line-height: 1.4;
+    text-decoration: none;
+    border-radius: 999px;
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.15s ease,
+      filter 0.15s ease;
+  }
+  .card-tag:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px -2px color-mix(in oklch, var(--foreground) 25%, transparent);
+  }
+  .tag-mint { background: var(--mint-100); color: var(--mint-700); }
+  .tag-magenta { background: var(--magenta-100); color: var(--magenta-700); }
+  .tag-violet { background: var(--violet-100); color: var(--violet-700); }
+  .tag-coral { background: var(--coral-100); color: var(--coral-700); }
+  .tag-amber { background: var(--amber-100); color: var(--amber-700); }
+  :global(.dark) .tag-mint { background: var(--mint-900); color: var(--mint-300); }
+  :global(.dark) .tag-magenta { background: var(--magenta-600); color: var(--magenta-50); }
+  :global(.dark) .tag-violet { background: var(--violet-700); color: var(--violet-100); }
+  :global(.dark) .tag-coral { background: var(--coral-500); color: var(--coral-100); }
+  :global(.dark) .tag-amber { background: var(--amber-700); color: var(--amber-100); }
+
+  .term-icon {
+    width: 0.7rem;
+    height: 0.7rem;
+    flex-shrink: 0;
+  }
+
+  .card-tags-more {
+    position: relative;
+    padding: 0.1rem 0.3rem;
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    border-radius: 4px;
+    transition:
+      color 0.15s ease,
+      background 0.15s ease;
+  }
+
+  .card-tags-more::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    height: 6px;
+  }
+
+  .card-tags-more:hover,
+  .card-tags-more:focus-visible {
+    color: var(--mint-700);
+    background: var(--mint-100);
+  }
+
+  .card-tags-popover {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 7rem;
+    padding: 0.4rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--base-color-black-45) 0 8px 24px -8px;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-4px);
+    transition:
+      opacity 0.15s ease,
+      transform 0.15s ease,
+      visibility 0.15s;
+    pointer-events: none;
+  }
+
+  .card-tags-more:hover .card-tags-popover,
+  .card-tags-more:focus-visible .card-tags-popover,
+  .card-tags-more:focus-within .card-tags-popover,
+  .card-tags-popover:hover {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  .card-tag-pop {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    align-self: flex-start;
+    padding: 0.12rem 0.55rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    text-decoration: none;
+    border-radius: 999px;
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+  .card-tag-pop:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px -2px color-mix(in oklch, var(--foreground) 25%, transparent);
+  }
+
+  .card-title-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .card-title-link {
+    flex: 1;
+    min-width: 0;
+    text-decoration: none;
+    color: inherit;
+  }
+
+  .card-title {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+    line-height: 1.45;
+    color: var(--foreground);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: break-word;
+  }
+
+  .post-card:hover .card-title {
+    color: var(--primary-color);
+  }
+
+  .new-badge {
+    flex-shrink: 0;
+    margin-top: 0.3rem;
+    padding: 0.08rem 0.5rem;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    border-radius: 999px;
+    background: var(--mint-100);
+    color: var(--mint-700);
+  }
+  :global(.dark) .new-badge {
+    background: var(--mint-900);
+    color: var(--mint-300);
+  }
+
+  .card-excerpt {
+    margin: 0.4rem 0 0;
+    font-size: 0.875rem;
+    line-height: 1.55;
+    color: var(--muted-foreground);
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .card-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: auto;
+    padding-top: 0.75rem;
+  }
+
+  .card-meta-left {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .card-date {
+    font-size: 0.8rem;
+    color: var(--muted-foreground);
+  }
+
+  .card-comments {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.8rem;
+    color: var(--muted-foreground);
+  }
+
+  .meta-icon {
+    width: 0.85rem;
+    height: 0.85rem;
+    flex-shrink: 0;
+  }
+
+  /* ─── Responsive ─── */
+  @media (max-width: 640px) {
+    .post-card {
+      gap: 0.6rem;
+      padding: 0.75rem;
+    }
+    .card-image-wrap {
+      aspect-ratio: 16 / 9;
+    }
+    .card-body {
+      padding: 0;
+    }
+    .card-title {
+      font-size: 1.05rem;
+      -webkit-line-clamp: 2;
+    }
+    .card-excerpt {
+      margin-top: 0.35rem;
+      -webkit-line-clamp: 3;
+    }
+    .card-meta {
+      gap: 0.6rem;
+    }
+    .card-tag {
+      white-space: nowrap;
+    }
+  }
+</style>

@@ -1,0 +1,120 @@
+# Deploy production — triggered on push to main (ADR-0033).
+# CI (test + build) then CD: rsync artifacts + trigger server deploy.sh.
+# The SSH key is restricted via authorized_keys `command=` whitelist — every
+# ssh session runs deploy-gate.sh, which validates the target and invokes the
+# real deploy script. The CI never runs arbitrary remote commands.
+name: Deploy Production
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: Test & Build
+    runs-on: ubuntu-latest
+    # Expose the uploaded artifact ID so the deploy job can delete it after
+    # download (artifacts would otherwise accumulate and bill storage).
+    outputs:
+      dist-id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm version comes from package.json `packageManager` (single source
+      # of truth — matches local; no version conflict with action-setup).
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm build
+
+      - name: Upload build artifact
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: |
+            dist/
+            ecosystem.config.cjs
+            package.json
+            pnpm-lock.yaml
+            # Required on the server: pnpm 11 reads the build-script policy
+            # (allowBuilds) from pnpm-workspace.yaml. Without it, the server's
+            # `pnpm install --prod` fails with ERR_PNPM_IGNORED_BUILDS for every
+            # native package (esbuild/sharp/lmdb/...).
+            pnpm-workspace.yaml
+          if-no-files-found: error
+          # Belt-and-suspenders: the deploy job deletes this artifact right after
+          # downloading it; even if that fails, it auto-expires after 1 day so
+          # storage never accumulates across runs.
+          retention-days: 1
+
+  deploy:
+    name: Deploy to Production
+    needs: ci
+    runs-on: ubuntu-latest
+    # Production environment — enable "required reviewers" in GitHub settings
+    # for a manual approval gate (optional, configurable per ADR-0033).
+    environment: production
+    # actions: write is required to delete the artifact via the REST API.
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+
+      # rsync-over-SSH: incremental upload of built artifacts. The remote
+      # side is wrapped by deploy-gate.sh (authorized_keys `command=`), which
+      # permits this rsync path.
+      # PRODUCTION_SSH_KEY is a secret (sensitive); host/port/user/path are
+      # non-sensitive environment variables (ADR-0033).
+      #
+      # NOTE: ssh-deploy@v5.1.0 has NO `SCRIPT` input (only SCRIPT_BEFORE/
+      # SCRIPT_AFTER), and its script runner (RSYNC_STDOUT=... bash -s) is
+      # rejected by deploy-gate.sh's command whitelist. We therefore trigger
+      # the server deploy in a SEPARATE step using a plain ssh command that the
+      # gate explicitly allows: `deploy production <path>`.
+      - name: Deploy via rsync
+        uses: easingthemes/ssh-deploy@v5.1.0
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_KEY }}
+          REMOTE_HOST: ${{ vars.PRODUCTION_HOST }}
+          REMOTE_PORT: ${{ vars.PRODUCTION_SSH_PORT || 22 }}
+          REMOTE_USER: ${{ vars.PRODUCTION_USER || 'deploy' }}
+          SOURCE: "."
+          TARGET: ${{ vars.PRODUCTION_PATH }}
+          ARGS: -rlgoDzvc -i
+          EXCLUDE: "/.git/, /.cache/, .github/, node_modules/"
+
+      # Trigger the server deploy.sh (pm2 reload/start) via the gate's allowed
+      # `deploy <env> <path>` command. Runs after rsync uploads the artifacts.
+      - name: Trigger server deploy
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ vars.PRODUCTION_HOST }}
+          port: ${{ vars.PRODUCTION_SSH_PORT || 22 }}
+          username: ${{ vars.PRODUCTION_USER || 'deploy' }}
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          script: deploy production ${{ vars.PRODUCTION_PATH }}
+
+      # The artifact was only a delivery vehicle between jobs — delete it now
+      # so it doesn't accumulate storage (retention-days: 1 on upload is the
+      # fallback if this step ever fails).
+      - name: Delete downloaded artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X DELETE \
+            "repos/${{ github.repository }}/actions/artifacts/${{ needs.ci.outputs.dist-id }}"

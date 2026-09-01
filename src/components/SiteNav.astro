@@ -1,0 +1,126 @@
+---
+
+const {menu, generalSettings} = Astro.props;
+
+---
+
+<header>
+    <div><a href="/" class='site-name'>{generalSettings.title}</a></div>
+    <div class="hamburger">&#9776;</div>
+    <nav>
+        <ul>
+        {menu.menuItems.nodes.map(menuItem => {
+            return (<li>
+                        <a href={menuItem.uri || '/'}>{menuItem.label}</a>
+                    </li>)
+            })}
+        </ul>
+    </nav>
+</header>
+
+<script>
+    const hamburger = document.querySelector('.hamburger');
+    const nav = document.querySelector('nav');
+
+    hamburger.addEventListener('click', toggleNav);
+
+    function toggleNav() {
+        nav.classList.toggle('show-nav');
+        console.log('running')
+    }
+</script>
+
+<style>
+
+    header {
+      height: 80px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: white;
+      border: 3px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0 20px;
+      margin-bottom: 2rem;
+      box-shadow: 4px 4px 0px var(--border);
+      transition: all 0.2s;
+    }
+    
+    .site-name {
+      font-weight: 800;
+      font-size: 1.5rem;
+      color: var(--primary);
+      text-decoration: none;
+      text-shadow: 1px 1px 0px var(--border);
+    }
+
+    /* hamburger icon styling */
+    .hamburger {
+      display: none;
+      font-size: 2rem;
+      color: var(--primary);
+      margin-right: 10px;
+      cursor: pointer;
+    }
+    /* nav menu styling */
+    nav {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+    }
+    nav ul {
+      display: flex;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    nav li {
+      margin-left: 20px;
+    }
+    nav a {
+      text-decoration: none;
+      font-weight: 700;
+      color: var(--foreground);
+      padding: 8px 16px;
+      border-radius: 9999px;
+      transition: all 0.2s;
+    }
+    nav a:hover {
+      background-color: var(--secondary);
+      color: white;
+      transform: translateY(-2px);
+      box-shadow: 2px 2px 0px var(--border);
+    }
+    /* media query for mobile */
+    @media (max-width: 767px) {
+      /* hamburger icon shows up */
+      .hamburger {
+        display: block;
+      }
+      /* nav is hidden by default */
+      nav {
+        display: none;
+        flex-direction: column;
+        justify-content: flex-start;
+        position: absolute;
+        top: 60px;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #fff;
+      }
+      /* nav links are stacked and centered */
+      nav ul {
+        flex-direction: column;
+        align-items: center;
+      }
+      /* nav link styling */
+      nav li {
+        margin: 10px 0;
+      }
+      /* nav links show up when hamburger icon is clicked */
+      nav.show-nav {
+        display: flex;
+      }
+    }
+</style>

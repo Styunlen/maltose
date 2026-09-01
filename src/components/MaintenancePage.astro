@@ -1,0 +1,115 @@
+---
+import "@/styles/tailwind.css";
+import "@/styles/global.scss";
+
+interface Props {
+  title?: string;
+  message?: string;
+}
+
+const {
+  title = "站点维护中",
+  message = "当前站点正在维护中，请稍后再来访问。",
+} = Astro.props;
+---
+
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>{title} | AstroPress</title>
+  </head>
+  <body class="maintenance-body">
+    <main class="maintenance-container">
+      <div class="maintenance-icon">🔧</div>
+      <h1 class="maintenance-title">{title}</h1>
+      <p class="maintenance-message">{message}</p>
+      <div class="maintenance-dots">
+        <span class="dot" style="animation-delay: 0s"></span>
+        <span class="dot" style="animation-delay: 0.3s"></span>
+        <span class="dot" style="animation-delay: 0.6s"></span>
+      </div>
+    </main>
+  </body>
+</html>
+
+<style is:global>
+  /* @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap'); */
+
+  .maintenance-body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    font-family: "Nunito", "Open Sans", system-ui, sans-serif;
+  }
+
+  .maintenance-container {
+    text-align: center;
+    padding: 3rem 2rem;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    border-radius: 1.5rem;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+    max-width: 420px;
+    width: 90%;
+  }
+
+  .maintenance-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    animation: maintenance-bounce 2s ease-in-out infinite;
+  }
+
+  .maintenance-title {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #1a1a2e;
+    margin: 0 0 0.75rem;
+  }
+
+  .maintenance-message {
+    font-size: 1rem;
+    line-height: 1.6;
+    color: #666;
+    margin: 0 0 2rem;
+  }
+
+  .maintenance-dots {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--primary-color, #00f0a0);
+    animation: maintenance-pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes maintenance-bounce {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-12px);
+    }
+  }
+
+  @keyframes maintenance-pulse {
+    0%,
+    100% {
+      opacity: 0.3;
+      transform: scale(0.8);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.2);
+    }
+  }
+</style>

@@ -1,0 +1,116 @@
+---
+export const prerender = false;
+import MainLayout from "@/layouts/MainLayout.astro";
+import Archive from "@/components/wp-templates/Archive.astro";
+import Single from "@/components/wp-templates/Single.astro";
+import { getNodeByURI, getAllUris } from "@api/api";
+
+const rawUri = `/${Astro.params.uri}`;
+// 路径式分页：/archives/xxx/page/2 → uri=/archives/xxx, page=2
+// （?page=N 参数形式保留兼容，但不再用于生成分页链接）
+const PAGE_SUFFIX_RE = /\/page\/(\d+)\/?$/;
+const pageSuffixMatch = rawUri.match(PAGE_SUFFIX_RE);
+const currentPage = pageSuffixMatch
+  ? Math.max(1, parseInt(pageSuffixMatch[1], 10) || 1)
+  : Math.max(1, parseInt(Astro.url.searchParams.get("page") || "1", 10) || 1);
+const uri = pageSuffixMatch
+  ? rawUri.slice(0, rawUri.lastIndexOf("/page/"))
+  : rawUri;
+const ARCHIVE_PER_PAGE = 10;
+
+// Skip SSR for static asset requests — avoid rendering cascade for non-page URLs
+const STATIC_EXT_RE = /\.(css|js|mjs|json|ico|png|jpg|jpeg|gif|svg|webp|avif|woff2?|ttf|eot|map|ts|tsx)$/;
+if (STATIC_EXT_RE.test(uri)) {
+  return new Response(null, { status: 404 });
+}
+
+if (import.meta.env.DEV) console.log(`${uri} render in catch-all`);
+let node: any = null;
+let fetchError = false;
+let fetchErrorMessage = "";
+
+try {
+  const data = await getNodeByURI(uri, Astro.locals.wpToken, {
+    page: currentPage,
+    perPage: ARCHIVE_PER_PAGE,
+  });
+  node = data.nodeByUri;
+} catch (err) {
+  console.warn(`Failed to fetch node for URI ${uri}:`, err);
+  fetchError = true;
+  fetchErrorMessage = err instanceof Error ? err.message : String(err);
+}
+
+// export async function getStaticPaths() {
+//   const allUris = await getAllUris();
+//   console.log("All URIs for static generation:", allUris);
+//   return allUris;
+// }
+
+function resolveContentTemplate(node) {
+  let template;
+  if (node == null) {
+    return;
+  }
+  switch (node?.__typename) {
+    case "Post":
+      template = Single;
+      break;
+    case "Page":
+      template = Single;
+      break;
+    case "Category":
+      template = Archive;
+      break;
+    case "Tag":
+      template = Archive;
+      break;
+    default:
+      template = Single;
+  }
+  return template;
+}
+
+const Template = resolveContentTemplate(node);
+
+// Posts/pages embed live view counts → never cache at the HTTP layer.
+// Archive (category/tag) pages have no view counts → cacheable.
+if (node?.__typename === "Post" || node?.__typename === "Page") {
+  Astro.response.headers.set("Cache-Control", "no-cache, must-revalidate");
+} else if (node?.__typename === "Category" || node?.__typename === "Tag") {
+  Astro.response.headers.set("Cache-Control", "max-age=600, must-revalidate");
+}
+---
+
+{
+  fetchError ? (
+    <MainLayout title="服务异常">
+      <div style="max-width: 600px; margin: 3rem auto; text-align: center; padding: 2rem;">
+        <h1 style="font-size: 1.5rem; font-weight: 800; margin-bottom: 0.75rem;">⚠️ 服务暂时不可用</h1>
+        <p style="font-size: 0.9rem; color: var(--muted-foreground); margin-bottom: 1.5rem; line-height: 1.6;">
+          数据获取失败，请稍后重试。如问题持续，请联系管理员。
+        </p>
+        {fetchErrorMessage && (
+          <details style="text-align: left; font-size: 0.78rem; color: var(--muted-foreground); background: var(--muted); padding: 0.75rem 1rem; border-radius: var(--radius); max-height: 200px; overflow-y: auto;">
+            <summary style="cursor: pointer; font-weight: 600; margin-bottom: 0.3rem;">查看详细错误</summary>
+            <pre style="white-space: pre-wrap; word-break: break-word; margin: 0; background: transparent; padding: 0;">{fetchErrorMessage}</pre>
+          </details>
+        )}
+      </div>
+    </MainLayout>
+  ) : node == null ? (
+    <MainLayout title="not found">
+      <h1>404 - not found</h1>
+      <p>the requested content could not be found.</p>
+    </MainLayout>
+  ) : (
+    <MainLayout title={node.title || node.name} description={node.excerpt}>
+      <Template
+        node={node}
+        page={currentPage}
+        perPage={ARCHIVE_PER_PAGE}
+        totalPosts={node?.count ?? 0}
+        basePath={uri}
+      />    </MainLayout>
+  )
+}

@@ -1,0 +1,450 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* ── Brand ramp utilities (bg-mint-500 / text-magenta-300 …) ─────────── */
+  --color-mint-50: var(--mint-50);
+  --color-mint-100: var(--mint-100);
+  --color-mint-200: var(--mint-200);
+  --color-mint-300: var(--mint-300);
+  --color-mint-400: var(--mint-400);
+  --color-mint-500: var(--mint-500);
+  --color-mint-600: var(--mint-600);
+  --color-mint-700: var(--mint-700);
+  --color-mint-800: var(--mint-800);
+  --color-mint-900: var(--mint-900);
+  --color-mint-950: var(--mint-950);
+  --color-magenta-50: var(--magenta-50);
+  --color-magenta-100: var(--magenta-100);
+  --color-magenta-200: var(--magenta-200);
+  --color-magenta-300: var(--magenta-300);
+  --color-magenta-400: var(--magenta-400);
+  --color-magenta-500: var(--magenta-500);
+  --color-magenta-600: var(--magenta-600);
+  --color-magenta-700: var(--magenta-700);
+  --color-violet-100: var(--violet-100);
+  --color-violet-300: var(--violet-300);
+  --color-violet-500: var(--violet-500);
+  --color-violet-700: var(--violet-700);
+  --color-coral-100: var(--coral-100);
+  --color-coral-300: var(--coral-300);
+  --color-coral-500: var(--coral-500);
+  --color-coral-700: var(--coral-700);
+  --color-amber-100: var(--amber-100);
+  --color-amber-300: var(--amber-300);
+  --color-amber-500: var(--amber-500);
+  --color-amber-700: var(--amber-700);
+}
+
+:root {
+  /* ── Extended brand ramp (playful-technical, ADR-less) ──────────────────
+   * ORIGINAL palette restored per user request: --primary = #00f0a0 neon mint
+   * (as before the redesign). The mint/magenta/violet/coral/amber ramps below
+   * are ADDITIVE — used only for tag/category chips and decorative accents,
+   * never for --primary/--accent/--ring which keep their original values.
+   * Dark mode stays active via :root.dark (toggle in SiteHeader).
+   */
+  --mint-50:  oklch(0.970 0.030 255);
+  --mint-100: oklch(0.930 0.050 255);
+  --mint-200: oklch(0.860 0.090 255);
+  --mint-300: oklch(0.780 0.120 255);
+  --mint-400: oklch(0.700 0.135 255);
+  --mint-500: oklch(0.620 0.140 255);
+  --mint-600: oklch(0.540 0.135 255);
+  --mint-700: oklch(0.460 0.120 255);
+  --mint-800: oklch(0.380 0.100 255);
+  --mint-900: oklch(0.290 0.070 255);
+  --mint-950: oklch(0.190 0.040 255);
+
+  --magenta-50:  oklch(0.950 0.030 340);
+  --magenta-100: oklch(0.900 0.050 340);
+  --magenta-200: oklch(0.820 0.090 340);
+  --magenta-300: oklch(0.740 0.130 340);
+  --magenta-400: oklch(0.670 0.150 340);
+  --magenta-500: oklch(0.620 0.160 340);
+  --magenta-600: oklch(0.540 0.140 340);
+  --magenta-700: oklch(0.460 0.120 340);
+
+  --violet-100: oklch(0.900 0.050 300);
+  --violet-300: oklch(0.740 0.120 300);
+  --violet-500: oklch(0.620 0.140 300);
+  --violet-700: oklch(0.460 0.120 300);
+
+  --coral-100: oklch(0.930 0.070 30);
+  --coral-300: oklch(0.780 0.130 30);
+  --coral-500: oklch(0.660 0.150 30);
+  --coral-700: oklch(0.480 0.120 30);
+
+  --amber-100: oklch(0.930 0.080 78);
+  --amber-300: oklch(0.800 0.130 78);
+  --amber-500: oklch(0.680 0.150 78);
+  --amber-700: oklch(0.460 0.109 78);
+
+  --primary-color: #00f0a0;
+  --primary-color-10: #00f0a01a;
+  --primary-color-25: #00f0a040;
+  --primary-color-40: #00f0a066;
+  --primary-color-60: #00f0a099;
+
+  --base-color-primarybg: #ffffff;
+  --base-color-secondbg: #f8f9fa;
+  --base-color-tertiarybg: #f5f6f7;
+  --base-color-whiteboth: #ffffff;
+  --base-color-whitebtn: #ffffff;
+  --base-color-white: #ffffff;
+  --base-color-white-30: #ffffff4d;
+  --base-color-white-65: #ffffffa6;
+  --base-color-white-80: #ffffffcc;
+  --base-color-grey: #f3f4f5;
+  --base-color-lightgrey: #f7f8f9;
+  --base-color-deepgrey: #eff0f1;
+  --base-color-black: #000000;
+  --base-color-blackbtn: #000000;
+  --base-color-black-4: #0000000a;
+  --base-color-black-10: #0000001a;
+  --base-color-black-45: #00000073;
+  --base-color-mask: #282d32a6;
+
+  --base-color-red: #ff465a;
+  --base-color-red-10: #ff465a1a;
+  --base-color-yellow: #fda700;
+  --base-color-yellow-10: #fda7001a;
+  --base-color-blue: #14c8f0;
+  --base-color-blue-10: #14c8f01a;
+  --base-color-deepblue: #3c96fa;
+  --base-color-deepblue-10: #3c96fa1a;
+  --base-color-green: #28c86e;
+  --base-color-green-10: #28c86e1a;
+  --base-color-purple: #8c78ff;
+  --base-color-purple-10: #8c78ff1a;
+  --base-color-lightgreen: #90fadc;
+
+  --bg-gradient: linear-gradient(266deg, #acffe1, #cfffc4);
+
+  /* shadcn / radix compatible theme mapping */
+  --background: var(--base-color-primarybg);
+  --foreground: var(--base-color-black);
+  --card: var(--base-color-white);
+  --card-foreground: var(--base-color-black);
+  --popover: var(--base-color-white);
+  --popover-foreground: var(--base-color-black);
+  --primary: var(--primary-color);
+  --primary-foreground: var(--base-color-blackbtn);
+  --secondary: var(--base-color-tertiarybg);
+  --secondary-foreground: var(--base-color-black);
+  --muted: var(--base-color-secondbg);
+  --muted-foreground: color-mix(in oklch, var(--foreground) 60%, transparent);
+  --accent: var(--base-color-lightgreen);
+  --accent-foreground: var(--base-color-black);
+  --destructive: var(--base-color-red);
+  --destructive-foreground: var(--base-color-white);
+  --border: var(--base-color-black-10);
+  --input: var(--base-color-deepgrey);
+  --ring: var(--primary-color);
+  --radius: 0.75rem;
+
+  --sidebar: var(--base-color-white);
+  --sidebar-foreground: var(--base-color-black);
+  --sidebar-primary: var(--primary-color);
+  --sidebar-primary-foreground: var(--base-color-blackbtn);
+  --sidebar-accent: var(--base-color-secondbg);
+  --sidebar-accent-foreground: var(--base-color-black);
+  --sidebar-border: var(--base-color-black-10);
+  --sidebar-ring: var(--primary-color);
+}
+
+:root.dark {
+  --primary-color: #00f0a0;
+  --primary-color-10: #00f0a01a;
+  --primary-color-25: #00f0a040;
+  --primary-color-40: #00f0a066;
+  --primary-color-60: #00f0a099;
+  --base-color-primarybg: #232424;
+  --base-color-secondbg: #1f2020;
+  --base-color-tertiarybg: #1a1b1b;
+  --base-color-whiteboth: #ffffff;
+  --base-color-whitebtn: #272828;
+  --base-color-white: #ffffff0a;
+  --base-color-white-30: #232424;
+  --base-color-white-65: #ffffff05;
+  --base-color-white-80: #232424cc;
+  --base-color-grey: #ffffff0a;
+  --base-color-lightgrey: #ffffff0a;
+  --base-color-deepgrey: #ffffff0a;
+  --base-color-black: #d6d8d8;
+  --base-color-blackbtn: #ffffff26;
+  --base-color-blackboth: #000000;
+  --base-color-black-4: #ffffff0a;
+  --base-color-black-10: #ffffff0f;
+  --base-color-black-45: #d6d8d873;
+  --base-color-mask: #1e2024a6;
+
+  --base-color-red: #ff465a;
+  --base-color-red-10: #ff465a1a;
+  --base-color-yellow: #fda700;
+  --base-color-yellow-10: #fda7001a;
+  --base-color-blue: #14c8f0;
+  --base-color-blue-10: #14c8f01a;
+  --base-color-deepblue: #3c96fa;
+  --base-color-deepblue-10: #3c96fa33;
+  --base-color-green: #28c86e;
+  --base-color-green-10: #28c86e;
+  --base-color-purple: #8c78ff;
+  --base-color-purple-10: #8c78ff33;
+  --base-color-lightgreen: #326450;
+
+  --bg-gradient: linear-gradient(85.89deg, rgba(70,160,70,0.4), rgba(0,240,160,0.25));
+
+  /* shadcn / radix compatible theme mapping */
+  --background: var(--base-color-primarybg);
+  --foreground: var(--base-color-black);
+  --card: var(--base-color-white);
+  --card-foreground: var(--base-color-black);
+  --popover: var(--base-color-white);
+  --popover-foreground: var(--base-color-black);
+  --primary: var(--primary-color);
+  --primary-foreground: var(--base-color-blackbtn);
+  --secondary: var(--base-color-tertiarybg);
+  --secondary-foreground: var(--base-color-black);
+  --muted: var(--base-color-secondbg);
+  --muted-foreground: color-mix(in oklch, var(--foreground) 60%, transparent);
+  --accent: var(--base-color-lightgreen);
+  --accent-foreground: var(--base-color-black);
+  --destructive: var(--base-color-red);
+  --destructive-foreground: var(--base-color-white);
+  --border: var(--base-color-black-10);
+  --input: var(--base-color-deepgrey);
+  --ring: var(--primary-color);
+  --radius: 0.75rem;
+
+  --sidebar: var(--base-color-primarybg);
+  --sidebar-foreground: var(--base-color-black);
+  --sidebar-primary: var(--primary-color);
+  --sidebar-primary-foreground: var(--base-color-blackbtn);
+  --sidebar-accent: var(--base-color-secondbg);
+  --sidebar-accent-foreground: var(--base-color-black);
+  --sidebar-border: var(--base-color-black-10);
+  --sidebar-ring: var(--primary-color);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  code,
+  pre,
+  kbd {
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas,
+      monospace;
+  }
+}
+
+/* Plain global rules (outside @layer so they survive dev-server caching;
+ * Tailwind v4 @utility had a dev-mode staleness issue). */
+.font-display {
+  font-family: "Space Grotesk", "Smiley Sans", "得意黑", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+}
+
+@layer anime {
+  /* Smooth scroll is opt-in per navigation (see MainLayout astro:page-load
+     handler). A global `scroll-behavior: smooth` would fight ClientRouter's
+     scroll restoration, so it stays off by default here. Respect reduced motion. */
+  @media (prefers-reduced-motion: no-preference) {
+    html.smooth-scroll {
+      scroll-behavior: smooth;
+    }
+  }
+
+  /* Custom Scrollbar - Anime themed (Webkit) */
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--background);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--primary);
+    border-radius: 4px;
+    transition: background 0.2s ease;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklch, var(--primary), black 15%);
+  }
+
+  /* Custom Scrollbar - Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary) var(--background);
+  }
+
+  /* Text Selection - Cute highlight */
+  ::selection {
+    background: var(--primary);
+    color: white;
+  }
+
+  /* Focus Ring - Pastel anime style */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: calc(var(--radius) - 4px);
+  }
+
+  /* Keyframe Animations */
+  @keyframes bounce-soft {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-6px);
+    }
+  }
+  @keyframes sparkle {
+    0%,
+    100% {
+      opacity: 0.3;
+      transform: scale(0.8);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.2);
+    }
+  }
+  @keyframes slide-up {
+    /* Keep translateX(-50%): the floating panel centers via left:50% + translateX(-50%). */
+    from {
+      opacity: 0;
+      transform: translateX(-50%) translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+  }
+
+  /* Neutral-gray shimmer, matches Skeleton component (ADR-0036 P1). */
+  @keyframes shimmer {
+    from {
+      background-position: -200% 0;
+    }
+    to {
+      background-position: 200% 0;
+    }
+  }
+  .skeleton-shimmer {
+    background: linear-gradient(
+      90deg,
+      var(--muted) 25%,
+      color-mix(in oklch, var(--muted), var(--muted-foreground) 12%) 50%,
+      var(--muted) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.6s ease-in-out infinite;
+  }
+
+  /* Code Block Styling */
+  pre {
+    background-color: var(--muted);
+    border-radius: var(--radius);
+    border-left: 4px solid var(--primary);
+    padding: 1.25rem;
+    overflow-x: auto;
+  }
+
+  code {
+    background-color: var(--muted);
+    border-radius: calc(var(--radius) - 8px);
+    padding: 0.2em 0.4em;
+    font-size: 0.875em;
+  }
+
+  pre code {
+    background: none;
+    padding: 0;
+    border-radius: 0;
+    font-size: inherit;
+  }
+
+  /* Blockquote Styling */
+  blockquote {
+    border-left: 4px solid var(--secondary);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    background-color: color-mix(in oklch, var(--secondary) 10%, transparent);
+    padding: 1rem 1.5rem;
+    margin: 1.5rem 0;
+  }
+}
+
+/* CoreColumns mobile fix — must live inside @layer utilities so these
+   !important rules tie with Tailwind's (layer order) and win over both the
+   WP .is-layout-flex { flex-wrap: wrap } and the pre-existing md:flex-wrap.
+   In flex-col (stacked) mode, wrapping each basis-full column onto its own
+   horizontal line overflows grid-item parents; force nowrap on mobile and
+   restore wrap at md:. */
+@layer utilities {
+  .wp-block-columns {
+    flex-wrap: nowrap !important;
+  }
+  @media (min-width: 768px) {
+    .wp-block-columns.md\:flex-row {
+      flex-wrap: wrap !important;
+    }
+  }
+  /* Same layering reason: WP's .is-vertically-aligned-* { align-self: center }
+     is outside any layer, but inside @layer utilities an !important rule wins
+     over it on mobile (flex-col) where align-self acts horizontally and would
+     push 100%-wide columns past the container edge. */
+  @media (max-width: 767px) {
+    .is-vertically-aligned-top,
+    .is-vertically-aligned-center,
+    .is-vertically-aligned-bottom,
+    .is-vertically-aligned-stretch {
+      align-self: stretch !important;
+    }
+  }
+}

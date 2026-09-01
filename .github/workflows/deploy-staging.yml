@@ -1,0 +1,104 @@
+# Deploy staging — triggered on push to develop (ADR-0033).
+# Same pipeline as production but targets the staging server/path.
+name: Deploy Staging
+
+on:
+  push:
+    branches: [develop]
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    name: Test & Build
+    runs-on: ubuntu-latest
+    # Expose the uploaded artifact ID so the deploy job can delete it after
+    # download (artifacts would otherwise accumulate and bill storage).
+    outputs:
+      dist-id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm version comes from package.json `packageManager` (single source
+      # of truth — matches local; no version conflict with action-setup).
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm build
+
+      - name: Upload build artifact
+        id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: |
+            dist/
+            ecosystem.config.cjs
+            package.json
+            pnpm-lock.yaml
+            # Required on the server: pnpm 11 reads the build-script policy
+            # (allowBuilds) from pnpm-workspace.yaml.
+            pnpm-workspace.yaml
+          if-no-files-found: error
+          # Belt-and-suspenders: the deploy job deletes this artifact right after
+          # downloading it; even if that fails, it auto-expires after 1 day so
+          # storage never accumulates across runs.
+          retention-days: 1
+
+  deploy:
+    name: Deploy to Staging
+    needs: ci
+    runs-on: ubuntu-latest
+    # Staging environment — no approval gate; develops deploy automatically.
+    environment: staging
+    # actions: write is required to delete the artifact via the REST API.
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+
+      - name: Deploy via rsync
+        uses: easingthemes/ssh-deploy@v5.1.0
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          REMOTE_HOST: ${{ vars.STAGING_HOST }}
+          REMOTE_PORT: ${{ vars.STAGING_SSH_PORT || 22 }}
+          REMOTE_USER: ${{ vars.STAGING_USER || 'deploy' }}
+          SOURCE: "."
+          TARGET: ${{ vars.STAGING_PATH }}
+          ARGS: -rlgoDzvc -i
+          EXCLUDE: "/.git/, /.cache/, .github/, node_modules/"
+
+      # ssh-deploy@v5.1.0 has no SCRIPT input and its script runner is rejected
+      # by the gate whitelist — trigger the server deploy via the allowed
+      # `deploy staging <path>` command in a separate step.
+      - name: Trigger server deploy
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ vars.STAGING_HOST }}
+          port: ${{ vars.STAGING_SSH_PORT || 22 }}
+          username: ${{ vars.STAGING_USER || 'deploy' }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: deploy staging ${{ vars.STAGING_PATH }}
+
+      # The artifact was only a delivery vehicle between jobs — delete it now
+      # so it doesn't accumulate storage (retention-days: 1 on upload is the
+      # fallback if this step ever fails).
+      - name: Delete downloaded artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X DELETE \
+            "repos/${{ github.repository }}/actions/artifacts/${{ needs.ci.outputs.dist-id }}"

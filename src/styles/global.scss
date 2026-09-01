@@ -1,0 +1,874 @@
+@import url("wordpress.scss");
+@import "cherry-markdown/dist/cherry-markdown.markdown.css";
+
+.hljs-ln-numbers {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  text-align: center;
+  vertical-align: top;
+  padding-right: 12px !important;
+  left: 20px;
+  width: 30px;
+  overflow-x: visible !important;
+  white-space: nowrap;
+  transition: all 0.3s ease;
+}
+
+/* ─── Lazy-load image placeholder ─── */
+img.lazy-img {
+  object-fit: contain !important;
+  object-position: center;
+  background: var(--muted);
+}
+/* Article images (React LazyImage, SSR-safe class). Mirrors .lazy-img
+   placeholder visuals but adds a fade-in on load (the React component toggles
+   .react-lazy-img--loaded via onLoad). */
+img.react-lazy-img {
+  object-fit: contain;
+  object-position: center;
+  background: var(--muted);
+  opacity: 1;
+  transition: opacity 0.35s ease;
+}
+img.react-lazy-img[src^="data:image/svg+xml;base64,PCEtLUFyZ29uTG9hZGluZy0tPg"] {
+  width: 100%;
+  max-height: 60vh;
+  opacity: 0.6; /* placeholder 半透明，真实图 onLoad 后 src 变化 → 回到基类 opacity:1 并过渡 */
+  background-image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzgiIGhlaWdodD0iMzgiIHZpZXdCb3g9IjAgMCAzOCAzOCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiBzdHJva2U9IiM1ZTcyZTQiPgogICAgPGcgZmlsbD0ibm9uZSIgZmlsbC1ydWxlPSJldmVub2RkIj4KICAgICAgICA8ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxIDEpIiBzdHJva2Utd2lkdGg9IjIiPgogICAgICAgICAgICA8Y2lyY2xlIHN0cm9rZS1vcGFjaXR5PSIuNSIgY3g9IjE4IiBjeT0iMTgiIHI9IjE4Ii8+CiAgICAgICAgICAgIDxwYXRoIGQ9Ik0zNiAxOGMwLTkuOTQtOC4wNi0xOC0xOC0xOCI+CiAgICAgICAgICAgICAgICA8YW5pbWF0ZVRyYW5zZm9ybQogICAgICAgICAgICAgICAgICAgIGF0dHJpYnV0ZU5hbWU9InRyYW5zZm9ybSIKICAgICAgICAgICAgICAgICAgICB0eXBlPSJyb3RhdGUiCiAgICAgICAgICAgICAgICAgICAgZnJvbT0iMCAxOCAxOCIKICAgICAgICAgICAgICAgICAgICB0bz0iMzYwIDE4IDE4IgogICAgICAgICAgICAgICAgICAgIGR1cj0iMXMiCiAgICAgICAgICAgICAgICAgICAgcmVwZWF0Q291bnQ9ImluZGVmaW5pdGUiLz4KICAgICAgICAgICAgPC9wYXRoPgogICAgICAgIDwvZz4KICAgIDwvZz4KPC9zdmc+);
+  background-repeat: no-repeat;
+  background-position: 50% 50%;
+}
+img.react-lazy-img[src^="data:image/svg+xml;base64,PCEtLUFyZ29uTG9hZGluZy0tPg"]:not(
+    [srcset]
+  ) {
+  height: 500px;
+  pointer-events: none;
+}
+img.react-lazy-img--loaded {
+  opacity: 1;
+}
+img.lazy-img[src^="data:image/svg+xml;base64,PCEtLUFyZ29uTG9hZGluZy0tPg"] {
+  width: 100%;
+  max-height: 60vh;
+  background-image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzgiIGhlaWdodD0iMzgiIHZpZXdCb3g9IjAgMCAzOCAzOCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiBzdHJva2U9IiM1ZTcyZTQiPgogICAgPGcgZmlsbD0ibm9uZSIgZmlsbC1ydWxlPSJldmVub2RkIj4KICAgICAgICA8ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxIDEpIiBzdHJva2Utd2lkdGg9IjIiPgogICAgICAgICAgICA8Y2lyY2xlIHN0cm9rZS1vcGFjaXR5PSIuNSIgY3g9IjE4IiBjeT0iMTgiIHI9IjE4Ii8+CiAgICAgICAgICAgIDxwYXRoIGQ9Ik0zNiAxOGMwLTkuOTQtOC4wNi0xOC0xOC0xOCI+CiAgICAgICAgICAgICAgICA8YW5pbWF0ZVRyYW5zZm9ybQogICAgICAgICAgICAgICAgICAgIGF0dHJpYnV0ZU5hbWU9InRyYW5zZm9ybSIKICAgICAgICAgICAgICAgICAgICB0eXBlPSJyb3RhdGUiCiAgICAgICAgICAgICAgICAgICAgZnJvbT0iMCAxOCAxOCIKICAgICAgICAgICAgICAgICAgICB0bz0iMzYwIDE4IDE4IgogICAgICAgICAgICAgICAgICAgIGR1cj0iMXMiCiAgICAgICAgICAgICAgICAgICAgcmVwZWF0Q291bnQ9ImluZGVmaW5pdGUiLz4KICAgICAgICAgICAgPC9wYXRoPgogICAgICAgIDwvZz4KICAgIDwvZz4KPC9zdmc+);
+  background-color: color-mix(in oklch, var(--muted-foreground) 10%, transparent);
+  background-repeat: no-repeat;
+  background-position: 50% 50%;
+}
+img.lazy-img[src^="data:image/svg+xml;base64,PCEtLUFyZ29uTG9hZGluZy0tPg"]:not(
+    [srcset]
+  ) {
+  height: 500px;
+  pointer-events: none;
+}
+img.lazy-img[data-ll-status="loading"] {
+  background-image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzgiIGhlaWdodD0iMzgiIHZpZXdCb3g9IjAgMCAzOCAzOCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiBzdHJva2U9IiM1ZTcyZTQiPgogICAgPGcgZmlsbD0ibm9uZSIgZmlsbC1ydWxlPSJldmVub2RkIj4KICAgICAgICA8ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxIDEpIiBzdHJva2Utd2lkdGg9IjIiPgogICAgICAgICAgICA8Y2lyY2xlIHN0cm9rZS1vcGFjaXR5PSIuNSIgY3g9IjE4IiBjeT0iMTgiIHI9IjE4Ii8+CiAgICAgICAgICAgIDxwYXRoIGQ9Ik0zNiAxOGMwLTkuOTQtOC4wNi0xOC0xOC0xOCI+CiAgICAgICAgICAgICAgICA8YW5pbWF0ZVRyYW5zZm9ybQogICAgICAgICAgICAgICAgICAgIGF0dHJpYnV0ZU5hbWU9InRyYW5zZm9ybSIKICAgICAgICAgICAgICAgICAgICB0eXBlPSJyb3RhdGUiCiAgICAgICAgICAgICAgICAgICAgZnJvbT0iMCAxOCAxOCIKICAgICAgICAgICAgICAgICAgICB0bz0iMzYwIDE4IDE4IgogICAgICAgICAgICAgICAgICAgIGR1cj0iMXMiCiAgICAgICAgICAgICAgICAgICAgcmVwZWF0Q291bnQ9ImluZGVmaW5pdGUiLz4KICAgICAgICAgICAgPC9wYXRoPgogICAgICAgIDwvZz4KICAgIDwvZz4KPC9zdmc+);
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.hljs-ln-numbers {
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  text-align: center;
+  vertical-align: top;
+  padding-right: 12px !important;
+  left: 20px;
+  width: 30px;
+  overflow-x: visible !important;
+  white-space: nowrap;
+  transition: all 0.3s ease;
+}
+
+#comments-section,
+.paragraph-comment-panel {
+  .chat-time--short {
+    display: none;
+  }
+
+  .chat-bubble {
+    padding: 0.35rem 0.5rem;
+    border-radius: calc(var(--radius) - 2px);
+  }
+  .chat-bubble [data-slot="message-header"] {
+    gap: 0.75rem;
+  }
+  .chat-bubble [data-slot="message-content"] {
+    gap: 0.5rem;
+  }
+  .chat-bubble [data-slot="bubble-content"] .chat-parent-mention {
+    color: var(--primary);
+    margin-right: 0.3rem;
+  }
+  // 子评论顶部的父评论引用块：左侧色条 + 浅背景，整块可点击跳转父评论。
+  .chat-bubble [data-slot="bubble-content"] .chat-parent-quote {
+    display: block;
+    padding: 0.4rem 0.65rem;
+    margin: 0 0 0.4rem;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: var(--muted-foreground);
+    background: color-mix(in oklch, var(--primary) 8%, var(--muted));
+    border-left: 3px solid var(--primary);
+    border-radius: calc(var(--radius) - 2px);
+    transition: background 0.2s ease;
+    &:hover {
+      background: color-mix(in oklch, var(--primary) 14%, var(--muted));
+    }
+    // Rendered markdown content clipped to 2 lines by CSS — no JS truncation,
+    // so HTML tags are never cut mid-way.
+    .chat-parent-quote-content {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      word-break: break-word;
+      p {
+        margin: 0;
+      }
+    }
+  }
+  // 自己发的评论（data-align="end"）气泡背景是 --primary 亮绿。引用块用
+  // 半透明白叠在亮绿上 → 柔和薄荷白底 + 黑字，对比度 16.5:1 且美观；
+  // 深绿左边条呼应主题色，比透明混色（浅绿灰字）和深绿底白字都更好看。
+  .chat-bubble[data-align="end"] [data-slot="bubble-content"] .chat-parent-quote {
+    color: #000;
+    background: color-mix(in oklch, #fff 55%, transparent);
+    border-left-color: #008458;
+    &:hover {
+      background: color-mix(in oklch, #fff 70%, transparent);
+    }
+  }
+  .chat-bubble[data-align="end"] [data-slot="bubble-content"] .chat-parent-mention {
+    color: var(--primary-foreground);
+  }
+  // 自己发的评论（data-align="end"）背景是 primary 亮绿，
+  // 链接若用 var(--primary) 会与背景同色融合，覆盖为深色前景。
+  // 注意 .chat-content 与 [data-slot="bubble-content"] 是同一元素（BubbleContent）。
+  .chat-bubble[data-align="end"] [data-slot="bubble-content"] a {
+    color: var(--primary-foreground);
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+  .chat-bubble:hover {
+    background: var(--muted);
+  }
+  .chat-bubble [data-slot="message-footer"] {
+    .chat-reply-btn,
+    .chat-edit-btn,
+    .chat-delete-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      height: 26px;
+      padding: 0 0.5rem;
+      border: none;
+      border-radius: 9999px;
+      background: transparent;
+      color: var(--muted-foreground);
+      cursor: pointer;
+      font-size: 0.72rem;
+      font-weight: 500;
+      transition: background 0.2s ease, color 0.2s ease;
+      &:hover {
+        background: var(--border);
+        color: var(--foreground);
+      }
+    }
+    .chat-delete-btn {
+      color: var(--destructive);
+      &:hover {
+        background: color-mix(in oklch, var(--destructive) 12%, transparent);
+      }
+    }
+  }
+  .chat-bubble [data-slot="bubble-reactions"] {
+    .reply-link-trigger {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.15rem;
+      padding: 0.1rem 0.45rem;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--primary);
+      background: color-mix(in oklch, var(--primary) 12%, transparent);
+      border: 1px solid color-mix(in oklch, var(--primary) 25%, transparent);
+      border-radius: 9999px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+      &:hover {
+        background: var(--primary);
+        color: #000;
+      }
+    }
+  }
+  .chat-parent-mention:hover {
+    color: var(--primary);
+    text-decoration: underline;
+  }
+  .reply-link-trigger:hover {
+    background: var(--primary) !important;
+    color: #000 !important;
+  }
+  .chat-highlight {
+    background: color-mix(
+      in oklch,
+      var(--primary) 15%,
+      var(--muted)
+    ) !important;
+    border-left: 3px solid var(--primary);
+    transition: all 0.3s ease;
+  }
+
+  // 作者标签（博主/我）：薄荷浅底胶囊，与 postcard 的五色 tag 同风格
+  // （--mint-100 底 / --mint-700 字 / 999px 圆角 / 小 icon）。
+  // 不加 margin——与相邻元素的间距完全由 message-header 的 gap 统一控制，
+  // 避免"徽章前 17px、其他 12px"的间隔不统一。
+  .chat-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    height: 1.15rem;
+    padding: 0 0.45rem;
+    font-size: 0.66rem;
+    font-weight: 600;
+    line-height: 1;
+    border-radius: 999px;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  .chat-badge--owner {
+    background: var(--mint-100);
+    color: var(--mint-700);
+  }
+  .chat-badge--self {
+    background: color-mix(in oklch, var(--primary) 14%, transparent);
+    color: var(--primary);
+  }
+  .chat-badge-icon {
+    width: 0.7rem;
+    height: 0.7rem;
+    flex-shrink: 0;
+  }
+  // 连续多个徽章（如"博主"+"我"）之间的间隔收紧到一半，
+  // 避免两个胶囊之间的 12px gap 显得松散。
+  .chat-badge + .chat-badge {
+    margin-left: -0.4rem;
+  }
+
+  .chat-geo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+  }
+  .chat-geo-icon {
+    width: 0.7rem;
+    height: 0.7rem;
+    flex-shrink: 0;
+  }
+  .chat-highlight-hover {
+    background: color-mix(in oklch, var(--primary) 10%, transparent) !important;
+    border-left: 3px solid var(--primary);
+    transition: all 0.3s ease;
+  }
+  .chat-content p {
+    margin: 0.2rem 0;
+  }
+  .chat-content a {
+    color: var(--primary);
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .chat-content a:hover {
+    text-decoration: underline;
+  }
+  // 评论区在 article 内，article h1/h2/h3::before 的绿色装饰条会应用到
+  // 评论标题，且在自己评论的 primary 绿底上完全融合。仅评论区禁用，
+  // 文章正文标题装饰条保留（见 ADR-0009）。
+  .cherry-markdown {
+    // Cherry 库默认 h1/h2/h3 margin-top: 30px，在评论区气泡里显得过空。
+    // 覆盖为 10px（评论标题紧凑一点，正文文章的标题间距不受影响）。
+    h1,
+    h2,
+    h3 {
+      margin-top: 10px;
+    }
+    h1::before,
+    h2::before,
+    h3::before {
+      content: none;
+    }
+  }
+  // 评论表格斑马纹 + 行 hover。Cherry 表格默认只有 th 背景（muted 灰）、
+  // body 行透明，视觉割裂。偶数行 --muted 交替，hover 淡绿高亮。
+  .cherry-markdown {
+    table {
+      tbody tr:nth-child(even) {
+        background-color: var(--muted);
+      }
+      tbody tr:hover {
+        background-color: color-mix(in oklch, var(--primary) 8%, transparent);
+      }
+    }
+  }
+  // 用户自己评论（data-align="end"）背景是 primary 亮绿，浅灰斑马纹会形成
+  // 绿-灰跳变。表格所有行改用灰色实色（不露绿底）：奇数行 --muted（与
+  // header 同色）、偶数行 --muted 混 10% --foreground（纯黑，明显更深的灰）。
+  // 注意不能混 --muted-foreground——它是半透明的（60% 前景 + 40% 透明），
+  // 混出的颜色带 alpha 会透出绿底（见 ADR-0010）。
+  .chat-bubble[data-align="end"] .cherry-markdown {
+    table {
+      tbody tr:nth-child(odd) {
+        background-color: var(--muted);
+      }
+      tbody tr:nth-child(even) {
+        background-color: color-mix(
+          in oklch,
+          var(--muted) 90%,
+          var(--foreground)
+        );
+      }
+    }
+  }
+  // Cherry markdown CSS（.cherry-markdown 作用域）的排版依赖 --md-* 变量，
+  // 而这些变量默认定义在 .cherry.theme__default（编辑器类）下。
+  // 评论容器没有 .cherry 类，故在此显式声明变量（值取自 Cherry 默认主题，
+  // 依赖的 --oc-* 调色板已在 :root 全局定义）。
+  .chat-content.cherry-markdown {
+    --md-heading-color: var(--foreground);
+    --md-paragraph-color: var(--foreground);
+    --md-link-color: var(--primary);
+    --md-link-hover-color: var(--primary);
+    --md-inline-code-color: var(--primary);
+    --md-inline-code-bg: var(--muted);
+    --md-blockquote-bg: var(--muted);
+    --md-hr-border: var(--border);
+    --md-table-border: var(--border);
+    // 阻断 Cherry 的 .cherry-markdown { background: var(--base-previewer-bg) }
+    // 白底规则——它比 bubble 的变体背景规则优先级更高，会覆盖 bubble 颜色。
+    background-color: transparent;
+    background-image: none;
+  }
+  // bubble 变体背景：自己评论（data-align="end"）用 primary 亮绿，
+  // 他人评论（start）用 secondary 灰。显式补回，避免被 Cherry 背景规则覆盖
+  // （见 ADR-0008）。
+  .chat-bubble[data-align="end"] .chat-content.cherry-markdown {
+    background-color: var(--primary);
+  }
+  .chat-bubble[data-align="start"] .chat-content.cherry-markdown {
+    background-color: var(--secondary);
+  }
+  // 自己发的评论（data-align="end"）背景是 primary 亮绿。
+  // Cherry markdown CSS 使用硬编码深色文字，与亮绿背景对比不足，
+  // 统一覆盖为 --primary-foreground（深黑）保证对比度（见 ADR-0007）。
+  // 注意：.cherry-markdown 与 [data-slot="bubble-content"] 是同一元素（BubbleContent）。
+  .chat-bubble[data-align="end"] .cherry-markdown {
+    --md-heading-color: var(--primary-foreground);
+    --md-paragraph-color: var(--primary-foreground);
+    --md-link-color: var(--primary-foreground);
+    --md-inline-code-color: var(--primary-foreground);
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    p,
+    li,
+    td,
+    th,
+    blockquote,
+    pre,
+    code,
+    strong,
+    em {
+      color: var(--primary-foreground);
+    }
+  }
+  // @ 提及时，@ 是 React 组件、内容走 dangerouslySetInnerHTML，两者并列。
+  // wrapper inline 使 @ 与首行内容同行；仅第一个 <p> 转 inline 与 @ 环绕，
+  // 其余段落保持块级，避免多段落粘连。
+  .chat-body-inline {
+    display: inline;
+    > span:last-child > p:first-child {
+      display: inline;
+    }
+  }
+  #chat-scroll::-webkit-scrollbar {
+    width: 5px;
+  }
+  #chat-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  #chat-scroll::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 9999px;
+  }
+
+  /* ── 移动端微信式紧凑适配 ─────────────────────────── */
+  // 头像缩小到 28px（微信小头像感）；时间缩为 MM-DD HH:mm；UA/geo 换行到
+  // 头部第二行小字；气泡收窄到 72%；Cherry 工具栏横向滚动防溢出。
+  @media (max-width: 640px) {
+    --chat-avatar-size: 28px;
+
+    .chat-bubble [data-slot="message-header"] {
+      flex-wrap: wrap;
+      row-gap: 0.4rem;
+      padding-inline: 0.35rem;
+    }
+
+    .chat-time--full {
+      display: none;
+    }
+    .chat-time--short {
+      display: inline;
+    }
+
+    // UA/geo 独立成第二行（占满整行、与姓名/时间分离），不再隐藏。
+    .chat-meta-line {
+      flex-basis: 100%;
+      font-size: 0.68rem;
+    }
+
+    .chat-bubble [data-slot="bubble"] {
+      max-width: 72%;
+    }
+
+    // 评论表单容器跟随视口
+    .comments-section-form {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .cherry-toolbar {
+      overflow-x: auto;
+    }
+  }
+}
+
+// 顶层 dark 覆盖：不能写在 #comments-section 嵌套内（会编译成错误的后代
+// 选择器）。注意：这是 .scss（走 sass 编译），:global() 是 CSS Modules
+// 语法，sass 不认；dark 类挂在 <html> 上，所以用 html.dark 祖先选择器。
+ html.dark #comments-section .chat-badge--owner,
+ html.dark .paragraph-comment-panel .chat-badge--owner {
+  background: var(--mint-900);
+  color: var(--mint-300);
+}
+html.dark #comments-section .chat-badge--self,
+html.dark .paragraph-comment-panel .chat-badge--self {
+  background: color-mix(in oklch, var(--primary) 22%, transparent);
+  color: var(--mint-300);
+}
+
+/* ─── Paragraph comments (ADR-0036 P3) ──────────────────────────────── */
+.block-comment-host {
+  position: relative;
+}
+/* Hover affordance: a small comment bubble that fades in on hover (desktop)
+   and is always visible on touch (no hover). */
+.block-comment-trigger {
+  position: absolute;
+  right: -2.25rem;
+  top: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  background: var(--background);
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateX(4px);
+  transition: opacity 0.18s ease, transform 0.18s ease, color 0.18s ease;
+  z-index: 5;
+}
+/* Only the host being hovered shows its own (direct-child) trigger. Using >
+   instead of a descendant space prevents an outer host's :hover from lighting
+   up triggers nested inside it (e.g. a quote's outer trigger AND its inner
+   paragraph trigger). Combined with the :has() rule below, hovering any point
+   of a nested structure shows exactly one — the innermost hovered host's. */
+.block-comment-host:hover > .block-comment-trigger,
+.block-comment-trigger:focus-visible,
+.block-comment-trigger[data-force-visible] {
+  opacity: 1;
+  transform: translateX(0);
+}
+/* Nested commentable blocks (e.g. paragraph inside a quote): hovering the
+   inner block hides the outer block's trigger so the two comment buttons
+   never overlap in the top-right corner. */
+.block-comment-host:has(.block-comment-host:hover) > .block-comment-trigger {
+  display: none;
+}
+.block-comment-trigger:hover {
+  color: var(--primary);
+  border-color: color-mix(in oklch, var(--primary) 40%, transparent);
+}
+.block-comment-count {
+  min-width: 1.1rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+/* Touch devices: hover doesn't exist — always show the affordance. */
+@media (hover: none) {
+  .block-comment-trigger {
+    opacity: 1;
+    transform: none;
+    right: 0.5rem;
+    top: 0.5rem;
+  }
+}
+
+/* Inline panel inserted right after the anchored block. */
+.paragraph-comment-panel {
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--background);
+  padding: 0.85rem 1rem;
+  margin: 0.6rem 0 1.25rem;
+  box-shadow: 0 2px 10px color-mix(in oklch, var(--foreground) 6%, transparent);
+  animation: slide-up 0.22s ease;
+}
+.paragraph-comment-panel__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+.paragraph-comment-panel__title {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.paragraph-comment-panel__count {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  background: var(--muted);
+  border-radius: 9999px;
+  padding: 0.1rem 0.5rem;
+}
+.paragraph-comment-panel__close {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: none;
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+.paragraph-comment-panel__close:hover {
+  background: var(--muted);
+  color: var(--foreground);
+}
+.paragraph-comment-panel__empty {
+  color: var(--muted-foreground);
+  font-size: 0.85rem;
+  padding: 0.4rem 0;
+}
+.paragraph-comment-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.paragraph-comment-item {
+  display: block;
+}
+.paragraph-comment-item__body {
+  font-size: 0.9rem;
+}
+.paragraph-comment-panel__compose {
+  margin-top: 0.75rem;
+  border-top: 1px dashed var(--border);
+  padding-top: 0.6rem;
+}
+.paragraph-comment-panel__cta {
+  display: inline-block;
+  font-size: 0.85rem;
+  color: var(--primary);
+  font-weight: 500;
+  text-decoration: none;
+}
+.paragraph-comment-panel__cta:hover {
+  text-decoration: underline;
+}
+
+/* Inline paragraph-comment composer. */
+.paragraph-comment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.paragraph-comment-form__input {
+  width: 100%;
+  resize: vertical;
+  min-height: 3.5rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 4px);
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+.paragraph-comment-form__input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.paragraph-comment-form__error {
+  color: oklch(60% 0.2 25);
+  font-size: 0.8rem;
+  margin: 0;
+}
+.paragraph-comment-form__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.paragraph-comment-form__hint {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+.paragraph-comment-form__submit {
+  padding: 0.35rem 1rem;
+  border: none;
+  border-radius: 9999px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.paragraph-comment-form__submit:hover {
+  opacity: 0.9;
+}
+.paragraph-comment-form__submit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Shared comment composer (footer CommentSection + paragraph panel, unified
+   new/reply interaction). */
+.comment-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.comment-composer__replybar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  background: color-mix(in oklch, var(--primary) 8%, transparent);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--primary);
+}
+.comment-composer__replybar-icon {
+  flex-shrink: 0;
+  width: 0.875rem;
+  height: 0.875rem;
+}
+.comment-composer__replybar-cancel {
+  margin-left: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  text-decoration: underline;
+}
+.comment-composer-error {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--destructive);
+}
+.comment-composer__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.comment-composer__hint {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+.comment-composer__submit {
+  padding: 0.45rem 1.2rem;
+  border: none;
+  border-radius: 9999px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.comment-composer__submit:hover {
+  opacity: 0.9;
+}
+.comment-composer__submit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+/* Panel variant: slightly more compact inside the floating paragraph panel. */
+.comment-composer--panel .comment-composer__submit {
+  padding: 0.35rem 1rem;
+  font-size: 0.85rem;
+}
+
+/* Orphan-comment rebind (ADR-0036 P3). */
+.chat-orphan-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.78rem;
+  color: oklch(60% 0.15 60);
+  background: color-mix(in oklch, oklch(60% 0.15 60) 8%, transparent);
+  border: 1px dashed color-mix(in oklch, oklch(60% 0.15 60) 35%, transparent);
+  border-radius: calc(var(--radius) - 4px);
+  padding: 0.35rem 0.6rem;
+  margin-bottom: 0.4rem;
+}
+.chat-orphan-rebind {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--primary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.chat-orphan-rebind:hover {
+  opacity: 0.85;
+}
+/* Pick-a-paragraph mode highlight. */
+.block-rebind-target {
+  outline: 2px dashed var(--primary);
+  outline-offset: 4px;
+  border-radius: calc(var(--radius) - 4px);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.block-rebind-target:hover {
+  background: color-mix(in oklch, var(--primary) 8%, transparent);
+}
+
+/* Paragraph-quote chip (ADR-0036 update: anchored comments show the quoted
+   paragraph snippet). Distinct from .chat-parent-quote: solid left border +
+   pill icon + primary tint, so a "reply-to-comment" quote and a
+   "reply-to-paragraph" quote never look the same. */
+.chat-block-ref {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  padding: 0.4rem 0.65rem;
+  margin: 0 0 0.4rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+  background: color-mix(in oklch, var(--primary) 6%, var(--muted));
+  border-left: 3px solid var(--primary);
+  border-radius: calc(var(--radius) - 2px);
+  cursor: default;
+}
+.chat-block-ref[role="button"] {
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+.chat-block-ref[role="button"]:hover {
+  background: color-mix(in oklch, var(--primary) 12%, var(--muted));
+}
+.chat-block-ref__icon {
+  flex-shrink: 0;
+  width: 0.95rem;
+  height: 0.95rem;
+  margin-top: 0.15rem;
+  color: var(--primary);
+}
+.chat-block-ref__text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+/* Own-comment variant: the bubble is primary-coloured, so mirror the
+   parent-quote treatment (white-blend background, dark text). */
+.chat-bubble[data-align="end"] .chat-block-ref {
+  color: #000;
+  background: color-mix(in oklch, #fff 55%, transparent);
+  border-left-color: #008458;
+}
+.chat-bubble[data-align="end"] .chat-block-ref[role="button"]:hover {
+  background: color-mix(in oklch, #fff 70%, transparent);
+}
+.chat-bubble[data-align="end"] .chat-block-ref__icon {
+  color: #008458;
+}
+/* Orphaned anchor: the snippet is still shown but not clickable. */
+.chat-block-ref--orphan {
+  opacity: 0.85;
+}
+
+/* Flash highlight when jumping from a paragraph-quote to its block. */
+.block-ref-highlight {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+  border-radius: calc(var(--radius) - 4px);
+  transition: outline-color 0.3s ease;
+}
+
+/* Floating panel (portal to body, anchored under the clicked block). */
+.paragraph-comment-panel--floating {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(680px, calc(100vw - 2rem));
+  z-index: 40;
+}
+@media (max-width: 768px) {
+  .paragraph-comment-panel--floating {
+    left: 1rem;
+    right: 1rem;
+    width: auto;
+    transform: none;
+    /* Mobile panel is anchored via left/right (no translateX centering), so
+       the desktop slide-up keyframes (which hard-code translateX(-50%))
+       would shove it off-screen during the animation. Fade-only is safer. */
+    animation-name: slide-up-mobile;
+  }
+}
+
+@keyframes slide-up-mobile {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

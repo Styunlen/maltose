@@ -1,0 +1,79 @@
+---
+interface Props {
+  categories?: { name: string; uri: string; count: number }[];
+  currentUri?: string;
+}
+
+const { categories = [], currentUri = "/" } = Astro.props;
+
+const visible = categories
+  .filter((c) => c.count > 0 && c.uri)
+  .slice(0, 6);
+const moreCount = categories.filter((c) => c.count > 0 && c.uri).length - visible.length;
+const isHome = currentUri === "/" || currentUri === "/index.html";
+---
+
+{
+  visible.length > 0 && (
+    <nav class="cat-tabs" aria-label="文章分类">
+      <a href="/" class={`cat-tab${isHome ? " active" : ""}`}>全部</a>
+      {visible.map((c) => (
+        <a href={c.uri} class="cat-tab">
+          {c.name}
+          <span class="cat-count">{c.count}</span>
+        </a>
+      ))}
+      {moreCount > 0 && (
+        <a href="/categories" class="cat-tab cat-more">
+          更多 <span class="cat-count">{moreCount}</span>
+        </a>
+      )}
+    </nav>
+  )
+}
+
+<style>
+  .cat-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0 0 1.25rem;
+  }
+  .cat-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.85rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--muted-foreground);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    text-decoration: none;
+    transition:
+      color 0.2s ease,
+      border-color 0.2s ease,
+      background 0.2s ease,
+      transform 0.15s ease;
+  }
+  .cat-tab:hover {
+    color: var(--primary-color);
+    border-color: var(--mint-300);
+    background: color-mix(in oklch, var(--mint-100) 40%, var(--card));
+    transform: translateY(-1px);
+  }
+  .cat-tab.active {
+    color: var(--primary-foreground);
+    background: var(--primary);
+    border-color: var(--primary);
+  }
+  .cat-count {
+    font-size: 0.65rem;
+    font-weight: 700;
+    opacity: 0.7;
+  }
+  .cat-more {
+    border-style: dashed;
+  }
+</style>

@@ -1,0 +1,83 @@
+---
+export const prerender = false;
+import { gql } from "@apollo/client";
+import MainLayout from "@/layouts/MainLayout.astro";
+import PostCard from "@/components/PostCard.astro";
+import { client } from "@api/api";
+
+const { year, month } = Astro.params;
+const y = Number(year);
+const m = Number(month);
+
+let posts: any[] = [];
+let hasError = false;
+
+// Validate YYYY/MM path params before querying.
+if (!Number.isInteger(y) || !Number.isInteger(m) || m < 1 || m > 12) {
+  return Astro.redirect("/404");
+}
+
+try {
+  const { data } = await client.query({
+    query: gql`
+      query PostsByMonth($first: Int!, $year: Int!, $month: Int!) {
+        posts(
+          first: $first
+          where: {
+            dateQuery: { year: $year, month: $month }
+            orderby: { field: DATE, order: DESC }
+          }
+        ) {
+          nodes {
+            databaseId
+            date
+            uri
+            title
+            excerpt
+            commentCount
+            viewCount
+            categories {
+              nodes {
+                name
+                uri
+              }
+            }
+            tags {
+              nodes {
+                name
+                uri
+              }
+            }
+          }
+        }
+      }
+    `,
+    variables: { first: 100, year: y, month: m },
+  });
+  posts = data.posts.nodes || [];
+} catch (err) {
+  console.warn(`Failed to fetch posts for ${y}-${m}:`, err);
+  hasError = true;
+}
+---
+
+<MainLayout
+  title={`${y}年${m}月归档`}
+  description={`${y}年${m}月的文章归档`}
+>
+  <div style="margin-top: 1.5rem;">
+    <h1 style="font-size: 2rem; font-weight: 800; color: var(--primary); text-align: center; margin-bottom: 2rem;">
+      {y}年{m}月 <span style="color: var(--muted-foreground); font-size: 1rem; font-weight: 400;">共 {posts.length} 篇</span>
+    </h1>
+
+    {hasError ? (
+      <p style="text-align: center; color: var(--muted-foreground);">加载失败，请稍后重试。</p>
+    ) : posts.length === 0 ? (
+      <p style="text-align: center; color: var(--muted-foreground);">该月份暂无文章。</p>
+    ) : (
+      <div class="archive-list">
+        {posts.map((post) => <PostCard post={post} />)}
+      </div>
+    )}
+  </div>
+</MainLayout>

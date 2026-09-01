@@ -1,0 +1,118 @@
+---
+import "@/styles/tailwind.css";
+import "@/styles/global.scss";
+import { ClientRouter } from "astro:transitions";
+import SiteFooter from "../components/SiteFooter.astro";
+import LayoutShell from "./LayoutShell";
+import {
+  layoutQuery,
+} from "@api/api.ts";
+
+let primaryMenu: any = null;
+let generalSettings: any = { title: "AstroPress", url: "", description: "" };
+const { title, description, sidebarData = null } = Astro.props;
+
+try {
+  // Layout-level query: only site chrome (menu + site identity) needed by
+  // every page. Homepage-only sidebar content (posts/comments/tags/archive)
+  // is fetched by index.astro and passed down via the sidebarData prop (see
+  // ADR-0013: layout vs page data separation).
+  const data = await layoutQuery();
+  primaryMenu = data.menus?.nodes?.[0] ?? null;
+  if (data.generalSettings) generalSettings = data.generalSettings;
+} catch (err) {
+  console.warn("Layout query failed, using fallback:", err);
+}
+
+const pageTitle = `${title} | ${generalSettings.title}`;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{`${title} | ${generalSettings.title}`}</title>
+    <meta name="description" content={description} />
+    {/* canonical 去掉查询参数（如 ?page=N、?x=），分页页指向自身路径 */}
+    <link rel="canonical" href={Astro.url.origin + Astro.url.pathname} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Nunito:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <script is:inline>
+      // Apply theme before first paint to avoid a flash of the wrong mode.
+      // is:inline → emitted verbatim (not TS-bundled by Astro).
+      (() => {
+        const stored = localStorage.getItem("theme");
+        const dark =
+          stored === "dark" ||
+          (stored !== "light" &&
+            matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.classList.toggle("dark", dark);
+      })();
+    </script>
+    <ClientRouter fallback="swap" />
+  </head>
+  <body>
+    <LayoutShell
+      menu={primaryMenu}
+      generalSettings={generalSettings}
+      sidebarData={sidebarData}
+      initialUser={Astro.locals.user ?? null}
+      pathname={Astro.url.pathname}
+      client:load
+    >
+      <slot />
+      <SiteFooter />
+    </LayoutShell>
+  </body>
+</html>
+
+<script>
+  import "../scripts/build-info.ts";
+</script>
+
+<script>
+  import LazyLoad from "vanilla-lazyload";
+
+  const instance = new LazyLoad({
+    elements_selector: ".lazy-img",
+  });
+
+  // Observe <html>, not <body>: ClientRouter swaps the whole body element on
+  // navigation, which would detach an observer attached to the old body node.
+  const observer = new MutationObserver(() => instance.update());
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+
+  document.addEventListener("astro:page-load", () => instance.update());
+
+  // Smooth scrolling during view-transition navigation: opt <html> into
+  // `scroll-behavior: smooth` (see `.smooth-scroll` in tailwind.css) while the
+  // router animates the scroll-to-top, then drop the class after the page
+  // settles so ordinary programmatic scrolls stay instant.
+  document.addEventListener("astro:before-preparation", () => {
+    document.documentElement.classList.add("smooth-scroll");
+  });
+  document.addEventListener("astro:page-load", () => {
+    setTimeout(() => document.documentElement.classList.remove("smooth-scroll"), 500);
+  });
+</script>
+
+<style>
+  html,
+  body {
+    overflow-x: clip;
+  }
+  body {
+    font-family: "Nunito", "MiSans", "PingFang SC", "Hiragino Sans GB",
+      "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+    font-size: 18px;
+    /* Subtle dot grid — kept light so prose stays readable; dark mode dims it. */
+    background-image: radial-gradient(var(--border) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+</style>

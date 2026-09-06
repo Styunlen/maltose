@@ -429,3 +429,206 @@ shared style scope = consistent look by construction.
   warrants a table.
 - **Separate plugin for data management** — rejected: the theme is the data
   provider (ADR-0001/0002 precedent); the registry ships inside the theme.
+
+## Update 2026-09-01: Dark-mode contrast, theme flash, login responsive, SSR latency
+
+### Context
+
+Four follow-up issues reported after the rc.1 release:
+
+1. **Dark-mode own-comment contrast** — own-comment bubbles (data-align=end)
+   have a bright-green `--primary` background that does NOT darken in dark
+   mode, but `--primary-foreground` resolves to `#ffffff26` (white 15% opacity,
+   via `--base-color-blackbtn`'s dark value). Text on the green bubble dropped
+   to ~1.3:1 contrast (WCAG AA needs 4.5:1).
+2. **Theme flash on SPA navigation** — Astro ClientRouter's `swapRootAttributes`
+   copies the new SSR document's `<html>` attributes onto the live document,
+   stripping the `dark` class (SSR output has no class — the server doesn't
+   know the client theme), and the head inline theme script does NOT re-run
+   (deduped by `textContent`). Every navigation flashed light→dark once the
+   React island re-hydrated and re-applied the theme.
+3. **Login page on mobile** — the card was fixed `width: 400px`, overflowing a
+   375px viewport by ~107px; `body { overflow-x: clip }` then cut it off.
+   Switching login tabs also caused a width jump.
+4. **Perceived slow loading** — SPA navigation goes through SSR (ClientRouter
+   fetches the next page's rendered HTML; no client GraphQL fetch). The wait
+   is the SSR render: cold-cache first visit was ~4.4s (TTFB 574ms), article
+   queries were STRONG_CONSISTENCY + 30s TTL so every read re-hit WordPress.
+
+### Decisions
+
+**A. Fix dark-mode own-comment contrast (CSS only).**
+
+- `html.dark` overrides for `[data-align="end"]` bubble text (`--md-*` vars,
+  h1-h6/p/li/td/th/blockquote/pre/code/strong/em), links, and `@mention`
+  forced to `#000`. The bubble background stays bright green in dark mode, so
+  black text matches the light-mode look (11:1 contrast). The comment submit
+  button (same `--primary` bg + `--primary-foreground` pairing) is also fixed.
+
+**B. Re-apply theme after ClientRouter swap.**
+
+- `MainLayout.astro` listens for `astro:after-swap` and `astro:page-load` and
+  re-applies the theme from localStorage/system preference, restoring the
+  `dark` class that `swapRootAttributes` removed.
+
+**C. Login card responsive.**
+
+- `LoginForm` card: `width: 400` → `maxWidth: 400, width: 100%` +
+  `box-sizing: border-box`. Card width is now container-driven (no overflow,
+  no tab-switch width jump).
+
+**D. SSR latency.**
+
+- Parallelize the three independent SSR queries in `Single.astro`
+  (layoutQuery / getRandomPosts / getAdjacentPosts) via `Promise.allSettled`
+  — total ≈ slowest, not the sum.
+- Raise article query TTLs (GetNodeByURI/GetPost 30s → 300s): mutation paths
+  (create/update/delete/rebind comment) already invalidate those prefixes
+  explicitly, so freshness after writes is guaranteed by invalidation, not TTL;
+  a longer TTL makes repeated reads hit the in-process LruLink cache instead
+  of WordPress every time.
+- Add a thin top navigation progress bar (YouTube-style) shown on
+  `astro:before-preparation`, removed on `astro:after-swap`/`astro:page-load`,
+  so SPA navigation has visible feedback. Located by query on removal (the
+  swap replaces `<body>`, so a captured element reference would go stale).
+
+### Consequence
+
+- Dark-mode own comments are readable again; submit buttons match.
+- SPA navigation keeps the user's theme with no light→dark flash.
+- The login card fits mobile viewports and tab switches don't shift width.
+- SSR warm reads hit the cache (measured TTFB 574ms → 168ms); cold starts
+  benefit from parallel queries; navigation shows a progress bar.
+
+## Update 2026-09-05: All-SWR cache + boot-time warm-up
+
+### Context
+
+Playwright diagnosis of a <100 PV/day blog showed warm reads are already fast
+(article ~0.09s, home ~0.03s) but **cold-cache first visits are slow**
+(article ~1.9s, timeline ~2.9s): every SSR query misses LruLink and waits on
+WordPress. A WPGraphQL subscription/WebSocket path was explored and rejected
+(core has no subscription support; experimental plugin requires a Node sidecar
++ Redis and is not production-ready). A WP→Astro webhook was also rejected:
+it requires the WP server to reach the Astro process, which is not guaranteed
+for other developers on their local machines (no frp). The chosen direction:
+solve the cold/warm asymmetry with the cache itself.
+
+### Decisions
+
+**A. Empty STRONG_CONSISTENCY — every query is SWR.**
+
+- `GetNodeByURI`/`GetPost` removed from the strong-consistency set. An expired
+  entry now serves stale immediately while a background refresh runs, so reads
+  never block on the network once an entry exists.
+- Freshness after writes is guaranteed by mutation-path invalidation (comment
+  create/update/delete/rebind call `deleteByPrefix`), not by strong reads.
+
+**B. Tiered TTLs.**
+
+- Site-wide chrome (LayoutQuery, MegaQuery, timeline/stats families,
+  MaltoseSettings): 600s — low volatility, almost always cache hits.
+- Article queries (GetNodeByURI/GetPost) and home/random lists: 180s — shorter
+  bounds the stale window; reads still never block (SWR).
+
+**C. Boot-time warm-up.**
+
+- `warmCache()` in `src/api/api.ts` fills the site-wide queries on server
+  boot (layout, mega-query with homepage params, homepage posts, timeline
+  stats, comment totals). Called once from `middleware.ts` on the first
+  request, production only (dev restarts too often and re-evaluates its module
+  graph). Fire-and-forget; failures are logged, the page still renders cold.
+
+### Measured results (production `node dist/server/entry.mjs`)
+
+| Scenario | First (cold) | Warm |
+|---|---|---|
+| Home (site data, warmed) | ~0.2s (after boot warm) | 0.03s |
+| Article | 1.9s | 0.09s |
+| Timeline | 2.9s | 0.13s |
+
+### Consequence
+
+- Every repeated visit is a cache hit (<0.15s). First visits to a *specific*
+  URL still wait on WordPress (URLs are not enumerable to warm), but the
+  site-wide chrome that every page needs is warm from boot.
+- No external dependency: pure Astro-side cache tuning; works for any developer
+  without frp or webhook reachability.
+
+## Update 2026-09-05b: Dev-mode right-sidebar first-frame flash
+
+### Context
+
+On the local dev server the right sidebar (SidebarRight) flashed in ~0.1s
+after first paint on every full reload — the main content looked full-width,
+then the fixed sidebar appeared and the layout reflowed. Production
+(dev.styunlen.cn) never showed it. Playwright could not reproduce it after
+`domcontentloaded` (the flash is in the first-frame → DCL window).
+
+### Diagnosis (C — deep dive)
+
+- Both dev and prod SSR the sidebar content into the HTML identically; the
+  difference is pure CSS timing.
+- **Dev**: Astro inlines every component's CSS as `<style data-vite-dev-id>`
+  **after** the user-written head content. On a 645 KB streamed HTML (head
+  alone 369 KB) the first paint can happen before the Tailwind rules for the
+  sidebar (`.hidden` / `.2xl:flex` / `.fixed`, injected at ~byte 25800) arrive,
+  so the fixed sidebar renders unstyled/in-flow then jumps.
+- **Prod**: CSS is extracted to a render-blocking `<link>` near the top of a
+  280 KB HTML, so the first paint waits for it — no flash.
+- Astro explicitly injects dev styles to "avoid FOUC" (source comment); the
+  PR to make dev serve external CSS was declined (#10894). Vite's
+  `cssCodeSplit` and Astro's `build.inlineStylesheets` are build-time only.
+  `is:inline` styles keep their source position, before the injected dev CSS.
+
+### Decisions
+
+**A. First-frame critical CSS (dev-flash fix).**
+
+- `MainLayout.astro` head starts with `<style is:inline>` forcing the right
+  sidebar container (`[data-slot="sidebar-container"][data-side="right"]`) to
+  `display:none` and, at ≥1536px, `display:flex !important`. `!important`
+  beats the later-injected Tailwind `.hidden` (same specificity, later source
+  otherwise wins). The sidebar therefore occupies its slot from the first
+  paint in dev; prod is unaffected (harmless duplicate).
+- Rule must stay in sync with SidebarRight.tsx / animate-ui sidebar.tsx
+  breakpoint classes.
+
+**B. Astro upgrade.**
+
+- astro 7.1.3 → 7.3.1, @astrojs/node 11.0.2 → 11.1.5 (routine maintenance;
+  no specific dev-CSS fix identified in the changelog, but staying current).
+
+### Consequence
+
+- Dev reloads no longer flash/reflow the right sidebar; the is:inline rules
+  sit at byte ~894 of the head, well before the injected Tailwind (~25800).
+- Production output unchanged in behaviour; the extra inline CSS is negligible.
+
+## Update 2026-09-06: Mobile paragraph-comment affordance
+
+### Context
+
+On touch devices the paragraph-comment hover affordance was shown for every
+block at once (`@media (hover: none) { .block-comment-trigger { opacity: 1 } }`)
+— 87 always-visible buttons flooded the article on mobile.
+
+### Decisions (interview with the user; "参考知乎")
+
+- **Blocks with comments** (`[data-comment-count]`) always show their count
+  chip — it is the entry point into the existing discussion.
+- **Blocks without comments** show no affordance until they become the touch
+  "focus" block; touching a paragraph pins it (`.has-focus`), and the chip
+  appears so the reader can tap to open an empty composer.
+- **Touch focus tracking** in ParagraphComments: `touchstart` pins the block
+  under the finger; `touchmove` re-pins at most every 100 ms (chip follows a
+  slow scroll without jittering). The focus lingers after the finger lifts
+  until a new touch pins another block. Listeners are bound unconditionally
+  (desktop mice never fire touch events, so no `matchMedia` gate needed).
+- CSS scoped to `@media (hover: none)`; desktop hover behaviour unchanged.
+
+### Consequence
+
+- Mobile shows at most one affordance (the focused block) plus count chips on
+  blocks that already have comments — no more flooded article.
+- Desktop hover interactions are untouched.

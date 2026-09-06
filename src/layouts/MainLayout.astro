@@ -29,6 +29,27 @@ const pageTitle = `${title} | ${generalSettings.title}`;
 
 <html lang="en">
   <head>
+    <!-- First-frame stability for the right sidebar (dev-only FOUC fix).
+         Astro dev inlines component CSS as <style data-vite-dev-id> AFTER
+         this head content, so on a streamed first paint the sidebar's
+         Tailwind classes (.hidden/.2xl:flex/.fixed) may not have applied
+         yet → it renders unstyled then jumps. These rules are emitted here
+         (is:inline = verbatim, stays at the top of head) so the right
+         sidebar occupies its fixed slot from the very first paint.
+         !important beats the later-injected Tailwind .hidden (same
+         specificity, later source wins otherwise). Production is unaffected
+         (CSS is a render-blocking <link>), but the rules are harmless there
+         too. Keep in sync with SidebarRight.tsx / animate-ui sidebar.tsx. -->
+    <style is:inline>
+      [data-slot="sidebar-container"][data-side="right"] {
+        display: none !important;
+      }
+      @media (min-width: 1536px) {
+        [data-slot="sidebar-container"][data-side="right"] {
+          display: flex !important;
+        }
+      }
+    </style>
     <meta charset="utf-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width" />
@@ -100,6 +121,68 @@ const pageTitle = `${title} | ${generalSettings.title}`;
   document.addEventListener("astro:page-load", () => {
     setTimeout(() => document.documentElement.classList.remove("smooth-scroll"), 500);
   });
+
+  // Navigation progress bar: ClientRouter fetches the next page's SSR HTML
+  // before swapping; during that fetch the old page stays visible but there's
+  // no feedback. A thin top progress bar (YouTube-style) tells the user a
+  // transition is in flight, then clears on swap. The bar lives on
+  // document.documentElement and is located by query on removal — the swap
+  // replaces the body, so a captured element reference would go stale.
+  const navProgress = (() => {
+    let raf = 0;
+    let progress = 0;
+    const find = () =>
+      Array.from(document.querySelectorAll("div")).find(
+        (d) => d.style.position === "fixed" && d.style.height === "2px" && d.style.zIndex === "9999",
+      ) as HTMLElement | undefined;
+    const tick = () => {
+      progress = progress + (0.9 - progress) * 0.15;
+      const el = find();
+      if (el) el.style.transform = `scaleX(${progress})`;
+      raf = requestAnimationFrame(tick);
+    };
+    return {
+      show() {
+        if (find()) return;
+        const el = document.createElement("div");
+        el.style.cssText =
+          "position:fixed;top:0;left:0;right:0;height:2px;z-index:9999;" +
+          "background:var(--primary);transform-origin:left;transform:scaleX(0);" +
+          "transition:transform .1s linear;";
+        document.documentElement.appendChild(el);
+        progress = 0;
+        cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(tick);
+      },
+      done() {
+        cancelAnimationFrame(raf);
+        const el = find();
+        if (el) {
+          el.style.transform = "scaleX(1)";
+          setTimeout(() => el.remove(), 250);
+        }
+      },
+    };
+  })();
+  document.addEventListener("astro:before-preparation", navProgress.show);
+  document.addEventListener("astro:after-swap", navProgress.done);
+  document.addEventListener("astro:page-load", navProgress.done);
+
+  // ClientRouter navigation swaps the whole <html> attributes (swapRootAttributes
+  // copies the new SSR doc's <html>, which has no `dark` class because SSR
+  // doesn't know the client's theme) and does NOT re-run the head inline theme
+  // script. Re-apply the theme on every swap so the page doesn't flash from
+  // light to dark mid-navigation.
+  const applyTheme = () => {
+    const stored = localStorage.getItem("theme");
+    const dark =
+      stored === "dark" ||
+      (stored !== "light" &&
+        matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.classList.toggle("dark", dark);
+  };
+  document.addEventListener("astro:after-swap", applyTheme);
+  document.addEventListener("astro:page-load", applyTheme);
 </script>
 
 <style>

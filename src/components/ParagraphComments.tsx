@@ -144,6 +144,53 @@ export default function ParagraphComments({
     return () => document.removeEventListener("click", onTriggerClick);
   }, [postUri]);
 
+  // Touch focus tracking (ADR-0036 2026-09): on hover:none devices no affordance
+  // is always-on; instead the block under the finger gets .has-focus so its
+  // trigger shows. touchstart pins the block; touchmove re-pins at most every
+  // 100ms so a slow scroll carries the affordance from block to block without
+  // the chip jittering. The focus lingers on the last block after the finger
+  // lifts — a reader can still tap the affordance after scrolling stops — until
+  // a new touch pins a different block. Only one block has .has-focus at a time.
+  // Listeners are bound unconditionally: desktop mice never fire touch events,
+  // so this is a no-op there without needing a (flaky, init-timing-dependent)
+  // matchMedia gate.
+  React.useEffect(() => {
+    let focusEl: HTMLElement | null = null;
+    let lastMoveCheck = 0;
+
+    const setFocus = (el: HTMLElement | null) => {
+      if (focusEl === el) return;
+      focusEl?.classList.remove("has-focus");
+      el?.classList.add("has-focus");
+      focusEl = el;
+    };
+
+    const blockFromPoint = (x: number, y: number): HTMLElement | null => {
+      const el = document.elementFromPoint(x, y);
+      return el?.closest<HTMLElement>("[data-block-id]") ?? null;
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (t) setFocus(blockFromPoint(t.clientX, t.clientY));
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      const now = Date.now();
+      if (now - lastMoveCheck < 100) return;
+      lastMoveCheck = now;
+      const t = e.touches[0];
+      if (t) setFocus(blockFromPoint(t.clientX, t.clientY));
+    };
+
+    document.addEventListener("touchstart", onTouchStart, { passive: true });
+    document.addEventListener("touchmove", onTouchMove, { passive: true });
+    return () => {
+      document.removeEventListener("touchstart", onTouchStart);
+      document.removeEventListener("touchmove", onTouchMove);
+      setFocus(null);
+    };
+  }, [postUri]);
+
   // ADR-0036 P3: enter "pick a paragraph" mode — every commentable block gets
   // a temporary .block-rebind-target highlight; clicking one re-anchors the
   // orphan comment and clears the mode.

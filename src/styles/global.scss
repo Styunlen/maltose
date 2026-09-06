@@ -468,6 +468,48 @@ html.dark .paragraph-comment-panel .chat-badge--self {
   color: var(--mint-300);
 }
 
+// 暗色模式下自己评论（data-align="end"）气泡背景仍是亮绿 --primary
+// （暗色没变暗），但 --primary-foreground 解析为白 15%（--base-color-blackbtn
+// 暗色值），文字叠亮绿上对比度仅 ~1.3:1。固定为深色恢复对比（同亮色模式）。
+html.dark #comments-section .chat-bubble[data-align="end"] .cherry-markdown,
+html.dark .paragraph-comment-panel .chat-bubble[data-align="end"] .cherry-markdown {
+  --md-heading-color: #000;
+  --md-paragraph-color: #000;
+  --md-link-color: #000;
+  --md-inline-code-color: #000;
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  p,
+  li,
+  td,
+  th,
+  blockquote,
+  pre,
+  code,
+  strong,
+  em {
+    color: #000;
+  }
+}
+html.dark #comments-section .chat-bubble[data-align="end"] [data-slot="bubble-content"] a,
+html.dark .paragraph-comment-panel .chat-bubble[data-align="end"] [data-slot="bubble-content"] a {
+  color: #000;
+}
+html.dark #comments-section .chat-bubble[data-align="end"] .chat-parent-mention,
+html.dark .paragraph-comment-panel .chat-bubble[data-align="end"] .chat-parent-mention {
+  color: #000;
+}
+// 评论提交按钮同根因：--primary 亮绿底 + --primary-foreground 在暗色下是白 15%，
+// 固定深色文字恢复对比度。
+html.dark .comment-composer__submit,
+html.dark .paragraph-comment-form__submit {
+  color: #000;
+}
+
 /* ─── Paragraph comments (ADR-0036 P3) ──────────────────────────────── */
 .block-comment-host {
   position: relative;
@@ -520,13 +562,28 @@ html.dark .paragraph-comment-panel .chat-badge--self {
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
-/* Touch devices: hover doesn't exist — always show the affordance. */
+/* Touch devices: no hover. Instead of showing every affordance at once
+   (which floods the article with buttons — ADR-0036 2026-09):
+   - Blocks that already have comments ([data-comment-count]) always show
+     their count chip so readers can jump into existing discussion.
+   - Blocks WITHOUT comments only show the affordance while they are the
+     touch "focus" block (a .has-focus class managed by ParagraphComments'
+     touch tracking). Moving the finger to another block moves the focus. */
 @media (hover: none) {
+  /* Touch chips are anchored inside the block's top-right corner in BOTH
+     states. The base rule above places the trigger outside the block
+     (right: -2.25rem) for desktop hover; if touch kept that offset, removing
+     .has-focus would snap `right` back to -2.25rem with no transition and the
+     exit fade would start from a jumped position. Keep the offset constant
+     and animate only opacity/transform (which are in the transition list). */
   .block-comment-trigger {
-    opacity: 1;
-    transform: none;
     right: 0.5rem;
     top: 0.5rem;
+  }
+  .block-comment-host[data-comment-count] > .block-comment-trigger,
+  .block-comment-host.has-focus > .block-comment-trigger {
+    opacity: 1;
+    transform: none;
   }
 }
 

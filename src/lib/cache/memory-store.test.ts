@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { MemoryStore } from "./memory-store";
 import type { CacheEntry } from "./types";
 
-function entry(data: unknown, storedAt = Date.now()): CacheEntry {
-  return { data, storedAt };
+function entry(data: unknown, storedAt = Date.now(), hits = 0): CacheEntry {
+  return { data, storedAt, hits };
 }
 
 describe("MemoryStore", () => {
@@ -17,13 +17,13 @@ describe("MemoryStore", () => {
     store.set("a", entry({ x: 1 }));
     const res = store.get("a");
     expect(res instanceof Promise).toBe(false);
-    expect(res).toEqual({ data: { x: 1 }, storedAt: expect.any(Number) });
+    expect(res).toEqual({ data: { x: 1 }, storedAt: expect.any(Number), hits: 0 });
   });
 
   it("get/set/delete roundtrip", async () => {
     expect(await store.get("a")).toBeUndefined();
     await store.set("a", entry({ x: 1 }));
-    expect(await store.get("a")).toEqual({ data: { x: 1 }, storedAt: expect.any(Number) });
+    expect(await store.get("a")).toEqual({ data: { x: 1 }, storedAt: expect.any(Number), hits: 0 });
     await store.delete("a");
     expect(await store.get("a")).toBeUndefined();
   });

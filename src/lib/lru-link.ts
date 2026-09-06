@@ -94,6 +94,19 @@ export class LruLink extends ApolloLink {
     return Date.now() - entry.storedAt;
   }
 
+  /**
+   * Adaptive TTL (popularity-based): entries with many consecutive hits get a
+   * longer TTL so hot data keeps serving from cache; cold data (few hits)
+   * keeps the base TTL so it revalidates soon. `ttl = base * (1 + hits/100)`
+   * with a hard cap at 10× base — one write still expires at base TTL, only
+   * repeatedly-served entries extend.
+   */
+  private adaptiveTtlMs(opName: string, entry: CacheEntry | undefined): number {
+    const base = this.ttlMs(opName);
+    if (!entry?.hits) return base;
+    return Math.min(base * 10, base * (1 + entry.hits / 100));
+  }
+
   request(operation: Operation, forward: (op: Operation) => Observable<FetchResult>): Observable<FetchResult> {
     this.nextForward = forward;
 
@@ -104,7 +117,6 @@ export class LruLink extends ApolloLink {
 
     const key = makeCacheKey(operation);
     const opName = operation.operationName;
-    const ttl = this.ttlMs(opName);
     const isStrong = this.strong.has(opName);
 
     return new Observable((observer) => {
@@ -119,25 +131,34 @@ export class LruLink extends ApolloLink {
           const entry = res instanceof Promise ? await res : res;
           if (cancelled) return;
 
-          // Fresh hit → serve cached; revalidate in background inside window.
-          if (entry && this.ageMs(entry) < ttl) {
-            const shouldRevalidate = this.ageMs(entry) >= ttl * this.threshold;
-            if (shouldRevalidate) {
-              this.revalidate(operation, key);
-            }
-            this.onMetrics?.({ hit: true, miss: false, revalidate: shouldRevalidate, operationName: opName });
-            observer.next(entry.data as FetchResult);
-            observer.complete();
-            return;
-          }
+          if (entry) {
+            // Adaptive TTL per entry: hot keys (frequent hits) cache longer.
+            const ttl = this.adaptiveTtlMs(opName, entry);
 
-          // Expired, non-strong → serve stale now, refresh in background.
-          if (entry && !isStrong) {
-            this.revalidate(operation, key);
-            this.onMetrics?.({ hit: true, miss: false, revalidate: true, operationName: opName });
-            observer.next(entry.data as FetchResult);
-            observer.complete();
-            return;
+            // Fresh hit → serve cached; revalidate in background inside window.
+            if (this.ageMs(entry) < ttl) {
+              const shouldRevalidate = this.ageMs(entry) >= ttl * this.threshold;
+              if (shouldRevalidate) {
+                this.revalidate(operation, key);
+              }
+              // Increment hits on every serve so the adaptive TTL extends for
+              // hot entries. Best-effort write-back; failures are ignored.
+              this.cache.set(key, { ...entry, hits: (entry.hits ?? 0) + 1 }).catch(() => {});
+              this.onMetrics?.({ hit: true, miss: false, revalidate: shouldRevalidate, operationName: opName });
+              observer.next(entry.data as FetchResult);
+              observer.complete();
+              return;
+            }
+
+            // Expired, non-strong → serve stale now, refresh in background.
+            if (!isStrong) {
+              this.revalidate(operation, key);
+              this.cache.set(key, { ...entry, hits: (entry.hits ?? 0) + 1 }).catch(() => {});
+              this.onMetrics?.({ hit: true, miss: false, revalidate: true, operationName: opName });
+              observer.next(entry.data as FetchResult);
+              observer.complete();
+              return;
+            }
           }
 
           // Miss, or expired strong-consistency → hit the network.
@@ -145,7 +166,7 @@ export class LruLink extends ApolloLink {
           sub = forward(operation).subscribe({
             next: (result) => {
               if (result && !result.errors) {
-                this.cache.set(key, { data: result, storedAt: Date.now() });
+                this.cache.set(key, { data: result, storedAt: Date.now(), hits: 0 });
               }
               observer.next(result);
             },
@@ -187,7 +208,7 @@ export class LruLink extends ApolloLink {
           const sub = forward(operation).subscribe({
             next: (result) => {
               if (result && !result.errors) {
-                this.cache.set(key, { data: result, storedAt: Date.now() });
+                this.cache.set(key, { data: result, storedAt: Date.now(), hits: 0 });
               }
             },
             error: () => resolve(),

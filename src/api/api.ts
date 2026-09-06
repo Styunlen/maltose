@@ -83,24 +83,38 @@ if (import.meta.env.DEV) {
  * their entry has expired (STRONG_CONSISTENCY).
  */
 const TTL_CONFIG: Record<string, number> = {
-  LayoutQuery: 300,
-  MegaQuery: 300,
-  TimelinePosts: 300,
-  TimelineStats: 300,
-  PostsByMonth: 300,
+  // Site-wide chrome/data: low volatility, changed rarely (weeks). Long TTL +
+  // SWR background refresh means these are almost always cache hits; on the
+  // rare change the stale copy serves once then refreshes. (ADR-0036 2026-09)
+  LayoutQuery: 600,
+  MegaQuery: 600,
+  TimelinePosts: 600,
+  TimelineStats: 600,
+  PostsByMonth: 600,
+  MaltoseSettings: 600,
+  StatsCategories: 600,
+  StatsComments: 600,
+  CommentGeoStats: 600,
+  StatsContent: 600,
+  PreviewByUri: 600,
+  // Article queries: every query is SWR now (no strong-consistency wait), so a
+  // shorter TTL bounds the stale window while reads still never block — expired
+  // entries serve stale + refresh in the background. Comment/post mutations
+  // invalidate these prefixes explicitly, so "my own action shows instantly"
+  // is guaranteed by invalidation, not TTL.
+  GetNodeByURI: 180,
+  GetPost: 180,
+  HomePosts: 180,
   RandomPosts: 180,
-  HomePosts: 60,
-  GetNodeByURI: 30,
-  GetPost: 30,
-  PreviewByUri: 300,
-  MaltoseSettings: 300,
-  StatsCategories: 300,
-  StatsComments: 300,
-  CommentGeoStats: 300,
-  StatsContent: 300,
 };
 
-const STRONG_CONSISTENCY = new Set<string>(["GetNodeByURI", "GetPost"]);
+// All queries are SWR (stale-while-revalidate): an expired entry is served
+// immediately while a background refresh runs, so reads never block on the
+// network once an entry exists. Article freshness after writes is guaranteed
+// by mutation-path invalidation (comment create/update/delete/rebind call
+// deleteByPrefix), not by forcing strong consistency — the set is intentionally
+// empty so no read ever waits on WordPress (ADR-0036 update 2026-09).
+const STRONG_CONSISTENCY = new Set<string>([]);
 
 // Cache backend selection (ADR-0032): memory (default) | redis | lmdb.
 // Shared backends (redis/lmdb) enable cross-process cache coherence under
@@ -1164,4 +1178,31 @@ export function countContentWords(html: string): number {
     .split(/\s+/)
     .filter((w) => w.length > 0).length;
   return cjkCount + latin;
+}
+
+/**
+ * Warm the in-process LruLink cache after server boot (ADR-0036 2026-09).
+ *
+ * The first real visitor after a cold start otherwise waits for every SSR
+ * query to miss and hit WordPress. Filling the site-wide queries (layout,
+ * homepage mega-query, timeline stats, comment totals) means the shared
+ * chrome — which every page renders — serves from cache on the very first
+ * visit. Async, fire-and-forget: called once from middleware on the first
+ * request; failures are logged and ignored (the page still renders, just
+ * cold).
+ */
+export async function warmCache(): Promise<void> {
+  const jobs: Promise<unknown>[] = [
+    layoutQuery(),
+    megaQuery({ sidebarPosts: 5, recentComments: 5, randomFirst: 30, includeSticky: true }),
+    homePagePostsQuery(10, 0),
+    getTimelineStats(),
+    getTotalComments(),
+  ];
+  const results = await Promise.allSettled(jobs);
+  results.forEach((r, i) => {
+    if (r.status === "rejected") {
+      console.warn(`[warmCache] job ${i} failed:`, r.reason);
+    }
+  });
 }

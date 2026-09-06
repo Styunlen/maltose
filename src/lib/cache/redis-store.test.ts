@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { RedisStore } from "./redis-store";
 import type { CacheEntry } from "./types";
 
-function entry(data: unknown, storedAt = Date.now()): CacheEntry {
-  return { data, storedAt };
+function entry(data: unknown, storedAt = Date.now(), hits = 0): CacheEntry {
+  return { data, storedAt, hits };
 }
 
 /** Minimal redis client mock (node-redis v5 shape) backed by an in-memory map. */
@@ -45,7 +45,7 @@ describe("RedisStore", () => {
 
   it("get reads shared data directly from redis (no local mirror)", async () => {
     client.store.set("graphql:k", JSON.stringify(entry({ x: 1 })));
-    expect(await store.get("k")).toEqual({ data: { x: 1 }, storedAt: expect.any(Number) });
+    expect(await store.get("k")).toEqual({ data: { x: 1 }, storedAt: expect.any(Number), hits: 0 });
   });
 
   it("set writes to redis with prefix and a TTL cap", async () => {
@@ -56,7 +56,7 @@ describe("RedisStore", () => {
       expect.stringContaining('"data"'),
       { EX: 1800 },
     );
-    expect(await store.get("k")).toEqual({ data: { x: 1 }, storedAt: expect.any(Number) });
+    expect(await store.get("k")).toEqual({ data: { x: 1 }, storedAt: expect.any(Number), hits: 0 });
   });
 
   it("delete removes key from redis", async () => {
@@ -93,7 +93,7 @@ describe("RedisStore", () => {
     await lazy.set("k", entry(1)); // no-op, no throw
     lazy.setClient(client);
     await lazy.set("k", entry(2));
-    expect(await lazy.get("k")).toEqual({ data: 2, storedAt: expect.any(Number) });
+    expect(await lazy.get("k")).toEqual({ data: 2, storedAt: expect.any(Number), hits: 0 });
   });
 
   it("clear and close", async () => {

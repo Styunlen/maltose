@@ -132,7 +132,7 @@ async function doRefresh(): Promise<FriendsResult> {
 
 // Write the result into the shared store, then release the refresh lock.
 async function storeResult(data: FriendsResult): Promise<void> {
-  const entry: CacheEntry = { data, storedAt: Date.now() };
+  const entry: CacheEntry = { data, storedAt: Date.now(), hits: 0 };
   await cacheStore.store.set(FRIENDS_CACHE_KEY, entry);
   await cacheStore.store.delete(FRIENDS_LOCK_KEY);
 }
@@ -147,7 +147,7 @@ async function tryAcquireLock(): Promise<boolean> {
   // Best-effort: set and re-check. The store is the arbiter; concurrent
   // writers may both pass here on a non-atomic backend, but the harm is only
   // a duplicate probe run (acceptable).
-  await cacheStore.store.set(FRIENDS_LOCK_KEY, { data: true, storedAt: Date.now() });
+  await cacheStore.store.set(FRIENDS_LOCK_KEY, { data: true, storedAt: Date.now(), hits: 0 });
   return true;
 }
 

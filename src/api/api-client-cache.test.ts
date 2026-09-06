@@ -74,11 +74,13 @@ describe("api client cache wiring (ADR-0029)", () => {
     expect(client.defaultOptions?.query?.fetchPolicy).toBe("no-cache");
   });
 
-  it("GetNodeByURI/GetPost stay in STRONG_CONSISTENCY", async () => {
+  it("all queries are SWR — STRONG_CONSISTENCY is empty (no read waits on WP)", async () => {
     const { client, lruLink } = await import("./api");
     const strong = (lruLink as any).strong as Set<string>;
-    expect(strong.has("GetNodeByURI")).toBe(true);
-    expect(strong.has("GetPost")).toBe(true);
+    // ADR-0036 2026-09: article reads serve stale + background-refresh instead
+    // of blocking; freshness after writes is via mutation-path invalidation.
+    expect(strong.has("GetNodeByURI")).toBe(false);
+    expect(strong.has("GetPost")).toBe(false);
 
     // FetchPolicy guard already checked above; sanity-check the chain is
     // not empty and starts with a link that has the SWR gate (LruLink).

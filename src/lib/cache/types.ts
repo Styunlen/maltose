@@ -15,6 +15,8 @@ export type CacheDriver = "memory" | "redis" | "lmdb";
 export interface CacheEntry {
   data: unknown;
   storedAt: number;
+  /** Consecutive cache hits (adaptive-TTL input): more hits → longer TTL. */
+  hits: number;
 }
 
 /**

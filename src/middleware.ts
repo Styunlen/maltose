@@ -1,8 +1,17 @@
 import { defineMiddleware } from "astro/middleware";
 import { verifySessionToken, sessionToUser } from "@lib/auth/session";
 import { getProxyUrl } from "@lib/graphql-proxy";
+import { warmCache } from "@api/api";
 import jwt from "jsonwebtoken";
 import { createHash } from "node:crypto";
+// Warm the shared-cache once per process on the first request (production
+// only — dev restarts too often and its module graph re-evaluates). Fire and
+// forget: the request proceeds immediately, warming runs in the background.
+let warmStarted = false;
+if (!import.meta.env.DEV && !warmStarted) {
+  warmStarted = true;
+  warmCache().catch((err) => console.warn("[warmCache] failed:", err));
+}
 // WPGraphQL JWT carries the user id as a string; normalize to a number for
 // consistent comparison against numeric databaseId fields.
 function normalizeUserId(raw: unknown): number | null {

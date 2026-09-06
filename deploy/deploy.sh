@@ -21,7 +21,11 @@ cd "${TARGET_DIR}"
 
 echo "[deploy:${ENV_NAME}] installing production deps"
 if [ -f package.json ]; then
-  pnpm install --prod --frozen-lockfile || pnpm install --prod
+  # CI=true makes pnpm treat this as a CI environment (pnpm `ci` setting,
+  # v10.12.1+). Without a TTY pnpm otherwise aborts when it decides the
+  # modules dir must be rebuilt (ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY).
+  # Per-command env keeps this scoped to the install step only.
+  CI=true pnpm install --prod --frozen-lockfile || CI=true pnpm install --prod
 fi
 
 # Pick the pm2 app name per environment (maltose-production / maltose-staging).

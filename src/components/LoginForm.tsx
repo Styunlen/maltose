@@ -126,12 +126,14 @@ export default function LoginForm({ redirect }: { redirect: string }) {
   return (
     <div
       style={{
-        width: 400,
+        maxWidth: 400,
+        width: "100%",
         margin: "3rem auto 0",
         padding: "1.5rem",
         background: "var(--card)",
         border: "1px solid var(--border)",
         borderRadius: "var(--radius)",
+        boxSizing: "border-box",
       }}
     >
       <h2

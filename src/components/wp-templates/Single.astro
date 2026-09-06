@@ -217,33 +217,38 @@ const showSummary = bodyText.length > SUMMARY_LEN;
 // ── Author card + related posts (fetched in-component: SSR supports await) ─
 let siteInfo = { title: "", description: "" };
 let relatedPosts: any[] = [];
-try {
-  const layout = await layoutQuery();
+// 三个独立查询并行发起（SWR 优化）：layout / 随机推荐 / 相邻文章互不依赖，
+// 串行 await 会各自等待前一个的 WP 往返；Promise.allSettled 同时发出，
+// 总耗时 ≈ 最慢的一个而非三者之和。
+const [layoutRes, randomRes, adjRes] = await Promise.allSettled([
+  layoutQuery(),
+  getRandomPosts(4),
+  isPost && node.date ? getAdjacentPosts(node.date) : Promise.resolve(null),
+]);
+if (layoutRes.status === "fulfilled") {
   siteInfo = {
-    title: layout?.generalSettings?.title ?? "",
-    description: layout?.generalSettings?.description ?? "",
+    title: layoutRes.value?.generalSettings?.title ?? "",
+    description: layoutRes.value?.generalSettings?.description ?? "",
   };
-} catch (err) {
-  console.warn("[Single] layoutQuery failed:", err);
+} else {
+  console.warn("[Single] layoutQuery failed:", layoutRes.reason);
 }
-try {
-  const pool = await getRandomPosts(4);
-  relatedPosts = pool
+if (randomRes.status === "fulfilled") {
+  relatedPosts = (randomRes.value as any[])
     .filter((p: any) => p.databaseId !== node.databaseId && p.uri !== node.uri)
     .slice(0, 2);
-} catch (err) {
-  console.warn("[Single] getRandomPosts failed:", err);
+} else {
+  console.warn("[Single] getRandomPosts failed:", randomRes.reason);
 }
 // 上一篇/下一篇（按发布时间邻接；仅 Post 有，Page 无）
 let prevPost: any = null;
 let nextPost: any = null;
 if (isPost && node.date) {
-  try {
-    const adj = await getAdjacentPosts(node.date);
-    prevPost = adj.prevPost;
-    nextPost = adj.nextPost;
-  } catch (err) {
-    console.warn("[Single] getAdjacentPosts failed:", err);
+  if (adjRes.status === "fulfilled" && adjRes.value) {
+    prevPost = adjRes.value.prevPost;
+    nextPost = adjRes.value.nextPost;
+  } else {
+    console.warn("[Single] getAdjacentPosts failed:", adjRes.reason);
   }
 }
 ---

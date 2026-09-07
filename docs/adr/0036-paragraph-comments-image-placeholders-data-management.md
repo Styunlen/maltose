@@ -632,3 +632,175 @@ block at once (`@media (hover: none) { .block-comment-trigger { opacity: 1 } }`)
 - Mobile shows at most one affordance (the focused block) plus count chips on
   blocks that already have comments — no more flooded article.
 - Desktop hover interactions are untouched.
+
+## Update 2026-09-07: Count chip occludes paragraph text — moved to text-flow end
+
+### Context
+
+The always-visible count chip on `[data-comment-count]` blocks was anchored to
+the block's top-right corner (`right: 0.5rem; top: 0.5rem` in `@media
+(hover: none)`). On a long paragraph whose first line runs to the container's
+right edge, the chip sat on top of that text and occluded ~5–6 characters
+(post-1838 example: 52×26 px chip over the first line's right end).
+
+### Research (web references)
+
+Surveyed how content platforms anchor a "this text has discussion" affordance:
+Zhihu 划线评论, WeChat 公众号 划线/划线评论, Feishu Help Center, Yuque, and
+two independent blog implementations. **None anchor a persistent chip inside
+the block's top-right corner over the text.** They use either (a) inline
+text-level markers (underline + end-of-sentence icon that flows with the text)
+or (b) markers in a gutter/sidebar outside the text column. In-block corner
+floating is a documented failure mode (occludes text; overlapping controls in
+nested structures).
+
+### Decisions (interview with the user)
+
+- **Single-chip, text-flow-end placement for CoreParagraph** (chosen over a
+  dual-chip design and over CSS-only repositioning): the chip is rendered as
+  an inline tail *inside* the paragraph's text flow. On touch it settles at the
+  end of the last text line; on desktop it is pulled back out of flow with
+  `position: absolute` to the host's outer top-right, preserving the old hover
+  behaviour.
+- **React structure**: content is wrapped in a `<span dangerouslySetInnerHTML>`
+  and the chip follows as a sibling inside the `<p>`. React forbids children
+  next to `dangerouslySetInnerHTML` on one element, hence the span. Content is
+  phrasing-only in practice (verified over 275 paragraphs across 7 posts — all
+  children were inline; the only `wrappedInP` cases were empty paragraphs).
+  WPGraphQL returns raw `post_content` without kses normalisation, so the span
+  wrap relies on the editor/paste pipeline keeping paragraph content inline —
+  imports/migrations can still produce block-level content (Gutenberg #48232).
+  The 2 `wrappedInP` empty-paragraph cases keep the old div path (no tail).
+- **Scope correction** (Q5): only CoreParagraph gets the inline tail. CoreQuote/
+  CoreList/CoreCode etc. render their content via `dangerouslySetInnerHTML`
+  over an opaque HTML string with no safe React insertion point, so they keep
+  the wrapper-level overlay chip. This narrows the fix to the leaf block where
+  the occlusion was reported.
+- **Nested suppression stays pure CSS**: a paragraph inside a quote is its own
+  host; when the quote is hovered the outer overlay chip is suppressed by
+  `:has(.block-comment-host:hover)`, and when the inner paragraph is hovered
+  its inline chip shows while the quote's overlay chip is hidden. Verified on
+  real nested DOM (10 nested hosts in post-1838).
+
+### Trade-off (measured)
+
+An inline chip always occupies flow space even at `opacity: 0`; `display:none`
+would lose the in-flow end-of-line position and cause layout jump on focus.
+Measured over 53 inline-tail paragraphs (offsetHeight A/B, chip hidden vs
+shown): only 3 paragraphs change height (by one line, 31–32 px) — those whose
+last line happens to be full enough that the chip forces a wrap. The commented
+paragraph itself measured zero change. Desktop is unaffected (chip is
+`absolute`, out of flow).
+
+### Consequence
+
+- Touch: the count chip sits at the end of the paragraph's last line, never
+  over text. Desktop hover behaviour and position are unchanged.
+- Article typography is preserved except rare one-line pushes on full last
+  lines (accepted; ~6% of paragraphs, never on the commented one in tests).
+- The chip remains clickable via the existing document-level delegation (moved
+  element is still matched by `closest('.block-comment-trigger')`).
+
+### Follow-up 2026-09-07: container blocks (quote/table/code) get a block-level marker
+
+The inline-tail fix only fits leaf text blocks whose content is phrasing-safe.
+Container blocks (CoreQuote/CoreList/CoreTable/CoreCode/CoreHtml/CorePreformatted)
+render raw block-level HTML strings via `dangerouslySetInnerHTML` — there is no
+safe React insertion point inside their text, and wrapping block content in a
+`<span>` would corrupt the HTML. A second variant handles them:
+
+- **`block-comment-host--block-tail`**: the chip is rendered as a wrapper
+  sibling **after** the container content. On touch it becomes `position:
+  static` (a block-level marker below the quote/table/code, `margin-top:
+  0.5rem`); on desktop it stays `position: absolute` at the host's outer
+  top-right via `.block-comment-host { position: relative }` — DOM order is
+  irrelevant for out-of-flow elements, so the moved node does not change the
+  desktop hover affordance.
+- Verified on the one real commented container in post-1838 (an Alert quote):
+  touch chip sits below the container with zero text overlap; desktop hover
+  still shows it at the outer top-right; `:has()` nested suppression (outer
+  chip hidden while an inner paragraph host is hovered) is preserved.
+- CoreListItem keeps the inline span-host overlay (list items are short;
+  no block marker inside a `<li>`).
+
+### Follow-up 2026-09-07: whole-block hosts return to top-right + highlight frame
+
+User review of the below-container block marker: for whole-block comments
+(code/table/quote) a chip below the container reads worse than the top-right
+overlay. Final shape:
+
+- **Inline-tail stays** for CoreParagraph (end of last text line, all devices).
+- **`block-comment-host--block`** (quote/table/code/html/pre): the chip is an
+  absolute overlay at the host's top-right again — where it reads as "this
+  entire container".
+- **Highlight frame**: whenever the chip shows (host `:hover` on desktop;
+  `[data-comment-count]` / `.has-focus` / `:focus-within` on touch) the host is
+  framed by a `::before` box (`inset: -5px`, 1.5 px primary border, radius 8 px).
+  The pseudo-element is used instead of `outline` because outline cannot be
+  transitioned — the frame fades in/out over 0.18 s in sync with the chip,
+  so the user sees the comment targets the whole block.
+- **Nested suppression covers the frame**: when any inner host is showing its
+  affordance (hover / count chip / focus), the outer block's chip AND frame
+  both stand down — only the innermost comment target is indicated.
+- CoreParagraph (inline-tail) paragraphs never get the frame.
+
+### Follow-up 2026-09-07: image blocks + list-item line-end + hover-gap fix
+
+- **CoreImage is now commentable** as a whole-block host (--block): chip at the
+  top-right + highlight frame, same as quote/table/code. CoreImage itself
+  needed no change — the wrapper carries the anchor/chip.
+- **CoreListItem joins the inline-tail path**: its chip renders inside the
+  `<li>` right after the item text (before any nested list), so list items
+  show the affordance at the end of the line like paragraphs do, instead of
+  the old right-side overlay.
+- **Hover-gap fix (desktop)**: the whole-block chip floats outside the host
+  (`right: -2.25rem`), leaving a ~10 px dead zone between the host edge and
+  the chip. Moving the mouse across it dropped `:hover` and dismissed the
+  affordance mid-flight. Two combined mitigations:
+  1. **Delayed hide** — the chip's exit transition carries a 0.25 s delay
+     (`transition: opacity .18s ease .25s` in the hidden state); showing stays
+     instant (the shown-state rules override with a delay-less transition).
+     Measured: chip stays fully visible ~280 ms after the trigger is removed,
+     then fades over 180 ms.
+  2. **Hover bridge** — a transparent `::before` hit-area on the chip extends
+     `1rem` leftward from the chip's left edge across the gap. The chip is a
+     DOM child of the host, so while the pointer is over the bridge the host
+     stays `:hover` and the affordance cannot dismiss. Verified by walking a
+     mouse path host→chip: opacity holds at 1 across the former dead zone.
+
+### Follow-up 2026-09-07: whole-block hosts nested in columns lost their frame
+
+Blocks nested in CoreColumns render through `WordPressBlocks noWrapper=true`,
+which routed every commentable block into the light `span` host branch —
+designed for CoreListItem. Whole-block types (quote/table/code/image) nested
+in columns therefore became `span.block-comment-host--inline` overlay hosts
+with no highlight frame. Fixed by branching the `noWrapper && commentable`
+path on intent:
+
+- Inline-tail types (CoreParagraph / CoreListItem) keep the `span` inline host.
+- Whole-block types get a `div.block-comment-host--block` host even when
+  nested, restoring the top-right chip and the `::before` frame. Verified:
+  columns-hosted tables/images now show both chip and outline on the same
+  triggers as top-level blocks.
+
+### Follow-up 2026-09-07: line-end chip must not wrap to its own line
+
+A text-flow inline chip wraps to its own line when the paragraph's text fills
+the line — the remaining gap is smaller than the chip. A **zero-width anchor**
+fixes it: the chip is wrapped in an inline-block span with `width: 0` and
+`overflow: visible`. The line box measures the anchor as zero wide, so a full
+line never pushes the chip down; the chip paints just right of the anchor
+(text end) and overflows the container by a few px. Measured: an 18-char
+full-width line keeps the anchored chip on the line (chip x at line end,
+overflow ~8 px) where the unanchored chip wrapped to the next line.
+
+The inline-tail chip was also redesigned as a **compact single SVG** — a
+rounded-square bubble (`message-square` path) with the count rendered as SVG
+`<text>` inside it (font-size adapts: 1 digit 9, 2 digits 7.5, 3+ digits 6.5).
+At 15×15 px it is ~⅓ the old 52 px pill width, so the anchored overflow is
+tiny and mobile `body { overflow-x: clip }` never cuts it. The transparent
+icon (no border/bg) sits at 0.55 opacity at rest, full `--primary` when shown
+(host hover / count / focus). Whole-block and list overlay chips keep the pill
+shape with the `span.block-comment-count`.
+
+

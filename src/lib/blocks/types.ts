@@ -253,4 +253,13 @@ export interface BlockRendererProps {
   commentsByBlock?: Record<string, number>;
   /** Fired when the paragraph-comment affordance is clicked. */
   onCommentClick?: (clientId: string) => void;
+  /**
+   * Inline comment affordance rendered at the end of the block's text flow
+   * (single-chip design, ADR-0036 2026-09). Leaf text blocks whose content is
+   * phrasing-safe (CoreParagraph, CoreListItem) consume this; they render it
+   * as an inline tail so it sits at the end of the last text line instead of
+   * overlaying the block corner. Other commentable blocks keep the
+   * wrapper-level overlay chip.
+   */
+  commentTail?: React.ReactNode;
 }

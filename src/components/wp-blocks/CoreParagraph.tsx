@@ -5,6 +5,7 @@ import { gql } from "@apollo/client";
 export default function CoreParagraph({
   block,
   className,
+  commentTail,
 }: BlockRendererProps) {
   const paragraphBlock = block as ParagraphBlock;
   const { content, dropCap } = paragraphBlock.attributes;
@@ -25,6 +26,22 @@ export default function CoreParagraph({
 
   if (wrappedInP) {
     return <div className={paragraphClass} dangerouslySetInnerHTML={{ __html: content }} suppressHydrationWarning={true} />;
+  }
+
+  // With an inline comment tail, the content must be wrapped in a <span> so
+  // the button can follow it inside the same <p> text flow (React forbids
+  // children next to dangerouslySetInnerHTML on one element). Content is
+  // phrasing-only in practice (see ADR-0036); the span keeps it in-flow.
+  if (commentTail) {
+    return (
+      <p className={paragraphClass}>
+        <span
+          dangerouslySetInnerHTML={{ __html: content }}
+          suppressHydrationWarning={true}
+        />
+        {commentTail}
+      </p>
+    );
   }
 
   return (

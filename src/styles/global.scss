@@ -514,15 +514,15 @@ html.dark .paragraph-comment-form__submit {
 .block-comment-host {
   position: relative;
 }
-/* Hover affordance: a small comment bubble that fades in on hover (desktop)
-   and is always visible on touch (no hover). */
+/* Comment affordance base: a small bubble pill. Placement is per-variant —
+   inline-tail chips ride the paragraph text flow; whole-block hosts (--block)
+   keep the absolute top-right overlay plus a host outline; list-item hosts
+   keep the absolute overlay. Visibility is gated by opacity (hover on
+   desktop, [data-comment-count]/.has-focus on touch) so entering/leaving
+   never reflows layout. */
 .block-comment-trigger {
-  position: absolute;
-  right: -2.25rem;
-  top: 0.25rem;
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
   padding: 0.3rem 0.45rem;
   border: 1px solid var(--border);
   border-radius: 9999px;
@@ -532,27 +532,220 @@ html.dark .paragraph-comment-form__submit {
   line-height: 1;
   cursor: pointer;
   opacity: 0;
-  transform: translateX(4px);
-  transition: opacity 0.18s ease, transform 0.18s ease, color 0.18s ease;
+  transition: opacity 0.18s ease, color 0.18s ease;
   z-index: 5;
 }
-/* Only the host being hovered shows its own (direct-child) trigger. Using >
-   instead of a descendant space prevents an outer host's :hover from lighting
-   up triggers nested inside it (e.g. a quote's outer trigger AND its inner
-   paragraph trigger). Combined with the :has() rule below, hovering any point
-   of a nested structure shows exactly one — the innermost hovered host's. */
-.block-comment-host:hover > .block-comment-trigger,
-.block-comment-trigger:focus-visible,
+
+/* ── Shared visibility triggers (device-independent) ───────────────────
+   Each variant shows its OWN chip on its own host's :hover (desktop) or
+   [data-comment-count]/.has-focus (touch). Rules are written per-variant so
+   an outer host's :hover never lights chips nested inside it — nested
+   suppression is handled by the :has() rules below each variant. */
+.block-comment-trigger--inline:focus-visible,
 .block-comment-trigger[data-force-visible] {
   opacity: 1;
+}
+
+/* ── Inline-tail paragraphs (single-chip, ADR-0036 2026-09-07) ─────────
+   The chip is a compact bubble icon sitting at the end of the paragraph's text
+   flow. It is wrapped in a zero-width inline-block anchor (.block-comment-
+   anchor) so the line box measures 0 for it: a full text line never pushes the
+   chip to its own line, and the chip paints a few px past the text end. The
+   anchor keeps opacity triggers; the button itself is a transparent compact
+   icon (no pill) so overflow stays tiny. */
+.block-comment-host--inline-tail > .wp-block-paragraph > .block-comment-anchor {
+  display: inline-block;
+  width: 0;
+  overflow: visible;
+  vertical-align: middle;
+  margin-inline-start: 0.15em;
+}
+.block-comment-host--inline-tail
+  > .wp-block-paragraph
+  > .block-comment-anchor
+  > .block-comment-trigger--inline {
+  display: inline-block;
+  line-height: 0;
+  color: var(--muted-foreground);
+  border: none;
+  background: none;
+  padding: 0;
+  /* Hidden at rest — only shown on host hover / has-comments / touch focus.
+     The chip must NOT be permanently visible (it would crowd every line end). */
+  opacity: 0;
+  transform: translateX(0.1em);
+  transition: opacity 0.18s ease, color 0.18s ease;
+}
+.block-comment-host--inline-tail:hover
+  > .wp-block-paragraph
+  > .block-comment-anchor
+  > .block-comment-trigger--inline,
+.block-comment-host--inline-tail[data-comment-count]
+  > .wp-block-paragraph
+  > .block-comment-anchor
+  > .block-comment-trigger--inline,
+.block-comment-host--inline-tail.has-focus
+  > .wp-block-paragraph
+  > .block-comment-anchor
+  > .block-comment-trigger--inline {
+  opacity: 1;
+  color: var(--primary);
+}
+.block-comment-host--inline-tail
+  > .wp-block-paragraph
+  > .block-comment-anchor
+  > .block-comment-trigger--inline:hover {
+  color: var(--primary);
+}
+/* Nested suppression: a paragraph inside a quote must not light its own chip
+   while the outer quote host is hovered (only the innermost hovered host's
+   affordance shows). :has() hides the inner chip when an ancestor relationship
+   would otherwise double-light it. */
+.block-comment-host--inline-tail:has(.block-comment-host:hover)
+  > .wp-block-paragraph
+  > .block-comment-anchor
+  > .block-comment-trigger--inline {
+  opacity: 0;
+}
+
+/* ── Inline-tail list items (CoreListItem) ─────────────────────────────
+   Same single-chip treatment as paragraphs (zero-width anchor + compact icon),
+   but the chip sits inside the <li> after its text content (before any nested
+   list). The span host wraps the <li>, so the chip is one level deeper. */
+.block-comment-host--inline.block-comment-host--inline-tail
+  > li
+  > .block-comment-anchor {
+  display: inline-block;
+  width: 0;
+  overflow: visible;
+  vertical-align: middle;
+  margin-inline-start: 0.15em;
+}
+.block-comment-host--inline.block-comment-host--inline-tail
+  > li
+  > .block-comment-anchor
+  > .block-comment-trigger--inline {
+  display: inline-block;
+  line-height: 0;
+  color: var(--muted-foreground);
+  border: none;
+  background: none;
+  padding: 0;
+  /* Hidden at rest — only on host hover / has-comments / touch focus. */
+  opacity: 0;
+  transform: translateX(0.1em);
+  transition: opacity 0.18s ease, color 0.18s ease;
+}
+.block-comment-host--inline.block-comment-host--inline-tail:hover
+  > li
+  > .block-comment-anchor
+  > .block-comment-trigger--inline,
+.block-comment-host--inline.block-comment-host--inline-tail[data-comment-count]
+  > li
+  > .block-comment-anchor
+  > .block-comment-trigger--inline,
+.block-comment-host--inline.block-comment-host--inline-tail.has-focus
+  > li
+  > .block-comment-anchor
+  > .block-comment-trigger--inline {
+  opacity: 1;
+  color: var(--primary);
+}
+.block-comment-host--inline.block-comment-host--inline-tail:has(
+    .block-comment-host:hover
+  )
+  > li
+  > .block-comment-anchor
+  > .block-comment-trigger--inline {
+  opacity: 0;
+}
+
+/* ── Whole-block hosts (--block): quote/table/code/html/pre ────────────
+   These blocks are commented on as a WHOLE (their raw-HTML content has no
+   in-flow insertion point). The chip stays an absolute overlay at the host's
+   top-right — where it reads as "this entire container" — and whenever the
+   chip is shown the host also gets a highlight frame so the user sees the
+   comment target is the whole block, not a line of text inside it.
+
+   The frame is a ::before box (border, not outline) because outline cannot be
+   transitioned; the pseudo-element fades in/out in sync with the chip. */
+.block-comment-host--block > .block-comment-trigger {
+  position: absolute;
+  right: -2.25rem;
+  top: 0.25rem;
+  transform: translateX(4px);
+  /* Hover-gap fix (ADR-0036 2026-09): hide with a 0.25s delay so a mouse
+     crossing the ~10px dead zone between the host edge and the chip does not
+     dismiss the affordance before it can be reached. Showing stays instant
+     (override below sets transition without delay). */
+  transition:
+    opacity 0.18s ease 0.25s,
+    transform 0.18s ease,
+    color 0.18s ease;
+}
+/* Hover bridge: a transparent hit-area that extends from the chip's left edge
+   back across the host/chip gap. The chip is a DOM child of the host, so while
+   the pointer is over the bridge the host stays :hover and the chip stays
+   visible. */
+.block-comment-host--block > .block-comment-trigger::before {
+  content: "";
+  position: absolute;
+  right: 100%;
+  top: -6px;
+  bottom: -6px;
+  width: 1rem;
+}
+.block-comment-host--block::before {
+  content: "";
+  position: absolute;
+  /* Expanded slightly beyond the host so the frame reads as an outline
+     (outline-offset: 4px equivalent) without touching the host's own edge. */
+  inset: -5px;
+  border: 1.5px solid color-mix(in oklch, var(--primary) 55%, transparent);
+  border-radius: 8px;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  pointer-events: none;
+  z-index: 4;
+}
+/* Show the chip and the frame together, on every device, for the same
+   trigger set: hover (desktop), has-comments / touch-focus (mobile). The
+   frame never changes layout (absolutely positioned, pointer-events none). */
+.block-comment-host--block:hover > .block-comment-trigger,
+.block-comment-host--block[data-comment-count] > .block-comment-trigger,
+.block-comment-host--block.has-focus > .block-comment-trigger {
+  opacity: 1;
   transform: translateX(0);
+  /* Override the delayed-hide transition: showing is instant. */
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease,
+    color 0.18s ease;
 }
-/* Nested commentable blocks (e.g. paragraph inside a quote): hovering the
-   inner block hides the outer block's trigger so the two comment buttons
-   never overlap in the top-right corner. */
-.block-comment-host:has(.block-comment-host:hover) > .block-comment-trigger {
-  display: none;
+.block-comment-host--block:hover::before,
+.block-comment-host--block[data-comment-count]::before,
+.block-comment-host--block.has-focus::before,
+.block-comment-host--block:focus-within::before {
+  opacity: 1;
 }
+/* Nested suppression for whole-block hosts mirrors the paragraph rule: when
+   any inner host is showing its affordance (hovered on desktop, or holding a
+   count chip / touch focus on mobile) the outer block's chip AND frame both
+   stand down — only the innermost comment target is ever indicated. */
+.block-comment-host--block:has(.block-comment-host:hover)::before,
+.block-comment-host--block:has(.block-comment-host[data-comment-count])::before,
+.block-comment-host--block:has(.block-comment-host.has-focus)::before {
+  opacity: 0;
+}
+.block-comment-host--block:has(.block-comment-host:hover)
+  > .block-comment-trigger,
+.block-comment-host--block:has(.block-comment-host[data-comment-count])
+  > .block-comment-trigger,
+.block-comment-host--block:has(.block-comment-host.has-focus)
+  > .block-comment-trigger {
+  opacity: 0;
+}
+
 .block-comment-trigger:hover {
   color: var(--primary);
   border-color: color-mix(in oklch, var(--primary) 40%, transparent);
@@ -562,28 +755,34 @@ html.dark .paragraph-comment-form__submit {
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
-/* Touch devices: no hover. Instead of showing every affordance at once
-   (which floods the article with buttons — ADR-0036 2026-09):
-   - Blocks that already have comments ([data-comment-count]) always show
-     their count chip so readers can jump into existing discussion.
-   - Blocks WITHOUT comments only show the affordance while they are the
-     touch "focus" block (a .has-focus class managed by ParagraphComments'
-     touch tracking). Moving the finger to another block moves the focus. */
+
+/* ── Legacy overlay hosts (inline list items) ──────────────────────────
+   CoreListItem keeps the wrapper-level absolute chip (no block marker inside
+   a <li>). Its only touch trigger is .has-focus; blocks with comments are
+   rare in lists. */
+.block-comment-host--inline {
+  position: relative;
+}
+.block-comment-host--inline > .block-comment-trigger {
+  position: absolute;
+  right: -2.25rem;
+  top: 0.25rem;
+  transform: translateX(4px);
+  transition: opacity 0.18s ease, transform 0.18s ease, color 0.18s ease;
+}
+.block-comment-host--inline:hover > .block-comment-trigger {
+  opacity: 1;
+  transform: translateX(0);
+}
 @media (hover: none) {
-  /* Touch chips are anchored inside the block's top-right corner in BOTH
-     states. The base rule above places the trigger outside the block
-     (right: -2.25rem) for desktop hover; if touch kept that offset, removing
-     .has-focus would snap `right` back to -2.25rem with no transition and the
-     exit fade would start from a jumped position. Keep the offset constant
-     and animate only opacity/transform (which are in the transition list). */
-  .block-comment-trigger {
+  .block-comment-host--inline > .block-comment-trigger {
     right: 0.5rem;
     top: 0.5rem;
-  }
-  .block-comment-host[data-comment-count] > .block-comment-trigger,
-  .block-comment-host.has-focus > .block-comment-trigger {
-    opacity: 1;
     transform: none;
+  }
+  .block-comment-host--inline[data-comment-count] > .block-comment-trigger,
+  .block-comment-host--inline.has-focus > .block-comment-trigger {
+    opacity: 1;
   }
 }
 

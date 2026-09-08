@@ -25,3 +25,28 @@ Single-context: `CONTEXT.md` at the root + ADRs in `docs/adr/` + glossary in `do
 - When you have staged or committed work ready to publish, present: what will be committed/pushed, the commit list, and any sensitive-content check — then wait.
 - Before proposing a commit or push, verify the diff contains **no secrets, real IPs, or credentials**. If in doubt, ask.
 - If the user rejects a commit or push, do not proceed — rebase/amend locally as requested and re-present.
+
+## Todo list vs. waiting-on-human (MANDATORY)
+
+OpenCode's todo-continuation timer re-drives any unfinished todo item. **Leaving a
+todo that is waiting on the user (commit/push approval, a design decision, missing
+info) causes an infinite re-prompt loop** — the timer fires, the agent re-runs the
+blocked item, can't proceed, and repeats forever.
+
+Rules to prevent that:
+
+- **Never create a todo for an action that requires the user's approval or input.**
+  Commit/push/PR/release proposals are NOT todos. Do the work, end the todo list
+  clean (all `completed` or `cancelled`), then *ask in prose* and wait. When the
+  user approves in a later message, do the action in that turn — optionally with a
+  fresh todo list.
+- **Blocking dependencies never sit in the todo list.** If an item is blocked by a
+  background task, an external service, or missing information, either (a) mark it
+  `pending` and END the response so the completion notification wakes you, or
+  (b) mark it `cancelled` and carry the blocker in prose instead. Never leave a
+  `pending`/`in_progress` todo that you cannot make progress on right now.
+- **One `in_progress` at a time, and only while actively working.** When you stop
+  to wait, no todo may be `in_progress`.
+- If a todo truly cannot be finished without the user, `cancelled` it with the
+  reason noted in your message rather than leaving it open forever.
+

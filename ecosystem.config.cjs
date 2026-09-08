@@ -26,10 +26,15 @@ module.exports = {
       // --env-file, path relative to pm_cwd = deploy dir). This makes every
       // env var (APP_SECRET, AUTHENTIK_*, GRAPHQL_CACHE_*, …) runtime-mutable:
       // edit .env on the server, `pm2 restart`, done — no rebuild.
+      //
+      // Cache driver deliberately NOT pinned here (same rule as staging):
+      // GRAPHQL_CACHE_DRIVER comes from the deploy-dir .env, and pinning it in
+      // env: would shadow .env — Node's --env-file never overrides an
+      // already-present variable. Set GRAPHQL_CACHE_DRIVER=lmdb (or redis) in
+      // the server .env when a shared backend is wanted.
       node_args: "--env-file=.env",
       env: {
         NODE_ENV: "production",
-        GRAPHQL_CACHE_DRIVER: "memory",
       },
       // ── Option A: shared via Redis ────────────────────────────────────
       // env: { NODE_ENV:"production", PORT: 8080, GRAPHQL_CACHE_DRIVER:"redis", REDIS_URL:"redis://localhost:6379", GRAPHQL_CACHE_CLEANUP_MS:"3600000" },
@@ -43,10 +48,13 @@ module.exports = {
       exec_mode: "cluster",
       autorestart: true,
       max_memory_restart: "1G",
+      // Runtime config (GRAPHQL_CACHE_DRIVER, PORT, APP_SECRET, …) lives in the
+      // deploy-directory .env file, loaded via node --env-file=.env. Do NOT pin
+      // env vars here — an env: value would shadow .env (Node's --env-file
+      // never overrides an already-present variable).
       node_args: "--env-file=.env",
       env: {
         NODE_ENV: "production",
-        GRAPHQL_CACHE_DRIVER: "memory",
       },
       // ── Option A: shared via Redis ────────────────────────────────────
       // env: { NODE_ENV:"production", PORT: 8081, GRAPHQL_CACHE_DRIVER:"redis", REDIS_URL:"redis://localhost:6379", GRAPHQL_CACHE_CLEANUP_MS:"3600000" },

@@ -45,8 +45,17 @@ if ! command -v pm2 >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "[deploy:${ENV_NAME}] reloading pm2 app ${APP_NAME}"
-pm2 reload "${APP_NAME}" || pm2 start ecosystem.config.cjs --only "${APP_NAME}"
+echo "[deploy:${ENV_NAME}] (re)creating pm2 app ${APP_NAME} from ecosystem.config.cjs"
+# delete + start is the ONLY pm2 path that reliably applies BOTH env changes
+# AND structural attributes (script, instances, exec_mode, node_args) from the
+# ecosystem file. `pm2 start ecosystem.config.cjs` against an already-running
+# app internally degrades to restartProcessId, which merges only env vars —
+# structural edits silently never apply, and `pm2 save` re-pins the stale
+# definition into ~/.pm2/dump.pm2. delete clears the registered definition so
+# the following start re-parses the freshly rsynced eco file in full
+# (verified empirically 2026-09-08; see ADR-0034 operational note).
+pm2 delete "${APP_NAME}" 2>/dev/null || true
+pm2 start ecosystem.config.cjs --only "${APP_NAME}"
 pm2 save >/dev/null 2>&1 || true
 
 echo "[deploy:${ENV_NAME}] done"

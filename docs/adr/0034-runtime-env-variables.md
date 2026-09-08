@@ -46,6 +46,31 @@ deploy-directory `.env` into the process at startup:
 - Reverse-proxy (nginx/caddy) sits in front and terminates TLS; it must reach
   the app through `host.docker.internal` (or an explicit listen address).
 
+## Operational note (2026-09-08): pm2 eco env changes need delete + start
+
+pm2 pins an app's env AND structural definition (script, instances, exec_mode,
+node_args) at first `pm2 start ecosystem.config.cjs`. Subsequent deploys that
+only run `pm2 reload <name>` / `pm2 restart <name>` operate on that in-memory
+snapshot and NEVER re-read the ecosystem file — even when CI rsyncs a fresh
+copy over it, and `pm2 save` re-pins the stale definition into `~/.pm2/dump.pm2`
+(after which server reboots resurrect the stale env too).
+
+Worse, `pm2 start ecosystem.config.cjs` against an ALREADY-running app
+internally degrades to `restartProcessId`: it merges only env values, so env
+adds/edits take effect but **structural edits (script, instances, exec_mode,
+node_args) and env removals silently do not** (verified empirically 2026-09-08
+against pm2 v7.0.3; see pm2 issue #3742 for the long-standing report).
+
+Consequences for this repo:
+
+- `deploy.sh` therefore does `pm2 delete <app>` + `pm2 start ecosystem.config.cjs
+  --only <app>` — the only path that re-parses the eco file in full. There is a
+  brief downtime on each deploy; acceptable for the two-instance staging box.
+- Keep runtime config in the server `.env` (the `--env-file` channel re-reads on
+  every worker spawn), NOT in the eco `env:` block — the eco env block is
+  `NODE_ENV` only and must stay that way. Any future eco `env:` addition will be
+  shadowing-prone and require the same delete+start to take effect.
+
 ## Alternatives considered
 
 - **GitHub Action env injection at build time** — rejected: verbose, every new

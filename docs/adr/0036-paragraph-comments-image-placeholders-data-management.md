@@ -847,3 +847,147 @@ elements cannot hold a React chip child and need a positioned container for the
 frame/absolute chip). To be done as its own change; see BlockRenderer's
 `noWrapper && commentable && useInlineTail` branch.
 
+### Design 2026-09-08 (rev B): hybrid self-host + generic end-adornment slot
+
+Decision (final, supersedes the provisional self-host direction in the Deferred
+note above): implement hybrid self-host with a GENERIC leaf-component contract,
+not a comment-specific prop. Two requirements drove the choice:
+
+1. The leaf components (CoreParagraph, CoreListItem) must NOT grow comment
+   vocabulary — comment/favorite/agreement features all want a trailing
+   affordance on the same blocks, so the slot is a general mechanism, not a
+   comment one.
+2. HTML validity still forces the anchor onto the block's own element.
+
+So the change is split into a generic rendering contract (this ADR) and the
+comment feature that consumes it (all the previous Update sections).
+
+#### Generic contract (block leaf components)
+
+- Rename the `commentTail` prop to **`endAdornment`** (types.ts). It is "one or
+  more trailing controls rendered at the end of the block's text flow". The
+  comment bubble becomes the FIRST consumer; paragraph favorite + agreement
+  (like) controls are planned consumers — they mount into the same slot without
+  touching leaf components.
+- Leaf components adopt one rule: they merge an incoming `className` and
+  spread a **`rootProps`** passthrough onto their root element (p/li/div).
+  Channel split: **host classes travel the existing `className` channel**
+  (BlockRenderer appends `block-comment-host --inline-tail` to the class list
+  it already passes every block); **`rootProps` carries only `data-*` state
+  markers** (`data-block-id`, `data-comment-count`, future feature markers).
+  Keeping host classes in `className` avoids a second class-merge path in every
+  leaf; keeping `rootProps` data-only makes it type-safe and grep-able. This is
+  the exact mechanism that lets BlockRenderer stay the decision centre while
+  the anchor physically lands on the block element.
+
+```ts
+// types.ts (shape)
+interface BlockRendererProps {
+  block: SupportedBlock;
+  className?: string;
+  children?: React.ReactNode;
+  noWrapper?: boolean;
+  dataBlockId?: string;
+  commentsByBlock?: Record<string, number>;
+  onCommentClick?: (clientId: string) => void;
+  /** Generic trailing-control slot — renders after the block's own text.
+   *  Comment bubble today; paragraph favorite / agreement controls later. */
+  endAdornment?: React.ReactNode;
+  /** DOM data-contract for the root element: block-interaction state markers
+   *  (data-block-id, data-comment-count today; favorite/agreement later).
+   *  Leaf spreads onto its own root; BlockRenderer decides the values. */
+  rootProps?: {
+    "data-block-id"?: string;
+    "data-comment-count"?: string;
+  };
+}
+```
+
+- This keeps ALL comment logic in BlockRenderer (the decision centre, 27
+  references, oracle 2026-09-07): it computes commentability, host classes,
+  wrapper attrs, and passes them via the generic `rootProps`/`endAdornment`
+  channels. Leaves never name a comment concept.
+
+#### Current DOM and the three invalid shapes
+
+- Top-level paragraph: `div.wp-block-wrapper.my-8.block-comment-host
+  --inline-tail[data-block-id] > p` — valid, visually redundant wrapper.
+- Nested paragraph (quote/columns inner): `span.block-comment-host--inline
+  [data-block-id] > p` — INVALID (`span` phrasing > `p` flow).
+- Nested list item: `ul > span[data-block-id] > li` (recurse) — INVALID
+  (`ul` direct child must be `li`); theme `ul > li` selectors break.
+- Whole-block (quote/table/code/html/pre): div host — valid, unchanged.
+
+#### Target DOM
+
+- Top-level paragraph: `div.wp-block-wrapper.my-8` (layout ONLY, as for every
+  non-comment block) `> p.wp-block-paragraph.block-comment-host--inline-tail
+  [data-block-id]` — `endAdornment` bubble inside the `<p>` flow.
+- Nested paragraph: plain `<p>` self-host, no wrapper.
+- List item (any depth): `<li class="block-comment-host--inline-tail"
+  [data-block-id]>` — `ul > li` restored.
+- Whole-block: unchanged div host.
+- `wrappedInP` paragraph (content pre-wrapped in `<p>` by WP): its early-return
+  `<div>` also receives `rootProps` (data-block-id + host classes) and the
+  `endAdornment`, restoring the currently-lost comment entry (pre-existing bug).
+
+#### Per-file change contract
+
+- **types.ts:** rename `commentTail` → `endAdornment`; add `rootProps`.
+- **BlockRenderer.tsx:** `noWrapper && commentable && useInlineTail` stops
+  wrapping — renders `<Component>` directly, handing it `endAdornment` plus
+  `rootProps` (data markers) and appending the host classes to `className`.
+  Top-level branch keeps the `my-8` layout wrapper but strips comment
+  classes/data from it, forwarding them to the leaf through the same two
+  channels. Whole-block branch untouched. `commentAffordance` wraps the bubble
+  in the zero-width `.block-comment-anchor` as today.
+- **CoreParagraph.tsx / CoreListItem.tsx:** render `endAdornment` after content
+  (rename only) and spread `rootProps` onto the root (merge className). No
+  comment vocabulary enters these files.
+- **global.scss:** one host shape per affordance. `.block-comment-host
+  --inline-tail > .block-comment-anchor` replaces the paragraph + list-item
+  selector pairs (`> .wp-block-paragraph >` and `.block-comment-host--inline >
+  li >`). Legacy absolute-overlay `.block-comment-host--inline` CSS block is
+  deleted (no DOM left for it). `:has(.block-comment-host:hover)` nested
+  suppression unchanged (self-hosted inner p is still a `.block-comment-host`).
+
+#### Impact matrix
+
+- SSR/hydration — HIGHEST RISK: wrapper removal changes DOM depth; SSR and
+  client hydrate must match. Verify whole-page hydration on quote/columns/list
+  pages.
+- Top-level vertical rhythm: `my-8` stays on layout wrapper → unchanged.
+- Snippet / scroll fidelity improve (anchor is now the exact p/li).
+- Whole-block & non-commentable paths: zero change.
+- List marker rendering shifts to correct `ul > li` — verify visually.
+- Rename `commentTail` → `endAdornment` touches 4 source files + this ADR
+  (grep-verified: types.ts, CoreParagraph, CoreListItem, BlockRenderer).
+
+#### Test checklist
+
+1. HTML validity: no `span>p`, `span>li`, `ul>span`; `[data-block-id]` ∈
+   {P, LI, DIV-whole-block}; ids unique; quote inner paragraphs each get their
+   own id beside the quote's.
+2. Top-level paragraph baseline: hover chip, rest state for commented blocks,
+   panel anchored at `p.getBoundingClientRect().bottom`, unchanged rhythm.
+3. Quote inner paragraph: hover quote shows quote chip/frame and suppresses
+   inner; hover inner paragraph lights only it; panel under inner p; rebind
+   snippet = pure paragraph text; 20 px paragraph gap preserved.
+4. List: `ul > li` structure, marker intact, outer vs nested li hover
+   suppression, chip hit area at line end.
+5. Whole-block smoke (unchanged path).
+6. Touch: `.has-focus` lands on the p/li under the finger; inner/outer
+   migration.
+7. `pnpm test` (67) + `pnpm build`; hydration-mismatch console scan.
+8. Optional: promote validity + focus checks into a persistent playwright
+   script (currently paragraph-comment regression is manual playwright only).
+
+#### Extension note (favorite / agreement features)
+
+`endAdornment` accepts multiple sibling controls: BlockRenderer (or a future
+adornment-composition layer) mounts `[<CommentChip/>, <FavoriteChip/>, <LikeChip/>]`
+into the single slot. Each control is an independent island/delegation target
+keyed by the block's `data-block-id`; no leaf component changes. A future
+feature adds: (a) a chip component, (b) its state marker in `rootProps`
+(`data-favorite-count`-style), (c) its click delegation in the article mount.
+The CSS host/anchor/frame machinery is shared as-is.

@@ -254,12 +254,24 @@ export interface BlockRendererProps {
   /** Fired when the paragraph-comment affordance is clicked. */
   onCommentClick?: (clientId: string) => void;
   /**
-   * Inline comment affordance rendered at the end of the block's text flow
-   * (single-chip design, ADR-0036 2026-09). Leaf text blocks whose content is
-   * phrasing-safe (CoreParagraph, CoreListItem) consume this; they render it
-   * as an inline tail so it sits at the end of the last text line instead of
-   * overlaying the block corner. Other commentable blocks keep the
-   * wrapper-level overlay chip.
+   * Generic trailing-control slot (ADR-0036 2026-09-08 rev B). Rendered at the
+   * end of the block's own text flow. Leaf text blocks whose content is
+   * phrasing-safe (CoreParagraph, CoreListItem) consume this. The paragraph
+   * comment bubble is the first consumer; paragraph favorite / agreement
+   * controls are planned consumers — they mount into the same slot without
+   * touching leaf components.
    */
-  commentTail?: React.ReactNode;
+  endAdornment?: React.ReactNode;
+  /**
+   * DOM contract for the block's root element (ADR-0036 2026-09-08 rev B).
+   * Leaf components spread this onto their own root (`<p>`/`<li>`/`<div>`).
+   * Carries generic block-interaction state markers — the comment feature's
+   * `data-block-id` / `data-comment-count` today; future features add their
+   * own `data-*` markers (favorite, agreement…). BlockRenderer decides the
+   * values; leaves never interpret them.
+   */
+  rootProps?: {
+    "data-block-id"?: string;
+    "data-comment-count"?: string;
+  };
 }

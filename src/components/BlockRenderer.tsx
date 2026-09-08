@@ -108,11 +108,27 @@ export default function BlockRenderer({
         "data-comment-count": count > 0 ? String(count) : undefined,
       }
     : {};
-  const hostClass = commentable
-    ? useInlineTail
-      ? "wp-block-wrapper my-8 block-comment-host block-comment-host--inline-tail"
-      : "wp-block-wrapper my-8 block-comment-host block-comment-host--block"
-    : "wp-block-wrapper my-8";
+
+  // Whole-block hosts (quote/table/code/html/pre…) need a positioned div
+  // container for their overlay chip + highlight frame — the block's own
+  // content (raw HTML string) has no in-flow insertion point. These hosts
+  // keep the comment classes on the wrapper div.
+  // Inline-tail leaf blocks (paragraph / list item) SELF-HOST instead: the
+  // block element itself (<p>/<li>) carries data-block-id + host class, so
+  // nested blocks inside a container need no wrapper at all (ADR-0036 rev B —
+  // kills the invalid span>p / ul>span wrappers). At top level their layout
+  // wrapper div drops back to the plain wp-block-wrapper used by every block.
+  const isWholeBlockHost = commentable && !useInlineTail;
+  const wrapperClass = !commentable
+    ? "wp-block-wrapper my-8"
+    : isWholeBlockHost
+      ? "wp-block-wrapper my-8 block-comment-host block-comment-host--block"
+      : "wp-block-wrapper my-8";
+  // Self-host class handed to inline-tail leaves via the className channel.
+  const leafHostClass = useInlineTail
+    ? "block-comment-host block-comment-host--inline-tail"
+    : "";
+  const rootProps = useInlineTail ? wrapperProps : undefined;
 
   const chipClass = useInlineTail
     ? "block-comment-trigger block-comment-trigger--inline"
@@ -193,39 +209,37 @@ export default function BlockRenderer({
     chipButton
   );
 
-  // Inline-tail leaf blocks (paragraph / list item) consume the affordance via
-  // commentTail inside their own text flow; other commentable blocks render it
-  // as a wrapper sibling (as before).
+  // Inline-tail leaf blocks (paragraph / list item) consume the affordance as
+  // their endAdornment inside their own text flow; whole-block hosts render it
+  // as a wrapper sibling overlay. rootProps rides the same path so the leaf
+  // self-hosts the block-interaction DOM contract (ADR-0036 rev B).
   const componentProps = {
     block,
-    commentTail: useInlineTail ? commentAffordance : undefined,
+    endAdornment: useInlineTail ? commentAffordance : undefined,
+    rootProps,
   };
 
   if (noWrapper && commentable) {
-    // Nested in a container block (columns, group, …). Leaf text blocks
-    // (paragraph / list item) keep a lightweight span host so the affordance
-    // rides their text flow without disturbing the surrounding structure.
+    // Nested in a container block (columns, group, …).
+    if (useInlineTail) {
+      // Self-host: the leaf block element (<p>/<li>) carries the interaction
+      // contract — no wrapper element, so no span>p / ul>span (ADR-0036 rev B).
+      return (
+        <Component
+          block={block}
+          className={[className, "wp-block-no-wrapper", "my-2", leafHostClass]
+            .filter(Boolean)
+            .join(" ")}
+          endAdornment={commentAffordance}
+          rootProps={wrapperProps}
+        >
+          {children}
+        </Component>
+      );
+    }
     // Whole-block types (quote/table/code/image/…) must still get the --block
     // div host even when nested — otherwise they lose the top-right chip and
     // the highlight frame (ADR-0036 2026-09-07).
-    if (useInlineTail) {
-      return (
-        <span
-          className="block-comment-host block-comment-host--inline block-comment-host--inline-tail"
-          {...wrapperProps}
-        >
-          <Component
-            block={block}
-            className={[className, "wp-block-no-wrapper", "my-2"]
-              .filter(Boolean)
-              .join(" ")}
-            commentTail={commentAffordance}
-          >
-            {children}
-          </Component>
-        </span>
-      );
-    }
     return (
       <div
         className="block-comment-host block-comment-host--block"
@@ -255,12 +269,16 @@ export default function BlockRenderer({
       {children}
     </Component>
   ) : (
-    <div className={hostClass} {...wrapperProps}>
+    <div className={wrapperClass} {...(isWholeBlockHost ? wrapperProps : {})}>
       {/* Whole-block hosts (--block) show their chip as an absolute overlay at
           the host's top-right; inline-tail leaf blocks consumed theirs via
-          commentTail above so nothing extra renders for them here. */}
-      {commentable && !useInlineTail ? commentAffordance : null}
-      <Component block={block} className={className} {...componentProps}>
+          endAdornment inside the leaf, so nothing extra renders for them. */}
+      {isWholeBlockHost ? commentAffordance : null}
+      <Component
+        block={block}
+        className={[className, leafHostClass].filter(Boolean).join(" ")}
+        {...componentProps}
+      >
         {children}
       </Component>
     </div>

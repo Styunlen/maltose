@@ -546,14 +546,15 @@ html.dark .paragraph-comment-form__submit {
   opacity: 1;
 }
 
-/* ── Inline-tail paragraphs (single-chip, ADR-0036 2026-09-07) ─────────
-   The chip is a compact bubble icon sitting at the end of the paragraph's text
+/* ── Inline-tail leaf blocks (single-chip, ADR-0036 2026-09-07, rev B) ─
+   The chip is a compact bubble icon sitting at the end of the block's text
    flow. It is wrapped in a zero-width inline-block anchor (.block-comment-
-   anchor) so the line box measures 0 for it: a full text line never pushes the
-   chip to its own line, and the chip paints a few px past the text end. The
-   anchor keeps opacity triggers; the button itself is a transparent compact
-   icon (no pill) so overflow stays tiny. */
-.block-comment-host--inline-tail > .wp-block-paragraph > .block-comment-anchor {
+   anchor) so the line box measures 0 for it: a full text line never pushes
+   the chip to its own line, and the chip paints a few px past the text end.
+   Since rev B the anchor is a DIRECT child of the self-hosted block element
+   (<p>/<li>/wrappedInP <div>), so one selector serves paragraphs and list
+   items alike — no more per-tag chains. */
+.block-comment-host--inline-tail > .block-comment-anchor {
   display: inline-block;
   width: 0;
   overflow: visible;
@@ -561,7 +562,6 @@ html.dark .paragraph-comment-form__submit {
   margin-inline-start: 0.15em;
 }
 .block-comment-host--inline-tail
-  > .wp-block-paragraph
   > .block-comment-anchor
   > .block-comment-trigger--inline {
   display: inline-block;
@@ -577,22 +577,18 @@ html.dark .paragraph-comment-form__submit {
   transition: opacity 0.18s ease, color 0.18s ease;
 }
 .block-comment-host--inline-tail:hover
-  > .wp-block-paragraph
   > .block-comment-anchor
   > .block-comment-trigger--inline,
 .block-comment-host--inline-tail[data-comment-count]
-  > .wp-block-paragraph
   > .block-comment-anchor
   > .block-comment-trigger--inline,
 .block-comment-host--inline-tail.has-focus
-  > .wp-block-paragraph
   > .block-comment-anchor
   > .block-comment-trigger--inline {
   opacity: 1;
   color: var(--primary);
 }
 .block-comment-host--inline-tail
-  > .wp-block-paragraph
   > .block-comment-anchor
   > .block-comment-trigger--inline:hover {
   color: var(--primary);
@@ -602,59 +598,6 @@ html.dark .paragraph-comment-form__submit {
    affordance shows). :has() hides the inner chip when an ancestor relationship
    would otherwise double-light it. */
 .block-comment-host--inline-tail:has(.block-comment-host:hover)
-  > .wp-block-paragraph
-  > .block-comment-anchor
-  > .block-comment-trigger--inline {
-  opacity: 0;
-}
-
-/* ── Inline-tail list items (CoreListItem) ─────────────────────────────
-   Same single-chip treatment as paragraphs (zero-width anchor + compact icon),
-   but the chip sits inside the <li> after its text content (before any nested
-   list). The span host wraps the <li>, so the chip is one level deeper. */
-.block-comment-host--inline.block-comment-host--inline-tail
-  > li
-  > .block-comment-anchor {
-  display: inline-block;
-  width: 0;
-  overflow: visible;
-  vertical-align: middle;
-  margin-inline-start: 0.15em;
-}
-.block-comment-host--inline.block-comment-host--inline-tail
-  > li
-  > .block-comment-anchor
-  > .block-comment-trigger--inline {
-  display: inline-block;
-  line-height: 0;
-  color: var(--muted-foreground);
-  border: none;
-  background: none;
-  padding: 0;
-  /* Hidden at rest — only on host hover / has-comments / touch focus. */
-  opacity: 0;
-  transform: translateX(0.1em);
-  transition: opacity 0.18s ease, color 0.18s ease;
-}
-.block-comment-host--inline.block-comment-host--inline-tail:hover
-  > li
-  > .block-comment-anchor
-  > .block-comment-trigger--inline,
-.block-comment-host--inline.block-comment-host--inline-tail[data-comment-count]
-  > li
-  > .block-comment-anchor
-  > .block-comment-trigger--inline,
-.block-comment-host--inline.block-comment-host--inline-tail.has-focus
-  > li
-  > .block-comment-anchor
-  > .block-comment-trigger--inline {
-  opacity: 1;
-  color: var(--primary);
-}
-.block-comment-host--inline.block-comment-host--inline-tail:has(
-    .block-comment-host:hover
-  )
-  > li
   > .block-comment-anchor
   > .block-comment-trigger--inline {
   opacity: 0;
@@ -755,36 +698,6 @@ html.dark .paragraph-comment-form__submit {
 
 .block-comment-trigger:hover {
   color: var(--primary);
-}
-
-/* ── Legacy overlay hosts (inline list items) ──────────────────────────
-   CoreListItem keeps the wrapper-level absolute chip (no block marker inside
-   a <li>). Its only touch trigger is .has-focus; blocks with comments are
-   rare in lists. */
-.block-comment-host--inline {
-  position: relative;
-}
-.block-comment-host--inline > .block-comment-trigger {
-  position: absolute;
-  right: -2.25rem;
-  top: 0.25rem;
-  transform: translateX(4px);
-  transition: opacity 0.18s ease, transform 0.18s ease, color 0.18s ease;
-}
-.block-comment-host--inline:hover > .block-comment-trigger {
-  opacity: 1;
-  transform: translateX(0);
-}
-@media (hover: none) {
-  .block-comment-host--inline > .block-comment-trigger {
-    right: 0.5rem;
-    top: 0.5rem;
-    transform: none;
-  }
-  .block-comment-host--inline[data-comment-count] > .block-comment-trigger,
-  .block-comment-host--inline.has-focus > .block-comment-trigger {
-    opacity: 1;
-  }
 }
 
 /* Inline panel inserted right after the anchored block. */

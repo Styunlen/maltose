@@ -4,7 +4,8 @@ export default function CoreListItem({
   block,
   className,
   children,
-  commentTail,
+  endAdornment,
+  rootProps,
 }: BlockRendererProps) {
   let content = block.attributes?.content || (block as any).renderedHtml || "";
   // console.log("Rendering CoreListItem with content:", content);
@@ -21,12 +22,12 @@ export default function CoreListItem({
   // console.log(content);
 
   return (
-    <li className={className}>
+    <li className={className} {...rootProps}>
       {content && <span dangerouslySetInnerHTML={{ __html: content }} />}
-      {/* Inline-tail chip follows the item's text (before any nested list) so
-          the comment affordance sits at the end of the line, matching
+      {/* The trailing-control slot follows the item's text (before any nested
+          list) so the affordance sits at the end of the line, matching
           paragraph behaviour. */}
-      {commentTail}
+      {endAdornment}
       {children}
     </li>
   );

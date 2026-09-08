@@ -5,7 +5,8 @@ import { gql } from "@apollo/client";
 export default function CoreParagraph({
   block,
   className,
-  commentTail,
+  endAdornment,
+  rootProps,
 }: BlockRendererProps) {
   const paragraphBlock = block as ParagraphBlock;
   const { content, dropCap } = paragraphBlock.attributes;
@@ -21,25 +22,36 @@ export default function CoreParagraph({
   // WP sometimes returns content already wrapped in <p> (e.g. empty or
   // special paragraphs). Rendering that inside an outer <p> creates invalid
   // <p><p> nesting — browsers auto-split it, breaking SSR/client hydration
-  // and causing layout height jumps (see ADR-0021 for the same issue).
+  // and causing layout height jumps (see ADR-0021 for the same issue). The
+  // div root still carries the self-host contract (rootProps + endAdornment)
+  // so the paragraph keeps its comment entry point (ADR-0036 rev B).
   const wrappedInP = /^\s*<p[\s>]/i.test(content || "");
 
   if (wrappedInP) {
-    return <div className={paragraphClass} dangerouslySetInnerHTML={{ __html: content }} suppressHydrationWarning={true} />;
+    return (
+      <div
+        className={paragraphClass}
+        {...rootProps}
+        suppressHydrationWarning={true}
+      >
+        <div dangerouslySetInnerHTML={{ __html: content }} />
+        {endAdornment}
+      </div>
+    );
   }
 
   // With an inline comment tail, the content must be wrapped in a <span> so
   // the button can follow it inside the same <p> text flow (React forbids
   // children next to dangerouslySetInnerHTML on one element). Content is
   // phrasing-only in practice (see ADR-0036); the span keeps it in-flow.
-  if (commentTail) {
+  if (endAdornment) {
     return (
-      <p className={paragraphClass}>
+      <p className={paragraphClass} {...rootProps}>
         <span
           dangerouslySetInnerHTML={{ __html: content }}
           suppressHydrationWarning={true}
         />
-        {commentTail}
+        {endAdornment}
       </p>
     );
   }
@@ -47,6 +59,7 @@ export default function CoreParagraph({
   return (
     <p
       className={paragraphClass}
+      {...rootProps}
       dangerouslySetInnerHTML={{ __html: content }}
       suppressHydrationWarning={true}
     />

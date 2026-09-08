@@ -1,5 +1,6 @@
 import type { APIRoute } from "astro";
 import { getProxyUrl } from "@lib/graphql-proxy";
+import { logger } from "@/lib/logger";
 
 /**
  * Send an email OTP via the WP-side `sendEmailOtp` mutation.
@@ -40,7 +41,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       data = await wpResponse.json();
     } catch {
       const raw = await wpResponse.text().catch(() => "(unreadable)");
-      console.error("[otp-send] WP returned non-JSON:", wpResponse.status, raw.slice(0, 300));
+      logger.error(
+        { module: "otp-send", status: wpResponse.status, raw: raw.slice(0, 300) },
+        "WP returned non-JSON",
+      );
       return new Response(
         JSON.stringify({ error: "邮件服务异常，请稍后重试" }),
         { status: 502, headers: { "Content-Type": "application/json" } },
@@ -71,7 +75,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
   } catch (err) {
-    console.error("[otp-send] error:", err);
+    logger.error({ err, module: "otp-send" }, "error");
     return new Response(
       JSON.stringify({ error: "验证码发送异常，请稍后重试" }),
       { status: 500, headers: { "Content-Type": "application/json" } },

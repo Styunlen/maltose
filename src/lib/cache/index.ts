@@ -3,6 +3,7 @@ import type { CacheDriver, CacheStore } from "./types";
 import { MemoryStore } from "./memory-store";
 import { RedisStore } from "./redis-store";
 import { LmdbStore } from "./lmdb-store";
+import { logger } from "@/lib/logger";
 
 export type { CacheDriver, CacheEntry, CacheStore } from "./types";
 export { MemoryStore } from "./memory-store";
@@ -76,8 +77,9 @@ function failOpen(
   const msg = err instanceof Error ? err.message : String(err);
   const last = RETRY_LOGS[driver] ?? 0;
   if (Date.now() - last > (cfg.retryIntervalMs ?? 60_000)) {
-    console.warn(
-      `[cache] ${driver} backend unavailable (${msg}) — falling back to in-memory; will retry every ${(cfg.retryIntervalMs ?? 60_000) / 1000}s`,
+    logger.warn(
+      { driver, err: msg, retrySec: (cfg.retryIntervalMs ?? 60_000) / 1000 },
+      "cache backend unavailable — falling back to in-memory",
     );
     RETRY_LOGS[driver] = Date.now();
   }
@@ -130,14 +132,14 @@ export async function startCacheRedis(
     const { connectRedisIfConfigured } = await import("@lib/auth/redis");
     const client = await connectRedisIfConfigured();
     if (!client) {
-      console.warn("[cache] redis driver requested but REDIS_URL not configured");
+      logger.warn({ module: "cache" }, "redis driver requested but REDIS_URL not configured");
       return false;
     }
     store.setClient(client);
     return true;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn(`[cache] redis connect failed (${msg}) — cache stays inactive; retrying`);
+    logger.warn({ module: "cache", err: msg }, "redis connect failed — cache stays inactive; retrying");
     setTimeout(() => {
       startCacheRedis(store, cfg).catch(() => {});
     }, cfg.retryIntervalMs ?? 60_000);

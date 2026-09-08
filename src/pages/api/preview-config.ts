@@ -2,6 +2,7 @@
 // 桥接给前端 HoverPreviewProvider。与 preview.ts 解耦，前端只在挂载时拉取一次。
 import type { APIRoute } from "astro";
 import { maltoseSettingsQuery } from "@api/api";
+import { logger } from "@/lib/logger";
 
 export const GET: APIRoute = async () => {
   try {
@@ -24,7 +25,7 @@ export const GET: APIRoute = async () => {
       },
     );
   } catch (error) {
-    console.error("Failed to load preview settings:", error);
+    logger.error({ err: error, module: "preview-config" }, "Failed to load preview settings");
     return new Response(
       JSON.stringify({ error: "预览设置加载失败" }),
       {

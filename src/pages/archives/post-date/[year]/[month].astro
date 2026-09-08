@@ -4,6 +4,7 @@ import { gql } from "@apollo/client";
 import MainLayout from "@/layouts/MainLayout.astro";
 import PostCard from "@/components/PostCard.astro";
 import { client } from "@api/api";
+import { logger } from "@/lib/logger";
 
 const { year, month } = Astro.params;
 const y = Number(year);
@@ -56,7 +57,7 @@ try {
   });
   posts = data.posts.nodes || [];
 } catch (err) {
-  console.warn(`Failed to fetch posts for ${y}-${m}:`, err);
+  logger.warn({ err, module: "post-month", y, m }, "Failed to fetch posts");
   hasError = true;
 }
 ---

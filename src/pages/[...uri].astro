@@ -4,6 +4,7 @@ import MainLayout from "@/layouts/MainLayout.astro";
 import Archive from "@/components/wp-templates/Archive.astro";
 import Single from "@/components/wp-templates/Single.astro";
 import { getNodeByURI, getAllUris } from "@api/api";
+import { logger } from "@/lib/logger";
 
 const rawUri = `/${Astro.params.uri}`;
 // 路径式分页：/archives/xxx/page/2 → uri=/archives/xxx, page=2
@@ -24,7 +25,7 @@ if (STATIC_EXT_RE.test(uri)) {
   return new Response(null, { status: 404 });
 }
 
-if (import.meta.env.DEV) console.log(`${uri} render in catch-all`);
+logger.debug({ uri }, "render in catch-all");
 let node: any = null;
 let fetchError = false;
 let fetchErrorMessage = "";
@@ -36,7 +37,7 @@ try {
   });
   node = data.nodeByUri;
 } catch (err) {
-  console.warn(`Failed to fetch node for URI ${uri}:`, err);
+  logger.warn({ err, module: "catch-all", uri }, "Failed to fetch node");
   fetchError = true;
   fetchErrorMessage = err instanceof Error ? err.message : String(err);
 }

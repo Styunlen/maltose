@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { RateLimiterMemory, RateLimiterRedis } from "rate-limiter-flexible";
 import { connectRedisIfConfigured } from "@lib/auth/redis";
 import RateLimiterLmdb from "@/lib/rate-limit/lmdb-limiter";
+import { logger } from "@/lib/logger";
 
 const WP_GRAPHQL_URL =
   process.env.WORDPRESS_API_URL || "https://styunlen.cn/graphql";
@@ -50,7 +51,7 @@ async function createLimiter(opts: {
     if (client) {
       return new RateLimiterRedis({ storeClient: client, ...opts });
     }
-    console.warn("[rate-limit] redis driver requested but Redis unavailable — using memory");
+    logger.warn({ module: "rate-limit" }, "redis driver requested but Redis unavailable — using memory");
   }
 
   if (driver === "lmdb") {
@@ -84,7 +85,7 @@ function getSecret(): string {
     if (import.meta.env.PROD) {
       throw new Error("WP_GRAPHQL_SECRET_KEY is not configured. Set it in .env before deploying.");
     }
-    console.warn("[graphql-proxy] WP_GRAPHQL_SECRET_KEY is using a placeholder value — set it before deploying.");
+    logger.warn({ module: "graphql-proxy" }, "WP_GRAPHQL_SECRET_KEY is using a placeholder value — set it before deploying.");
   }
   return secret || "change-me";
 }
@@ -200,7 +201,7 @@ function isPublicMutation(query: string): boolean {
         const limiter = await getOtpSendLimiter();
         await limiter.consume(ip);
       } catch {
-        console.warn(`[graphql-proxy] sendEmailOtp rate limited: ip=${ip}`);
+        logger.warn({ module: "graphql-proxy", ip }, "sendEmailOtp rate limited");
         return new Response(
           JSON.stringify({ error: "发送过于频繁，请稍后再试" }),
           { status: 429, headers: { "Content-Type": "application/json" } },
@@ -218,7 +219,10 @@ function isPublicMutation(query: string): boolean {
         const limiter = await getViewRateLimiter();
         await limiter.consume(key);
       } catch {
-        console.warn(`[graphql-proxy] recordPostView rate limited: ip=${ip} postId=${variables?.postId}`);
+        logger.warn(
+          { module: "graphql-proxy", ip, postId: variables?.postId },
+          "recordPostView rate limited",
+        );
         return new Response(
           JSON.stringify({
             data: { recordPostView: { viewCount: null, __typename: "RecordPostViewPayload" } },
@@ -265,7 +269,10 @@ function isPublicMutation(query: string): boolean {
 
     const data = await wpResponse.json();
     if (isRecordPostView(query)) {
-      console.log(`[graphql-proxy] WP responded to recordPostView: HTTP ${wpResponse.status}`, JSON.stringify(data));
+      logger.debug(
+        { module: "graphql-proxy", status: wpResponse.status },
+        "WP responded to recordPostView",
+      );
     }
     const resHeaders: Record<string, string> = { "Content-Type": "application/json" };
 
@@ -281,7 +288,7 @@ function isPublicMutation(query: string): boolean {
       headers: resHeaders,
     });
   } catch (error) {
-    console.error("GraphQL proxy error:", error);
+    logger.error({ err: error, module: "graphql-proxy" }, "GraphQL proxy error");
     return new Response(
       JSON.stringify({ error: "Proxy error" }),
       { status: 500, headers: { "Content-Type": "application/json" } },

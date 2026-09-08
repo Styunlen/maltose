@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { getProxyUrl } from "@lib/graphql-proxy";
 import { renderCommentMd } from "@lib/markdown";
+import { logger } from "@/lib/logger";
 
 export const GET: APIRoute = async ({ cookies, url }) => {
   const wpToken = cookies.get("wp_token")?.value;
@@ -120,7 +121,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
   } catch (error) {
-    console.error("User comments fetch error:", error);
+    logger.error({ err: error, module: "user/comments" }, "User comments fetch error");
     return new Response(
       JSON.stringify({ error: "获取评论列表失败" }),
       { status: 500, headers: { "Content-Type": "application/json" } },

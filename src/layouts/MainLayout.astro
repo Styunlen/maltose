@@ -7,6 +7,7 @@ import LayoutShell from "./LayoutShell";
 import {
   layoutQuery,
 } from "@api/api.ts";
+import { logger } from "@/lib/logger";
 
 let primaryMenu: any = null;
 let generalSettings: any = { title: "AstroPress", url: "", description: "" };
@@ -21,7 +22,7 @@ try {
   primaryMenu = data.menus?.nodes?.[0] ?? null;
   if (data.generalSettings) generalSettings = data.generalSettings;
 } catch (err) {
-  console.warn("Layout query failed, using fallback:", err);
+  logger.warn({ err, module: "MainLayout" }, "Layout query failed, using fallback");
 }
 
 const pageTitle = `${title} | ${generalSettings.title}`;

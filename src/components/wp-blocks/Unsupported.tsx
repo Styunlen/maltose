@@ -11,10 +11,6 @@ import {
 } from "@/components/ui/empty";
 import { Package } from "lucide-react";
 export default function Unsupported({ block, className }: BlockRendererProps) {
-  if (import.meta.env.DEV) {
-    console.warn(`Unsupported block type: ${block.name}`);
-  }
-
   return (
     <Empty className="border border-dashed mb-4">
       <EmptyHeader>

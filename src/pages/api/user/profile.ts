@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { getProxyUrl } from "@lib/graphql-proxy";
 import jwt from "jsonwebtoken";
+import { logger } from "@/lib/logger";
 
 /**
  * Update the current user's profile (display name / website / description)
@@ -86,7 +87,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
   } catch (err) {
-    console.error("[user/profile] error:", err);
+    logger.error({ err, module: "user/profile" }, "error");
     return new Response(
       JSON.stringify({ error: "保存异常，请稍后重试" }),
       { status: 500, headers: { "Content-Type": "application/json" } },
@@ -140,7 +141,7 @@ export const GET: APIRoute = async ({ cookies }) => {
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
   } catch (err) {
-    console.error("[user/profile] GET error:", err);
+    logger.error({ err, module: "user/profile" }, "GET error");
     return new Response(
       JSON.stringify({ error: "读取异常，请稍后重试" }),
       { status: 500, headers: { "Content-Type": "application/json" } },

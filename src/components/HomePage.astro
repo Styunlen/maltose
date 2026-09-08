@@ -14,6 +14,7 @@ import {
   getTotalComments,
   shuffle,
 } from "@api/api";
+import { logger } from "@/lib/logger";
 
 interface Props {
   currentPage: number;
@@ -57,7 +58,7 @@ try {
     archivePosts,
   };
 } catch (err) {
-  console.warn("Failed to fetch homepage data:", err);
+  logger.warn({ err, module: "HomePage" }, "Failed to fetch homepage data");
   hasError = true;
 }
 

@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 import { getProxyUrl } from "@lib/graphql-proxy";
 import { setWpTokenCookies, setSessionCookie } from "@lib/auth/wp-token";
 import { createWpSessionToken } from "@lib/auth/session";
+import { logger } from "@/lib/logger";
 
 /**
  * Verify an emailed OTP via the WP-side `verifyEmailOtp` mutation.
@@ -66,7 +67,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       data = await wpResponse.json();
     } catch {
       const raw = await wpResponse.text().catch(() => "(unreadable)");
-      console.error("[otp-verify] WP returned non-JSON:", wpResponse.status, raw.slice(0, 300));
+      logger.error(
+        { module: "otp-verify", status: wpResponse.status, raw: raw.slice(0, 300) },
+        "WP returned non-JSON",
+      );
       return new Response(
         JSON.stringify({ error: "登录服务异常，请稍后重试" }),
         { status: 502, headers: { "Content-Type": "application/json" } },
@@ -111,7 +115,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
   } catch (err) {
-    console.error("[otp-verify] error:", err);
+    logger.error({ err, module: "otp-verify" }, "error");
     return new Response(
       JSON.stringify({ error: "验证异常，请稍后重试" }),
       { status: 500, headers: { "Content-Type": "application/json" } },

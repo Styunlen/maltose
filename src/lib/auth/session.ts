@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import type { AuthentikUser } from "./authentik";
+import { logger } from "@/lib/logger";
 
 export interface SessionPayload {
   sub: string;
@@ -20,7 +21,7 @@ function getSecret(): string {
     if (import.meta.env.PROD) {
       throw new Error("APP_SECRET is not configured. Set it in .env before deploying.");
     }
-    console.warn("[auth] APP_SECRET is using a placeholder value — set it before deploying.");
+    logger.warn({ module: "auth" }, "APP_SECRET is using a placeholder value — set it before deploying.");
   }
   return secret || "change-me";
 }

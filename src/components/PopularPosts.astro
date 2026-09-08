@@ -1,5 +1,6 @@
 ---
 import { getRandomPosts } from "@api/api";
+import { logger } from "@/lib/logger";
 
 const { first = 8, posts: propPosts } = Astro.props;
 
@@ -7,7 +8,7 @@ let posts: any[] = [];
 try {
   posts = propPosts && propPosts.length > 0 ? propPosts : await getRandomPosts(first);
 } catch (err) {
-  console.warn("Failed to fetch random posts:", err);
+  logger.warn({ err, module: "PopularPosts" }, "Failed to fetch random posts");
 }
 const hasPosts = posts.length > 0;
 ---

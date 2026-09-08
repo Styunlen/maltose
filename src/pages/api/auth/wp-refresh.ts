@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { getProxyUrl } from "@lib/graphql-proxy";
 import jwt from "jsonwebtoken";
+import { logger } from "@/lib/logger";
 
 export const POST: APIRoute = async ({ cookies }) => {
   try {
@@ -52,7 +53,7 @@ export const POST: APIRoute = async ({ cookies }) => {
       { status: 400, headers: { "Content-Type": "application/json" } },
     );
   } catch (err) {
-    console.error("Token refresh error:", err);
+    logger.error({ err, module: "wp-refresh" }, "Token refresh error");
     return new Response(
       JSON.stringify({ ok: false, error: "Refresh error" }),
       { status: 500, headers: { "Content-Type": "application/json" } },

@@ -28,7 +28,7 @@ export default function PostViewCounter({
 
     const record = async () => {
       try {
-        const { recordPostView } = await import("@api/api");
+        const { recordPostView } = await import("@lib/post-view");
         const updated = await recordPostView(postId);
         if (typeof updated === "number") {
           setCount(updated);

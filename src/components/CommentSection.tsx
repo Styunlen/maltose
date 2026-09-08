@@ -345,7 +345,6 @@ export default function CommentSection({
     const viewportHeight = window.innerHeight;
 
     // 判断容器是否在视口中可见
-    console.log("Container rect:", containerRect);
     const isContainerInViewport =
       containerRect.bottom < viewportHeight && containerRect.top > 140; // container margin + header height
 

@@ -18,6 +18,7 @@ import {
   getStatsContents,
   countContentWords,
 } from "@api/api";
+import { logger } from "@/lib/logger";
 
 Astro.response.headers.set("Cache-Control", "max-age=600");
 
@@ -69,7 +70,7 @@ try {
   geoUpdatedAt = geoData?.commentGeoStats?.updatedAt || "";
   siteBirthday = geoData?.siteBirthday || null;
 } catch (err) {
-  console.warn("Stats data fetch failed:", err);
+  logger.warn({ err, module: "stats" }, "Stats data fetch failed");
   hasError = true;
 }
 

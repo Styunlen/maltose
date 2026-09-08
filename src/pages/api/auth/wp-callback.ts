@@ -7,6 +7,7 @@ import { randomBytes } from "node:crypto";
 
 import { getProxyUrl } from '@lib/graphql-proxy';
 import { setWpTokenCookies } from "@lib/auth/wp-token";
+import { logger } from "@/lib/logger";
 
 function errorRedirect(error: string, hint: string) {
   const params = new URLSearchParams({
@@ -106,16 +107,19 @@ export const GET: APIRoute = async ({ url, redirect, cookies }) => {
       const status = wpResponse.status;
       const errors = wpData?.errors || [];
       const wpError = errors[0]?.message || JSON.stringify(wpData);
-      console.warn("WPGraphQL login failed — HTTP", status, JSON.stringify({ errors, data: wpData }, null, 2));
 
       const hint = wpError.includes("invalid_client")
         ? "WordPress 与 Authentik 的连接配置有误，请在 WordPress 后台检查 wp-graphql-headless-login 插件设置"
         : `WordPress 返回 ${status}：${(errors[0]?.debugMessage || wpError).slice(0, 120)}`;
+      logger.warn(
+        { err: wpError, status, wpData: JSON.stringify(wpData).slice(0, 500) },
+        "WPGraphQL login failed",
+      );
       return redirect(errorRedirect("WP 登录失败", hint));
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("WPGraphQL login error:", msg);
+    logger.error({ err, module: "wp-callback" }, "WPGraphQL login error");
     return redirect(errorRedirect("WP 连接异常", msg.slice(0, 120)));
   }
 

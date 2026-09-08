@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 import { getProxyUrl } from "@lib/graphql-proxy";
 import { __internalLruCache } from "@api/api";
 import jwt from "jsonwebtoken";
+import { logger } from "@/lib/logger";
 
 /**
  * Orphan-comment rebind (ADR-0036 P3). Re-anchors a paragraph comment whose
@@ -131,7 +132,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
   } catch (err) {
-    console.error("Comment rebind error:", err);
+    logger.error({ err, module: "comments/rebind" }, "Comment rebind error");
     return new Response(
       JSON.stringify({ error: "重绑服务异常" }),
       { status: 500, headers: { "Content-Type": "application/json" } },

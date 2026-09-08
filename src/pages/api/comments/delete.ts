@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { getProxyUrl } from "@lib/graphql-proxy";
 import { __internalLruCache } from "@api/api";
+import { logger } from "@/lib/logger";
 
 export const POST: APIRoute = async ({ request, cookies }) => {
   try {
@@ -65,7 +66,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       headers: { "Content-Type": "application/json" },
     });
   } catch (error) {
-    console.error("Comment delete error:", error);
+    logger.error({ err: error, module: "comments/delete" }, "Comment delete error");
     return new Response(
       JSON.stringify({ error: "删除异常，请稍后重试" }),
       { status: 500, headers: { "Content-Type": "application/json" } },

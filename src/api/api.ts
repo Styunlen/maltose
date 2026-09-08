@@ -16,13 +16,14 @@ import {
 import { RetryLink } from "@apollo/client/link/retry";
 import { LruLink, attachLruCacheApi, makeCacheKey } from "@/lib/lru-link";
 import { createCacheStoreSync, startCacheRedis, startCleanupTimer } from "@/lib/cache";
+import { logger } from "@/lib/logger";
 
 const loggerLink = new ApolloLink((operation, forward) => {
-  console.log(`Starting request for ${operation.operationName}`);
+  logger.debug({ op: operation.operationName }, "Starting request");
   return forward(operation).pipe(
     tap({
       next: () => {
-        console.log(`Ending request for ${operation.operationName}`);
+        logger.debug({ op: operation.operationName }, "Ending request");
       },
     }),
   );
@@ -37,24 +38,20 @@ const retryLink = new RetryLink({
     max: 5,
   },
 });
-// Log any GraphQL errors, protocol errors, or network error that occurred
+// Log any GraphQL errors, protocol errors, or network error that occurred.
+// These are genuine failures → logger.error (feeds the ntfy sink when
+// configured, per the alerting design in src/lib/logger.ts).
 const errorLink = new ErrorLink(({ error, operation }) => {
   if (CombinedGraphQLErrors.is(error)) {
     error.errors.forEach(({ message, locations, path }) =>
-      console.error(
-        `[GraphQL error]: Message: ${message}, Location: ${JSON.stringify(locations)}, Path: ${path}`,
-      ),
+      logger.error({ op: operation.operationName, locations, path }, message),
     );
   } else if (CombinedProtocolErrors.is(error)) {
     error.errors.forEach(({ message, extensions }) =>
-      console.error(
-        `[Protocol error]: Message: ${message}, Extensions: ${JSON.stringify(
-          extensions,
-        )}`,
-      ),
+      logger.error({ op: operation.operationName, extensions }, message),
     );
   } else {
-    console.error(`[Network error]: ${error}`);
+    logger.error({ err: error, op: operation.operationName }, "network error");
   }
 });
 
@@ -127,6 +124,12 @@ const cacheCfg = {
   mapSize: Number(process.env.GRAPHQL_CACHE_MAP_SIZE) || 64 * 1024 * 1024,
   maxEntries: 1000,
   cleanupIntervalMs: Number(process.env.GRAPHQL_CACHE_CLEANUP_MS) || 0,
+  // Max entry age before periodic cleanup deletes it. MUST comfortably exceed
+  // the longest cacheable life: adaptive TTL caps at 10× the base TTL (max
+  // base 600s → 100min), and expired entries are still served stale during
+  // SWR — so a tight maxAge (e.g. the 10min default) would delete live
+  // entries and gut the cache. 24h only reaps orphaned cold entries.
+  cleanupMaxAgeMs: Number(process.env.GRAPHQL_CACHE_MAX_AGE_MS) || 24 * 60 * 60 * 1000,
   // Fail-open reconnect: swap the live store when the backend comes back.
   onReconnect: (store: any) => lruLink?.setStore(store),
 };
@@ -149,6 +152,15 @@ export const lruLink = new LruLink({
   strongConsistency: STRONG_CONSISTENCY,
   maxEntries: 1000,
   store: cacheStore.store,
+  // SWR observability (ADR-0032). Only background revalidations are logged at
+  // debug — every hit/miss would flood the log on a busy server. Revalidate
+  // events are the interesting signal (a background refetch fired because an
+  // entry crossed its revalidate threshold).
+  onMetrics: (m) => {
+    if (m.revalidate) {
+      logger.debug({ op: m.operationName }, "cache revalidate");
+    }
+  },
 });
 
 // Periodic stale-entry cleanup for shared backends.
@@ -1202,7 +1214,7 @@ export async function warmCache(): Promise<void> {
   const results = await Promise.allSettled(jobs);
   results.forEach((r, i) => {
     if (r.status === "rejected") {
-      console.warn(`[warmCache] job ${i} failed:`, r.reason);
+      logger.warn({ err: r.reason, jobIndex: i }, "warmCache job failed");
     }
   });
 }

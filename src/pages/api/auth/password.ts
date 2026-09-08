@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 import { getProxyUrl } from "@lib/graphql-proxy";
 import { setWpTokenCookies, setSessionCookie } from "@lib/auth/wp-token";
 import { createWpSessionToken } from "@lib/auth/session";
+import { logger } from "@/lib/logger";
 
 /**
  * Password login via wp-graphql-headless-login's built-in PASSWORD provider.
@@ -49,7 +50,10 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       data = await wpResponse.json();
     } catch {
       const raw = await wpResponse.text().catch(() => "(unreadable)");
-      console.error("[password-login] WP returned non-JSON:", wpResponse.status, raw.slice(0, 300));
+      logger.error(
+        { module: "password-login", status: wpResponse.status, raw: raw.slice(0, 300) },
+        "WP returned non-JSON",
+      );
       return new Response(
         JSON.stringify({ error: "登录服务异常，请稍后重试" }),
         { status: 502, headers: { "Content-Type": "application/json" } },
@@ -87,7 +91,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
   } catch (err) {
-    console.error("[password-login] error:", err);
+    logger.error({ err, module: "password-login" }, "error");
     return new Response(
       JSON.stringify({ error: "登录异常，请稍后重试" }),
       { status: 500, headers: { "Content-Type": "application/json" } },

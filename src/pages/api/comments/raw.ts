@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { getProxyUrl } from "@lib/graphql-proxy";
 import jwt from "jsonwebtoken";
+import { logger } from "@/lib/logger";
 
 export const POST: APIRoute = async ({ request, cookies }) => {
   const wpToken = cookies.get("wp_token")?.value;
@@ -94,7 +95,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
   } catch (err) {
-    console.error("Comment raw fetch error:", err);
+    logger.error({ err, module: "comments/raw" }, "Comment raw fetch error");
     return new Response(
       JSON.stringify({ error: "获取失败" }),
       { status: 500, headers: { "Content-Type": "application/json" } },

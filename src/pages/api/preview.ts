@@ -4,6 +4,7 @@
 // 摘要均在服务端计算。不会变成任意 URL 的探测器。
 import type { APIRoute } from "astro";
 import { previewByUriQuery, maltoseSettingsQuery } from "@api/api";
+import { logger } from "@/lib/logger";
 
 const APP_URL = process.env.APP_URL;
 const SITE = import.meta.env.SITE;
@@ -107,7 +108,7 @@ export const GET: APIRoute = async ({ url }) => {
         if (Number(m.previewRecent) >= 0) recent = Number(m.previewRecent);
       }
     } catch (err) {
-      console.warn("[preview] maltoseSettings 不可用，使用默认配置:", err);
+      logger.warn({ err, module: "preview" }, "maltoseSettings 不可用，使用默认配置");
     }
 
     if (!enabled) {
@@ -160,7 +161,7 @@ export const GET: APIRoute = async ({ url }) => {
         return json({ error: "不支持的内容类型" }, 400);
     }
   } catch (error) {
-    console.error("[preview] error:", error);
+    logger.error({ err: error, module: "preview" }, "preview error");
     return json({ error: "预览服务异常，请稍后重试" }, 500);
   }
 };

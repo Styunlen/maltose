@@ -4,6 +4,7 @@ import MainLayout from "@/layouts/MainLayout.astro";
 import Archive from "@/components/wp-templates/Archive.astro";
 import Single from "@/components/wp-templates/Single.astro";
 import { getNodeByURI, getAllUris } from "@api/api";
+import { logger } from "@/lib/logger";
 
 const uri = Astro.url.pathname ?? `/archives/post-${Astro.params.id}.html`;
 let node: any = null;
@@ -14,11 +15,11 @@ try {
   const data: any = await getNodeByURI(uri, Astro.locals.wpToken);
   node = data.nodeByUri;
 } catch (err) {
-  console.warn(`Failed to fetch node for URI ${uri}:`, err);
+  logger.warn({ err, module: "post-id", uri }, "Failed to fetch node");
   fetchError = true;
   fetchErrorMessage = err instanceof Error ? err.message : String(err);
 }
-console.log(`${uri} render in post-[id].html.astro`);
+logger.debug({ uri }, "render in post-[id].html.astro");
 
 // export async function getStaticPaths() {
 //   const allUris = await getAllUris();

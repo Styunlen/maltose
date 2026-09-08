@@ -30,6 +30,7 @@ const siteOwnerUserIds = (
 const siteOwnerUserId = siteOwnerUserIds[0] || 1;
 import ArticlePagination from "../ArticlePagination";
 import PostViewCounter from "../PostViewCounter";
+import { logger } from "@/lib/logger";
 export const prerender = false;
 
 // console.log(node.id)
@@ -231,14 +232,14 @@ if (layoutRes.status === "fulfilled") {
     description: layoutRes.value?.generalSettings?.description ?? "",
   };
 } else {
-  console.warn("[Single] layoutQuery failed:", layoutRes.reason);
+  logger.warn({ module: "Single", reason: layoutRes.reason }, "layoutQuery failed");
 }
 if (randomRes.status === "fulfilled") {
   relatedPosts = (randomRes.value as any[])
     .filter((p: any) => p.databaseId !== node.databaseId && p.uri !== node.uri)
     .slice(0, 2);
 } else {
-  console.warn("[Single] getRandomPosts failed:", randomRes.reason);
+  logger.warn({ module: "Single", reason: randomRes.reason }, "getRandomPosts failed");
 }
 // 上一篇/下一篇（按发布时间邻接；仅 Post 有，Page 无）
 let prevPost: any = null;
@@ -248,7 +249,7 @@ if (isPost && node.date) {
     prevPost = adjRes.value.prevPost;
     nextPost = adjRes.value.nextPost;
   } else {
-    console.warn("[Single] getAdjacentPosts failed:", adjRes.reason);
+    logger.warn({ module: "Single", reason: adjRes.reason }, "getAdjacentPosts failed");
   }
 }
 ---

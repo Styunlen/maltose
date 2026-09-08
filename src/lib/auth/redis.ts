@@ -1,4 +1,5 @@
 import { createClient } from 'redis';
+import { logger } from "@/lib/logger";
 
 // Whether a Redis server is configured for this deployment.
 // Single-instance deployments can omit REDIS_URL and fall back to
@@ -12,7 +13,7 @@ const redisClient = createClient({
 });
 
 redisClient.on('error', (err) => {
-  console.error('Redis Client Error:', err);
+  logger.error({ err, module: "redis" }, "Redis Client Error");
 });
 
 /**
@@ -40,8 +41,9 @@ export async function connectRedisIfConfigured() {
         ),
       ]);
     } catch (err) {
-      console.warn(
-        `[redis] connect failed (${err instanceof Error ? err.message : String(err)}) — using local fallback`,
+      logger.warn(
+        { module: "redis", err: err instanceof Error ? err.message : String(err) },
+        "connect failed — using local fallback",
       );
       redisClient.destroy();
       return null;

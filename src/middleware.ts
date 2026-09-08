@@ -2,6 +2,7 @@ import { defineMiddleware } from "astro/middleware";
 import { verifySessionToken, sessionToUser } from "@lib/auth/session";
 import { getProxyUrl } from "@lib/graphql-proxy";
 import { warmCache } from "@api/api";
+import { logger } from "@/lib/logger";
 import jwt from "jsonwebtoken";
 import { createHash } from "node:crypto";
 // Warm the shared-cache once per process on the first request (production
@@ -10,7 +11,7 @@ import { createHash } from "node:crypto";
 let warmStarted = false;
 if (!import.meta.env.DEV && !warmStarted) {
   warmStarted = true;
-  warmCache().catch((err) => console.warn("[warmCache] failed:", err));
+  warmCache().catch((err) => logger.error({ err }, "warmCache failed"));
 }
 // WPGraphQL JWT carries the user id as a string; normalize to a number for
 // consistent comparison against numeric databaseId fields.
@@ -100,7 +101,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   // If wp_token is missing but wp_refresh exists, try to refresh
   if (!wpToken && wpRefreshToken) {
-    if (import.meta.env.DEV) console.log("[TOKEN] wp_token missing, wp_refresh exists, attempting silent refresh");
+    logger.debug("[token] wp_token missing, wp_refresh exists, attempting silent refresh");
     const newToken = await refreshTokenFor(wpRefreshToken);
     if (newToken) {
       applyNewToken(context, newToken);
@@ -125,21 +126,24 @@ export const onRequest = defineMiddleware(async (context, next) => {
       // Only refresh when truly near expiry (30s) or expired. WP tokens live
       // ~5 min; a 1h window would refresh on every single request (ADR-0012).
       const expiringSoon = exp !== 0 && !expired && expMs - now < 30 * 1000;
-      if (import.meta.env.DEV) console.log("[TOKEN] expired:", expired, "expMs:", new Date(expMs).toISOString(), "now:", new Date(now).toISOString());
+      logger.debug(
+        { expired, expMs: new Date(expMs).toISOString(), now: new Date(now).toISOString() },
+        "[token] expiry state",
+      );
 
       // Try refresh if expired or expiring soon
       if ((expired || expiringSoon) && context.cookies.get("wp_refresh")?.value) {
         const refreshToken = context.cookies.get("wp_refresh")!.value;
-        if (import.meta.env.DEV) console.log("[TOKEN] attempting refresh, refreshToken length:", refreshToken.length);
+        logger.debug({ length: refreshToken.length }, "[token] attempting refresh");
         const newToken = await refreshTokenFor(refreshToken);
-        if (import.meta.env.DEV) console.log("[TOKEN] refresh done, hasNewToken:", !!newToken);
+        logger.debug({ hasNewToken: !!newToken }, "[token] refresh done");
         if (newToken) {
           applyNewToken(context, newToken);
           return next();
         }
         // Refresh failed (e.g. token revoked) — drop the stale refresh token
         // so we don't retry a doomed refresh on every request.
-        if (import.meta.env.DEV) console.log("[TOKEN] refresh returned no token, clearing wp_refresh");
+        logger.debug("[token] refresh returned no token, clearing wp_refresh");
         context.cookies.delete("wp_refresh", { path: "/" });
       }
 
@@ -175,7 +179,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
       context.url.pathname,
     )
   ) {
-    if (import.meta.env.DEV) console.log("[TOKEN] ghost session: wp token ineffective, prompting re-login");
+    logger.debug("[token] ghost session: wp token ineffective, prompting re-login");
     context.cookies.delete("session", { path: "/" });
     context.locals.user = undefined;
     const url = new URL(context.url);

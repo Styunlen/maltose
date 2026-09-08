@@ -5,13 +5,15 @@ import GitHubCalendar from "@/components/timeline/GitHubCalendar";
 import StatsCards from "@/components/timeline/StatsCards";
 import TimelineList from "@/components/timeline/TimelineList";
 import ProgressBars from "@/components/stats/ProgressBars";
-import Leaderboard from "@/components/stats/Leaderboard";import {
+import Leaderboard from "@/components/stats/Leaderboard";
+import {
   getTimelinePosts,
   getTimelineStats,
   getTotalComments,
   statsCategoriesQuery,
   commentGeoStatsQuery,
 } from "@api/api";
+import { logger } from "@/lib/logger";
 
 interface Props {
   currentPage: number;
@@ -62,7 +64,7 @@ try {
   geoTotal = geoData?.commentGeoStats?.total || 0;
   geoUpdatedAt = geoData?.commentGeoStats?.updatedAt || "";
 } catch (err) {
-  console.warn("Timeline data fetch failed:", err);
+  logger.warn({ err, module: "TimelinePage" }, "Timeline data fetch failed");
   hasError = true;
 }
 

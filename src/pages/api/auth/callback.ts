@@ -5,6 +5,7 @@ import {
 } from "@lib/auth/authentik";
 import { createSessionToken } from "@lib/auth/session";
 import { sanitizeReturnTo } from "@lib/url";
+import { logger } from "@/lib/logger";
 
 export const GET: APIRoute = async ({ url, redirect, cookies }) => {
   try {
@@ -69,7 +70,7 @@ export const GET: APIRoute = async ({ url, redirect, cookies }) => {
     return redirect(`/api/auth/wp-init?returnTo=${wpReturnTo}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("OIDC callback error:", message);
+    logger.error({ err: error }, "OIDC callback error");
 
     let hint = "";
     if (message.includes("invalid_client")) {

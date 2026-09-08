@@ -674,6 +674,12 @@ html.dark .paragraph-comment-form__submit {
   right: -2.25rem;
   top: 0.25rem;
   transform: translateX(4px);
+  /* Unified with the inline chip: pure SVG bubble, no pill chrome. */
+  border: none;
+  background: none;
+  padding: 0;
+  line-height: 0;
+  color: var(--muted-foreground);
   /* Hover-gap fix (ADR-0036 2026-09): hide with a 0.25s delay so a mouse
      crossing the ~10px dead zone between the host edge and the chip does not
      dismiss the affordance before it can be reached. Showing stays instant
@@ -708,9 +714,11 @@ html.dark .paragraph-comment-form__submit {
   pointer-events: none;
   z-index: 4;
 }
-/* Show the chip and the frame together, on every device, for the same
-   trigger set: hover (desktop), has-comments / touch-focus (mobile). The
-   frame never changes layout (absolutely positioned, pointer-events none). */
+/* Chip visibility: has-comments blocks keep their chip always visible as the
+   discussion entry point; hover and touch-focus also reveal it on any block.
+   The highlight frame is NOT tied to has-comments — it only lights up on
+   interaction (hover / touch-focus / keyboard focus) so commented blocks sit
+   quietly at rest with just their chip (ADR-0036 2026-09-07). */
 .block-comment-host--block:hover > .block-comment-trigger,
 .block-comment-host--block[data-comment-count] > .block-comment-trigger,
 .block-comment-host--block.has-focus > .block-comment-trigger {
@@ -723,7 +731,6 @@ html.dark .paragraph-comment-form__submit {
     color 0.18s ease;
 }
 .block-comment-host--block:hover::before,
-.block-comment-host--block[data-comment-count]::before,
 .block-comment-host--block.has-focus::before,
 .block-comment-host--block:focus-within::before {
   opacity: 1;
@@ -748,12 +755,6 @@ html.dark .paragraph-comment-form__submit {
 
 .block-comment-trigger:hover {
   color: var(--primary);
-  border-color: color-mix(in oklch, var(--primary) 40%, transparent);
-}
-.block-comment-count {
-  min-width: 1.1rem;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
 }
 
 /* ── Legacy overlay hosts (inline list items) ──────────────────────────

@@ -16,6 +16,7 @@ import {
   type FlatComment,
 } from "@/components/comment/types";
 import { ChatBubble } from "@/components/comment/ChatBubble";
+import { ReplyPopupModal } from "@/components/comment/ReplyPopupModal";
 import { CommentComposer } from "@/components/comment/Composer";
 import { CommentTooltipProvider } from "@/components/comment/CommentTooltipProvider";
 // Client-side markdown rendering for dynamic comment refresh
@@ -327,9 +328,12 @@ export default function ParagraphComments({
   }, []);
 
   // 请求进入编辑态。若已有其他评论处于编辑态（不同 id），先弹确认
-  // 丢弃草稿再切换，避免未保存的编辑被静默丢弃。
+  // 丢弃草稿再切换，避免未保存的编辑被静默丢弃。scope 默认 "panel"；
+  // ReplyPopupModal（子回复弹窗）以 "popup" scope 请求时也转到这里，但
+  // 确认对话框本身只认 pendingEdit 的目标 id，切换后统一落回 "panel"，
+  // 与面板内其它编辑共用同一编辑态（ADR-0036）。
   const onEditRequest = React.useCallback(
-    (id: string) => {
+    (id: string, _scope?: EditScope) => {
       if (editingId && editingId !== id) {
         setPendingEdit(id);
         return;
@@ -371,6 +375,7 @@ export default function ParagraphComments({
           key={activeBlockId}
           blockId={activeBlockId}
           comments={flatBlockComments}
+          commentMap={commentMap}
           canComment={canComment}
           loginUrl={loginUrl}
           onClose={requestClosePanel}
@@ -456,6 +461,7 @@ export default function ParagraphComments({
 function ParagraphCommentPanel({
   blockId,
   comments,
+  commentMap,
   canComment,
   loginUrl,
   onClose,
@@ -474,6 +480,7 @@ function ParagraphCommentPanel({
 }: {
   blockId: string;
   comments: FlatComment[];
+  commentMap: Map<number, FlatComment>;
   canComment: boolean;
   loginUrl: string;
   onClose: () => void;
@@ -492,6 +499,12 @@ function ParagraphCommentPanel({
 }) {
   const [pos, setPos] = React.useState<{ top: number } | null>(null);
   const [replyTarget, setReplyTarget] = React.useState<{ id: number; name: string } | null>(null);
+  // Sub-reply popup: when a comment with children has its "↳ N" chip clicked,
+  // open the shared ReplyPopupModal (same behaviour as the footer section).
+  const [subReply, setSubReply] = React.useState<{
+    parent: FlatComment;
+    children: FlatComment[];
+  } | null>(null);
   const [blockRef, setBlockRef] = React.useState<{
     clientId: string;
     snippet: string;
@@ -524,6 +537,7 @@ function ParagraphCommentPanel({
   // under the clicked block without moving React-rendered DOM (insertAdjacent
   // on a React node desyncs the virtual DOM on re-render).
   return createPortal(
+    <>
     <div className="paragraph-comment-panel paragraph-comment-panel--floating" style={{ top: pos.top }} data-block-comment-panel>
       <div className="paragraph-comment-panel__head">
         <span className="paragraph-comment-panel__title">这段的评论</span>
@@ -550,7 +564,16 @@ function ParagraphCommentPanel({
                   <ChatBubble
                     key={c.id}
                     comment={c}
-                    onReply={(id, name) => startReply(id, name)}
+                    onReply={(id, name, childrenIds) => {
+                      const parent = commentMap.get(id);
+                      if (!parent) return;
+                      setSubReply({
+                        parent,
+                        children: childrenIds
+                          .map((cid) => commentMap.get(cid))
+                          .filter(Boolean) as FlatComment[],
+                      });
+                    }}
                     onStartReply={(id, name) => startReply(id, name)}
                     onMention={onMention}
                     showAvatar={ci === 0}
@@ -606,7 +629,34 @@ function ParagraphCommentPanel({
           </a>
         )}
       </div>
-    </div>,
+    </div>
+      {subReply && (
+        <ReplyPopupModal
+          parentDbId={subReply.parent.databaseId}
+          children={subReply.children}
+          commentMap={commentMap}
+          onClose={() => setSubReply(null)}
+          onReplyToComment={(id, name) => {
+            setSubReply(null);
+            startReply(id, name);
+          }}
+          onMentionClick={onMention}
+          isEditing={isEditing}
+          onEditRequest={onEditRequest}
+          onEditSave={onEditSave}
+          onEditCancel={onEditCancel}
+          currentUserId={currentUserId}
+          siteOwnerUserIds={siteOwnerUserIds}
+          blockClientIds={blockClientIds}
+          onRebind={onRebind}
+          onBlockRefClick={onBlockRefClick}
+          onDeleteComment={(dbId) => {
+            setSubReply(null);
+            onDelete(dbId);
+          }}
+        />
+      )}
+    </>,
     document.body,
   );
 }

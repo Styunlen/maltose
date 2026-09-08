@@ -118,50 +118,55 @@ export default function BlockRenderer({
     ? "block-comment-trigger block-comment-trigger--inline"
     : "block-comment-trigger";
 
-  // Two affordance shapes (ADR-0036 2026-09-07):
-  // - Inline-tail chips are a COMPACT single SVG: a rounded-square bubble with
-  //   the count rendered as SVG <text> inside it. Zero-width anchor keeps it
-  //   from wrapping to its own line; ~14px keeps any right overflow tiny.
-  // - Whole-block/list overlay chips keep the pill (border + bg + span count).
-  const countText = count > 0 ? String(count) : null;
-  const inlineIcon = (
-    <svg
-      viewBox="0 0 24 24"
-      width="15"
-      height="15"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.9"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-      {countText && (
-        <text
-          x="12"
-          y="10"
-          textAnchor="middle"
-          dominantBaseline="central"
-          fontSize={countText.length >= 3 ? 6.5 : countText.length === 2 ? 7.5 : 9}
-          fontWeight="600"
-          fill="currentColor"
-          stroke="none"
-          style={{ fontFamily: "inherit" }}
-        >
-          {countText}
-        </text>
-      )}
-    </svg>
-  );
-  const overlayIcon = (
-    <>
-      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  // Unified affordance bubble (ADR-0036 2026-09-07). ONE shape for both the
+  // inline-tail chip and the whole-block overlay chip: a message-square bubble
+  // whose viewBox widens with the digit count, so the count text always stays
+  // inside the bubble no matter how many digits. Both entry points call this.
+  const commentBubble = (count: number) => {
+    const digits = count > 0 ? String(count) : null;
+    // 24-wide bubble + extra per digit beyond the first; keeps ~4 units of
+    // horizontal padding around the text at fontSize 9 (one digit ~5 wide).
+    const width = 24 + Math.max(0, (digits?.length ?? 1) - 1) * 5;
+    return (
+      <svg
+        viewBox={`0 0 ${width} 24`}
+        width="15"
+        height="15"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+        style={{ overflow: "visible" }}
+      >
+        {/* Rounded-square bubble, widened on the RIGHT only as digits grow:
+            left edge, bottom-run H7, and the bottom-left tail stay exactly as
+            the original 24-wide message-square; only the right column and the
+            top-run length track the viewBox width. Keeping the left side fixed
+            preserves the square proportions (a naive width spread deforms it
+            into a trapezoid). */}
+        <path
+          d={`M${width - 3} 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h${width - 10}a2 2 0 0 1 2 2z`}
+        />
+        {digits && (
+          <text
+            x={width / 2}
+            y="10.5"
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontSize={digits.length >= 3 ? 6.5 : digits.length === 2 ? 7.5 : 9}
+            fontWeight="600"
+            fill="currentColor"
+            stroke="none"
+            style={{ fontFamily: "inherit" }}
+          >
+            {digits}
+          </text>
+        )}
       </svg>
-      {count > 0 ? <span className="block-comment-count">{count}</span> : null}
-    </>
-  );
+    );
+  };
 
   const chipButton = commentable ? (
     <button
@@ -173,7 +178,7 @@ export default function BlockRenderer({
       // document-level delegation so the affordance works even if this block
       // renders outside the ParagraphComments island subtree.
     >
-      {useInlineTail ? inlineIcon : overlayIcon}
+      {commentBubble(count)}
     </button>
   ) : null;
 

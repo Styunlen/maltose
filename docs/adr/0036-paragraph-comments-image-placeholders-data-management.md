@@ -804,3 +804,46 @@ icon (no border/bg) sits at 0.55 opacity at rest, full `--primary` when shown
 shape with the `span.block-comment-count`.
 
 
+
+### Update 2026-09-08: unify chip UI, focus-gated frame, sub-reply popup, spacing
+
+Three fixes after on-site testing (post-1846 demo):
+
+1. **One SVG bubble for both entry points.** The whole-block overlay chip still
+   used the old pill (`border/bg` + a `span.block-comment-count`); the inline
+   chip was a separate compact SVG. Both now call the same `commentBubble()`
+   builder: a `message-square` path whose **right side only** widens with digit
+   count (24 → 24+5·(n−1) viewBox) while the left edge, bottom run and tail
+   stay fixed — widening the whole path naive-deformed it into a trapezoid.
+   Digit sits at `x = width/2`, `y = 10.5`, `dominant-baseline: central`;
+   measured dead-centre with 8–11 units of right padding at 1/2/3 digits, so
+   counts never overflow the bubble. The old `span.block-comment-count` HTML
+   and its pill CSS were deleted.
+
+2. **Highlight frame only on interaction.** The `--block ::before` frame was
+   shown for `[data-comment-count]` hosts permanently; now it lights only on
+   `:hover` / `.has-focus` / `:focus-within`. Commented blocks rest showing
+   just their chip.
+
+3. **Paragraph-panel sub-reply opens the thread popup.** ChatBubble's `↳ N`
+   child-count chip was wired to `startReply` (compose a reply) instead of
+   showing the child thread. The panel now opens the shared `ReplyPopupModal`
+   (same behaviour as the footer section); `onStartReply` (the footer reply
+   button) still composes in place. Edit-scope coordination: the modal requests
+   edits with a `popup` scope but they resolve to `panel`.
+
+4. **Quoted-paragraph spacing.** Two paragraphs inside a quote measured a 32 px
+   gap — the global `.wp-block-paragraph` bottom margin (1.25rem) stacked on
+   the Alert grid gap and the item's own 8 px top margin. Quote paragraphs now
+   use `margin: 0.5rem 0` → 20 px paragraph gap with balanced container padding.
+
+**Deferred (architecture debt):** inline-tail leaf blocks (paragraph / list
+item) nested in a container are currently wrapped in a `<span>` host — invalid
+HTML (`span > p`, `span > li`, and `ul > span > li` break list-item CSS).
+Evaluated options; the clean end state is **hybrid self-host**: inline-tail
+anchors (data-block-id, host class, `.has-focus`) live on the `<p>`/`<li>`
+themselves, while whole-block types keep their `div` host (their raw-HTML leaf
+elements cannot hold a React chip child and need a positioned container for the
+frame/absolute chip). To be done as its own change; see BlockRenderer's
+`noWrapper && commentable && useInlineTail` branch.
+

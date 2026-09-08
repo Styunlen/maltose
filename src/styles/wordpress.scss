@@ -94,6 +94,14 @@ article {
   margin-bottom: 1.25rem;
   color: var(--foreground);
 }
+// Quote inner paragraphs: the quote container (Alert grid + gap) already
+// supplies spacing, so stacking the global 1.25rem bottom margin on top of it
+// produces an oversized 32px gap between two quoted paragraphs. A uniform
+// 0.5rem keeps quoted-paragraph spacing ~20px and balances the container's
+// padding on both ends (measured: 20px paragraph gap, 21px top/bottom).
+.wp-block-quote .wp-block-paragraph {
+  margin: 0.5rem 0;
+}
 
 // ─── Link styles ───
 .post-content .wp-block a,

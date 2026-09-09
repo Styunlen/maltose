@@ -44,7 +44,7 @@ export function commentDateTime(input: CommentTimestamp): string {
 
 /**
  * Format a WP comment timestamp for display:
- *  - <7 days -> relative ("刚刚" / "X 分钟前" / "X 小时前" / "昨天" / "X 天前")
+ *  - <7 days -> relative ("刚刚" / "X 分钟前" / "X 小时前" / "昨天 HH:mm" / "X 天前 HH:mm")
  *  - >=7 days -> absolute visitor-local time; cross-year includes the year
  * Returns { display, title, relative }: display for the visible text, title
  * the full absolute local time, relative a relative-phrase always (used as a
@@ -54,15 +54,18 @@ export function formatCommentTime(input: CommentTimestamp, now: Date = new Date(
   const local = parseCommentDate(input).local();
   const title = local.format("YYYY-MM-DD HH:mm");
   const diff = now.getTime() - local.valueOf();
+  const time = local.format("HH:mm");
+  const dayRelative = (label: string) => `${label} ${time}`;
 
   const relative = (() => {
     if (diff < 0) return title;
     if (diff < 60_000) return "刚刚";
     if (diff < 3_600_000) return `${Math.floor(diff / 60_000)} 分钟前`;
     if (diff < DAY) return `${Math.floor(diff / 3_600_000)} 小时前`;
-    if (diff < 2 * DAY) return "昨天";
-    if (diff < 7 * DAY) return `${Math.floor(diff / DAY)} 天前`;
-    if (diff < 30 * DAY) return `${Math.floor(diff / DAY)} 天前`;
+    if (diff < 2 * DAY) return dayRelative("昨天");
+    if (diff < 3 * DAY) return dayRelative("前天");
+    if (diff < 7 * DAY) return dayRelative(`${Math.floor(diff / DAY)} 天前`);
+    if (diff < 30 * DAY) return dayRelative(`${Math.floor(diff / DAY)} 天前`);
     if (diff < 365 * DAY) return `${Math.floor(diff / (30 * DAY))} 个月前`;
     return `${Math.floor(diff / (365 * DAY))} 年前`;
   })();
@@ -77,10 +80,16 @@ export function formatCommentTime(input: CommentTimestamp, now: Date = new Date(
   }
   if (diff < 2 * DAY) {
     // 24-48h -> "昨天" (regardless of calendar boundary)
-    return { display: "昨天", title, relative };
+    const display = dayRelative("昨天");
+    return { display, title, relative };
+  }
+  if (diff < 3 * DAY) {
+    const display = dayRelative("前天");
+    return { display, title, relative };
   }
   if (diff < 7 * DAY) {
-    return { display: `${Math.floor(diff / DAY)} 天前`, title, relative };
+    const display = dayRelative(`${Math.floor(diff / DAY)} 天前`);
+    return { display, title, relative };
   }
   // Absolute; include year when the date is in a different calendar year.
   const crossYear = local.year() !== dayjs(now).year();

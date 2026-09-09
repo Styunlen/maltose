@@ -21,6 +21,7 @@ export interface FlatComment {
   blockReference?: { clientId?: string | null; snippet?: string | null } | null;
   author: { node: CommentAuthor };
   date: string;
+  dateGmt?: string | null;
   parentAuthorName?: string;
   parentDatabaseId?: number;
   /** Plain-text excerpt of the parent comment (for the quote chip). */
@@ -70,6 +71,7 @@ export function buildCommentMap(flat: any[]): Map<number, FlatComment> {
       blockReference: c.blockReference ?? null,
       author: c.author,
       date: c.date,
+      dateGmt: c.dateGmt ?? null,
       parentAuthorName: p ? nameMap.get(p) : undefined,
       parentDatabaseId: p,
       parentContent: p ? contentMap.get(p) : undefined,

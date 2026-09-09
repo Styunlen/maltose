@@ -1,6 +1,7 @@
 import type { APIRoute } from "astro";
 import { getProxyUrl } from "@lib/graphql-proxy";
 import { renderCommentMd } from "@lib/markdown";
+import { commentDateValue } from "@lib/time";
 import { logger } from "@/lib/logger";
 
 export const GET: APIRoute = async ({ cookies, url }) => {
@@ -46,6 +47,7 @@ export const GET: APIRoute = async ({ cookies, url }) => {
                   databaseId
                   content
                   date
+                  dateGmt
                   status
                   commentedOn {
                     node {
@@ -99,12 +101,12 @@ export const GET: APIRoute = async ({ cookies, url }) => {
     const pageInfo = viewer.comments?.pageInfo || {};
 
     if (dateFrom) {
-      const from = new Date(dateFrom).getTime();
-      comments = comments.filter((c: any) => new Date(c.date).getTime() >= from);
+      const from = new Date(`${dateFrom}T00:00:00+08:00`).getTime();
+      comments = comments.filter((c: any) => commentDateValue(c) >= from);
     }
     if (dateTo) {
-      const to = new Date(dateTo).getTime() + 86400000;
-      comments = comments.filter((c: any) => new Date(c.date).getTime() <= to);
+      const to = new Date(`${dateTo}T00:00:00+08:00`).getTime() + 86400000;
+      comments = comments.filter((c: any) => commentDateValue(c) <= to);
     }
 
     return new Response(

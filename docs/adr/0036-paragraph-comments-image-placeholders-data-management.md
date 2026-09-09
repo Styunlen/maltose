@@ -133,10 +133,11 @@ Implementation surfaced two problems and three enhancement requests:
    overwrites the top-level `clientId` key unconditionally (it reads
    `$block['clientId']`, never `$block['attrs']['clientId']`). Paragraph-comment
    anchoring therefore drifted across requests.
-2. **Comment timestamps show UTC.** WP stores `comment_date` in the server
-   timezone but WPGraphQL returns it without an offset; the frontend
-   `dayjs(comment.date).format()` treats it as browser-local time, so visitors
-   outside UTC+8 see a 8-hour shift.
+2. **Comment timestamps show UTC.** WPGraphQL exposes two fields with different
+   semantics: `comment.date` is the WordPress site-local posted time without an
+   offset, while `comment.dateGmt` is the canonical GMT/UTC timestamp. The
+   frontend used to treat `comment.date` as UTC, so after the site timezone was
+   corrected to Asia/Shanghai, new comments displayed 8 hours late.
 3. Enhancement requests: gate the orphan-rebind UI behind permission; show a
    distinct paragraph-quote on anchored comments; fix timezone display.
 
@@ -162,15 +163,19 @@ Implementation surfaced two problems and three enhancement requests:
 
 **B. Timezone-aware comment times**
 
-- `comment.date` from WP is UTC (no offset). New `src/lib/time.ts` helper:
-  parse with `dayjs.utc(date)`, render in visitor-local timezone.
+- `comment.dateGmt` is the canonical comment timestamp. All comment query,
+  mutation, refresh, sidebar, and user-comment paths request/carry it alongside
+  `date`; `date` remains only an Asia/Shanghai site-local fallback for older or
+  partial payloads.
+- New `src/lib/time.ts` helper parses `dateGmt` with `dayjs.utc(...)`; when it is
+  absent, it parses `date` with `dayjs.tz(date, "Asia/Shanghai")`, never the
+  browser/server local timezone and never UTC.
 - Display rule: <7 days → relative (`刚刚`/`X 分钟前`/`X 小时前`/`昨天`/`X 天前`);
-  ≥7 days → absolute (`MM-DD HH:mm`, cross-year includes `YYYY-`). `title` always
-  carries the full local time; `datetime` attribute keeps the raw value.
-- Sorting also parses via `dayjs.utc(...)` so order is correct for non-UTC
-  visitors.
-- Applied site-wide (comment section, article page, sidebar, carousel) via the
-  shared helper.
+  ≥7 days → absolute (`MM-DD HH:mm`, cross-year includes `YYYY-`). Tooltip title
+  always carries the full visitor-local time; machine-readable `datetime` uses
+  canonical UTC ISO.
+- Sorting and user-comment date filtering use the same helper so order/ranges
+  follow `dateGmt` when present and the Asia/Shanghai fallback otherwise.
 
 **C. Rebind permission gating**
 
@@ -230,7 +235,7 @@ Real-world testing surfaced three defects:
 **A. Full-field refresh + error boundary (bug 1).**
 
 - `RefreshComments` now requests the same field set as `GetNodeByURI` (id,
-  databaseId, parentId, parentDatabaseId, content, author, date, agentPublic,
+  databaseId, parentId, parentDatabaseId, content, author, date, dateGmt, agentPublic,
   agent, commentGeo, blockReference) so brand-new comments render completely.
 - `CommentSection` is wrapped in a new `ErrorBoundary` so a single malformed
   record can never unmount the entire section again.

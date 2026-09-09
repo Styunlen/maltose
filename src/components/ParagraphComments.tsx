@@ -77,7 +77,7 @@ export default function ParagraphComments({
   const flatBlockComments = React.useMemo(
     () =>
       [...blockComments]
-        .sort((a, b) => commentDateValue(a.date) - commentDateValue(b.date))
+        .sort((a, b) => commentDateValue(a) - commentDateValue(b))
         .map((c) => commentMap.get(c.databaseId))
         .filter(Boolean) as FlatComment[],
     [blockComments, commentMap],
@@ -95,8 +95,8 @@ export default function ParagraphComments({
         body: JSON.stringify({
           query: `query RefreshBlockComments($uri: String!) {
             nodeByUri(uri: $uri) {
-              ... on Post { comments(first: 100, where: { order: ASC }) { nodes { id databaseId parentId parentDatabaseId content author { node { name databaseId email url avatar { url size } } } date agentPublic agent commentGeo { country province } blockReference { clientId snippet } } } }
-              ... on Page { comments(first: 100, where: { order: ASC }) { nodes { id databaseId parentId parentDatabaseId content author { node { name databaseId email url avatar { url size } } } date agentPublic agent commentGeo { country province } blockReference { clientId snippet } } } }
+              ... on Post { comments(first: 100, where: { order: ASC }) { nodes { id databaseId parentId parentDatabaseId content author { node { name databaseId email url avatar { url size } } } date dateGmt agentPublic agent commentGeo { country province } blockReference { clientId snippet } } } }
+              ... on Page { comments(first: 100, where: { order: ASC }) { nodes { id databaseId parentId parentDatabaseId content author { node { name databaseId email url avatar { url size } } } date dateGmt agentPublic agent commentGeo { country province } blockReference { clientId snippet } } } }
             }
           }`,
           variables: { uri: postUri },
@@ -106,7 +106,7 @@ export default function ParagraphComments({
         .then((d) => {
           const nodes = d?.data?.nodeByUri?.comments?.nodes;
           if (Array.isArray(nodes)) {
-            // Merge refresh: full field set (author/date/geo) so brand-new
+            // Merge refresh: full field set (author/date/dateGmt/geo) so brand-new
             // comments posted from anywhere render correctly. Existing entries
             // keep their rich SSR fields (rendered content, rawContent); only
             // freshly-fetched data is overlaid.

@@ -2,12 +2,14 @@
 
 import * as React from "react";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { commentDateTime, formatCommentTime } from "@lib/time";
 
 interface CommentNode {
   id: string;
   databaseId: number;
   content: string;
   date: string;
+  dateGmt?: string | null;
   status: string;
   commentedOn?: { node?: { databaseId?: number; title?: string; uri?: string } };
 }
@@ -135,7 +137,7 @@ export default function UserComments() {
                 {c.commentedOn?.node?.title || "(未知文章)"}
               </a>
             </span>
-            <span>{c.date ? new Date(c.date).toLocaleDateString("zh-CN") : ""}</span>
+            <time dateTime={commentDateTime(c)}>{formatCommentTime(c).display}</time>
           </div>
           <div style={{ fontSize: "0.85rem", lineHeight: 1.6, color: "var(--foreground)", marginBottom: "0.5rem", wordBreak: "break-word" }} dangerouslySetInnerHTML={{ __html: c.content }} />
           <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", fontSize: "0.75rem" }}>

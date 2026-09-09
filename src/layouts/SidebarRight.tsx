@@ -41,7 +41,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { emitter } from "@/lib/mitt";
-import { formatPostDate } from "@lib/time";
+import { formatCommentTime, formatPostDate } from "@lib/time";
 
 interface SidebarRightProps {
   menu?: {
@@ -441,7 +441,7 @@ function TabsSection({ posts, comments }: { posts: any[]; comments: any[] }) {
                         {c.author.node.name}
                       </span>
                       <span className="text-[0.6rem] text-sidebar-foreground/60">
-                        {c.date}
+                        {formatCommentTime(c).display}
                       </span>
                     </div>
                     <p className="w-full truncate text-left text-sidebar-foreground/60 text-[0.68rem] mt-0.5">

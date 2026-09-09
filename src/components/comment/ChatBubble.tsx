@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { formatCommentTime } from "@lib/time";
+import { commentDateTime, formatCommentTime } from "@lib/time";
 import IconChrome from "virtual:icons/tabler/brand-chrome";
 import IconFirefox from "virtual:icons/tabler/brand-firefox";
 import IconSafari from "virtual:icons/tabler/brand-safari";
@@ -89,7 +89,8 @@ export function ChatBubble({
   /** Click the paragraph-quote chip → scroll & flash the anchor block. */
   onBlockRefClick?: (clientId: string) => void;
 }) {
-  const timeInfo = formatCommentTime(comment.date || "");
+  const timeInfo = formatCommentTime(comment);
+  const dateTime = commentDateTime(comment);
   return (
     <Message
       align={isOwn ? "end" : "start"}
@@ -147,10 +148,10 @@ export function ChatBubble({
           <Tooltip>
             <TooltipTrigger>
               <span className="chat-time-trigger">
-                <time dateTime={comment.date} className="chat-time chat-time--full">
+                <time dateTime={dateTime} className="chat-time chat-time--full">
                   {timeInfo.display}
                 </time>
-                <time dateTime={comment.date} className="chat-time chat-time--short">
+                <time dateTime={dateTime} className="chat-time chat-time--short">
                   {timeInfo.display}
                 </time>
               </span>

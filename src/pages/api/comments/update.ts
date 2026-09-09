@@ -42,6 +42,7 @@ export const POST: APIRoute = async ({ request, cookies }) => {
                 databaseId
                 content
                 date
+                dateGmt
               }
             }
           }

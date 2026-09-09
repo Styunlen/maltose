@@ -292,6 +292,7 @@ export async function megaQuery(opts: {
           databaseId
           content
           date
+          dateGmt
           author {
             node {
               name
@@ -537,6 +538,7 @@ export async function getNodeByURI(uri, wpToken, opts: { page?: number; perPage?
                   }
                 }
                 date
+                dateGmt
                 agentPublic
                 agent
                 commentGeo {
@@ -603,6 +605,7 @@ export async function getNodeByURI(uri, wpToken, opts: { page?: number; perPage?
                   }
                 }
                 date
+                dateGmt
                 agentPublic
                 agent
                 commentGeo {

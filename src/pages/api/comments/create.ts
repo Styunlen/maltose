@@ -86,6 +86,7 @@ export const POST: APIRoute = async ({ request, cookies, clientAddress }) => {
                   }
                 }
                 date
+                dateGmt
                 parent { node { ... on Comment { databaseId } } }
               }
             }

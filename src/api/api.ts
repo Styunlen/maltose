@@ -158,7 +158,16 @@ export const lruLink = new LruLink({
   // entry crossed its revalidate threshold).
   onMetrics: (m) => {
     if (m.revalidate) {
-      logger.debug({ op: m.operationName }, "cache revalidate");
+      logger.debug(
+        {
+          event: "swr.revalidate",
+          module: "LruLink",
+          op: m.operationName,
+          variables: m.variables,
+          cacheKey: m.cacheKey,
+        },
+        "cache revalidate",
+      );
     }
   },
 });

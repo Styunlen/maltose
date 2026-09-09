@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { gql, type Operation } from "@apollo/client";
-import { LruLink, makeCacheKey, stableStringify } from "./lru-link";
+import { LruLink, makeCacheKey, stableStringify, type LruLinkMetrics } from "./lru-link";
 
 /* Minimal Operation factory matching Apollo's Operation shape. */
 function makeOp(operationName: string, variables: Record<string, unknown> = {}, context: Record<string, unknown> = {}): Operation {
@@ -110,6 +110,30 @@ describe("LruLink cache behavior", () => {
     const second = await collect(link.request(op, forward));
     expect(networkCalls).toBe(1); // still 1 — served from cache
     expect(second[0]).toMatchObject({ data: { ok: true } });
+  });
+
+  it("reports operation variables and cache key on miss, hit, and revalidate metrics", async () => {
+    vi.useFakeTimers();
+    const metrics: LruLinkMetrics[] = [];
+    link = new LruLink({
+      defaultTtl: 60,
+      revalidateThreshold: 0.5,
+      onMetrics: (metric) => metrics.push(metric),
+    });
+    const variables = { uri: "/archives/post-123.html", first: 10 };
+    const op = makeOp("GetNodeByURI", variables);
+    const cacheKey = makeCacheKey(op);
+
+    await collect(link.request(op, forward));
+    await collect(link.request(op, forward));
+    vi.advanceTimersByTime(31_000);
+    await collect(link.request(op, forward));
+
+    expect(metrics).toEqual([
+      { hit: false, miss: true, revalidate: false, operationName: "GetNodeByURI", variables, cacheKey },
+      { hit: true, miss: false, revalidate: false, operationName: "GetNodeByURI", variables, cacheKey },
+      { hit: true, miss: false, revalidate: true, operationName: "GetNodeByURI", variables, cacheKey },
+    ]);
   });
 
   it("does not cache mutations", async () => {

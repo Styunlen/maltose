@@ -14,6 +14,15 @@ import { MemoryStore } from "./cache/memory-store";
  * analysis.
  */
 
+export interface LruLinkMetrics {
+  hit: boolean;
+  miss: boolean;
+  revalidate: boolean;
+  operationName: string;
+  variables: Record<string, unknown>;
+  cacheKey: string;
+}
+
 export interface LruLinkOptions {
   ttlConfig?: Record<string, number>;
   defaultTtl?: number;
@@ -22,7 +31,7 @@ export interface LruLinkOptions {
   maxEntries?: number;
   /** Pluggable backend; defaults to an in-process MemoryStore (ADR-0032). */
   store?: CacheStore;
-  onMetrics?: (m: { hit: boolean; miss: boolean; revalidate: boolean; operationName: string }) => void;
+  onMetrics?: (m: LruLinkMetrics) => void;
 }
 
 /* Sorts object keys recursively so variables field order is irrelevant. */
@@ -117,6 +126,7 @@ export class LruLink extends ApolloLink {
 
     const key = makeCacheKey(operation);
     const opName = operation.operationName;
+    const variables = operation.variables ?? {};
     const isStrong = this.strong.has(opName);
 
     return new Observable((observer) => {
@@ -144,7 +154,14 @@ export class LruLink extends ApolloLink {
               // Increment hits on every serve so the adaptive TTL extends for
               // hot entries. Best-effort write-back; failures are ignored.
               this.cache.set(key, { ...entry, hits: (entry.hits ?? 0) + 1 }).catch(() => {});
-              this.onMetrics?.({ hit: true, miss: false, revalidate: shouldRevalidate, operationName: opName });
+              this.onMetrics?.({
+                hit: true,
+                miss: false,
+                revalidate: shouldRevalidate,
+                operationName: opName,
+                variables,
+                cacheKey: key,
+              });
               observer.next(entry.data as FetchResult);
               observer.complete();
               return;
@@ -154,7 +171,14 @@ export class LruLink extends ApolloLink {
             if (!isStrong) {
               this.revalidate(operation, key);
               this.cache.set(key, { ...entry, hits: (entry.hits ?? 0) + 1 }).catch(() => {});
-              this.onMetrics?.({ hit: true, miss: false, revalidate: true, operationName: opName });
+              this.onMetrics?.({
+                hit: true,
+                miss: false,
+                revalidate: true,
+                operationName: opName,
+                variables,
+                cacheKey: key,
+              });
               observer.next(entry.data as FetchResult);
               observer.complete();
               return;
@@ -162,7 +186,14 @@ export class LruLink extends ApolloLink {
           }
 
           // Miss, or expired strong-consistency → hit the network.
-          this.onMetrics?.({ hit: false, miss: true, revalidate: false, operationName: opName });
+          this.onMetrics?.({
+            hit: false,
+            miss: true,
+            revalidate: false,
+            operationName: opName,
+            variables,
+            cacheKey: key,
+          });
           sub = forward(operation).subscribe({
             next: (result) => {
               if (result && !result.errors) {

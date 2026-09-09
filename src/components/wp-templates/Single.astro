@@ -36,6 +36,13 @@ export const prerender = false;
 // console.log(node.id)
 const isPost = node.__typename === "Post";
 const isPage = node.__typename === "Page";
+const parsedDatabaseId = Number(node.databaseId);
+const uri = node.uri;
+const logContext = {
+  module: "Single",
+  uri,
+  ...(Number.isFinite(parsedDatabaseId) ? { databaseId: parsedDatabaseId } : {}),
+};
 
 // Render comment markdown to HTML during SSR, preserve raw for editing
 const renderedComments = (node.comments?.nodes ?? []).map((c: any) => ({
@@ -232,14 +239,14 @@ if (layoutRes.status === "fulfilled") {
     description: layoutRes.value?.generalSettings?.description ?? "",
   };
 } else {
-  logger.warn({ module: "Single", reason: layoutRes.reason }, "layoutQuery failed");
+  logger.warn({ ...logContext, event: "single.layout.failed", reason: layoutRes.reason }, "layoutQuery failed");
 }
 if (randomRes.status === "fulfilled") {
   relatedPosts = (randomRes.value as any[])
     .filter((p: any) => p.databaseId !== node.databaseId && p.uri !== node.uri)
     .slice(0, 2);
 } else {
-  logger.warn({ module: "Single", reason: randomRes.reason }, "getRandomPosts failed");
+  logger.warn({ ...logContext, event: "single.random-posts.failed", reason: randomRes.reason }, "getRandomPosts failed");
 }
 // 上一篇/下一篇（按发布时间邻接；仅 Post 有，Page 无）
 let prevPost: any = null;
@@ -249,7 +256,7 @@ if (isPost && node.date) {
     prevPost = adjRes.value.prevPost;
     nextPost = adjRes.value.nextPost;
   } else {
-    logger.warn({ module: "Single", reason: adjRes.reason }, "getAdjacentPosts failed");
+    logger.warn({ ...logContext, event: "single.adjacent-posts.failed", reason: adjRes.reason }, "getAdjacentPosts failed");
   }
 }
 ---

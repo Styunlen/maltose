@@ -7,6 +7,12 @@ import { getNodeByURI, getAllUris } from "@api/api";
 import { logger } from "@/lib/logger";
 
 const uri = Astro.url.pathname ?? `/archives/post-${Astro.params.id}.html`;
+const parsedPostId = Number(Astro.params.id);
+const logContext = {
+  module: "post-id",
+  uri,
+  ...(Number.isFinite(parsedPostId) ? { postId: parsedPostId } : {}),
+};
 let node: any = null;
 let fetchError = false;
 let fetchErrorMessage = "";
@@ -15,11 +21,11 @@ try {
   const data: any = await getNodeByURI(uri, Astro.locals.wpToken);
   node = data.nodeByUri;
 } catch (err) {
-  logger.warn({ err, module: "post-id", uri }, "Failed to fetch node");
+  logger.warn({ ...logContext, event: "post.fetch.failed", err }, "Failed to fetch node");
   fetchError = true;
   fetchErrorMessage = err instanceof Error ? err.message : String(err);
 }
-logger.debug({ uri }, "render in post-[id].html.astro");
+logger.debug({ ...logContext, event: "post.render" }, "render in post-[id].html.astro");
 
 // export async function getStaticPaths() {
 //   const allUris = await getAllUris();

@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { commentDateTime, commentDateValue, formatCommentTime } from "./time";
 
+function localClock(utcTimestamp: string): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(new Date(utcTimestamp));
+}
+
 describe("comment timestamps", () => {
   it("prefers dateGmt as canonical UTC over site-local date", () => {
     const timestamp = {
@@ -33,8 +41,8 @@ describe("comment timestamps", () => {
     const now = new Date("2026-09-09T05:34:00.000Z");
 
     expect(formatCommentTime(timestamp, now)).toMatchObject({
-      display: "昨天 12:34",
-      relative: "昨天 12:34",
+      display: `昨天 ${localClock("2026-09-08T04:34:00.000Z")}`,
+      relative: `昨天 ${localClock("2026-09-08T04:34:00.000Z")}`,
     });
   });
 
@@ -43,8 +51,8 @@ describe("comment timestamps", () => {
     const now = new Date("2026-09-09T05:34:00.000Z");
 
     expect(formatCommentTime(timestamp, now)).toMatchObject({
-      display: "前天 12:34",
-      relative: "前天 12:34",
+      display: `前天 ${localClock("2026-09-07T04:34:00.000Z")}`,
+      relative: `前天 ${localClock("2026-09-07T04:34:00.000Z")}`,
     });
   });
 
@@ -53,8 +61,8 @@ describe("comment timestamps", () => {
     const now = new Date("2026-09-09T05:34:00.000Z");
 
     expect(formatCommentTime(timestamp, now)).toMatchObject({
-      display: "3 天前 12:34",
-      relative: "3 天前 12:34",
+      display: `3 天前 ${localClock("2026-09-06T04:34:00.000Z")}`,
+      relative: `3 天前 ${localClock("2026-09-06T04:34:00.000Z")}`,
     });
   });
 });

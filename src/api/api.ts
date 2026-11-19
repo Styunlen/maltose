@@ -15,7 +15,11 @@ import {
 } from "@apollo/client/errors";
 import { RetryLink } from "@apollo/client/link/retry";
 import { LruLink, attachLruCacheApi, makeCacheKey } from "@/lib/lru-link";
-import { createCacheStoreSync, startCacheRedis, startCleanupTimer } from "@/lib/cache";
+import {
+  createCacheStoreSync,
+  startCacheRedis,
+  startCleanupTimer,
+} from "@/lib/cache";
 import { logger } from "@/lib/logger";
 
 const loggerLink = new ApolloLink((operation, forward) => {
@@ -94,6 +98,7 @@ const TTL_CONFIG: Record<string, number> = {
   CommentGeoStats: 600,
   StatsContent: 600,
   PreviewByUri: 600,
+  SiteSearch: 300,
   // Article queries: every query is SWR now (no strong-consistency wait), so a
   // shorter TTL bounds the stale window while reads still never block — expired
   // entries serve stale + refresh in the background. Comment/post mutations
@@ -129,7 +134,8 @@ const cacheCfg = {
   // base 600s → 100min), and expired entries are still served stale during
   // SWR — so a tight maxAge (e.g. the 10min default) would delete live
   // entries and gut the cache. 24h only reaps orphaned cold entries.
-  cleanupMaxAgeMs: Number(process.env.GRAPHQL_CACHE_MAX_AGE_MS) || 24 * 60 * 60 * 1000,
+  cleanupMaxAgeMs:
+    Number(process.env.GRAPHQL_CACHE_MAX_AGE_MS) || 24 * 60 * 60 * 1000,
   // Fail-open reconnect: swap the live store when the backend comes back.
   onReconnect: (store: any) => lruLink?.setStore(store),
 };
@@ -251,16 +257,31 @@ export async function layoutQuery() {
 // Homepage data query: sidebar widgets (recent posts / comments / tags /
 // categories / archive) plus sticky + most-viewed pools. Only index.astro
 // consumes this — MainLayout uses layoutQuery() for the shared chrome.
-export async function megaQuery(opts: {
-  sidebarPosts?: number;
-  recentComments?: number;
-  randomFirst?: number;
-  includeSticky?: boolean;
-} = {}) {
-  const { sidebarPosts = 5, recentComments = 5, randomFirst = 0, includeSticky = false } = opts;
+export async function megaQuery(
+  opts: {
+    sidebarPosts?: number;
+    recentComments?: number;
+    randomFirst?: number;
+    includeSticky?: boolean;
+  } = {},
+) {
+  const {
+    sidebarPosts = 5,
+    recentComments = 5,
+    randomFirst = 0,
+    includeSticky = false,
+  } = opts;
   const query = gql`
-    query MegaQuery($sidebarPosts: Int!, $recentComments: Int!, $randomFirst: Int!, $includeSticky: Boolean!) {
-      recentPosts: posts(first: $sidebarPosts, where: { orderby: { field: DATE, order: DESC } }) {
+    query MegaQuery(
+      $sidebarPosts: Int!
+      $recentComments: Int!
+      $randomFirst: Int!
+      $includeSticky: Boolean!
+    ) {
+      recentPosts: posts(
+        first: $sidebarPosts
+        where: { orderby: { field: DATE, order: DESC } }
+      ) {
         nodes {
           id
           date
@@ -371,7 +392,12 @@ export async function megaQuery(opts: {
       }
     }
   `;
-  const variables = { sidebarPosts, recentComments, randomFirst, includeSticky };
+  const variables = {
+    sidebarPosts,
+    recentComments,
+    randomFirst,
+    includeSticky,
+  };
   const { data } = await client.query({ query, variables });
   return data;
 }
@@ -490,7 +516,9 @@ export function shuffle<T>(arr: T[]): T[] {
   return result;
 }
 
-export async function recordPostView(postId: number | string): Promise<number | undefined> {
+export async function recordPostView(
+  postId: number | string,
+): Promise<number | undefined> {
   const { data } = await client.mutate({
     mutation: gql`
       mutation RecordPostView($postId: ID!) {
@@ -504,7 +532,11 @@ export async function recordPostView(postId: number | string): Promise<number | 
   return (data as any)?.recordPostView?.viewCount as number | undefined;
 }
 
-export async function getNodeByURI(uri, wpToken, opts: { page?: number; perPage?: number } = {}) {
+export async function getNodeByURI(
+  uri,
+  wpToken,
+  opts: { page?: number; perPage?: number } = {},
+) {
   const context = wpToken
     ? { headers: { Authorization: `Bearer ${wpToken}` } }
     : {};
@@ -914,9 +946,7 @@ export async function getTotalComments(): Promise<number> {
     query TotalComments($first: Int!, $offset: Int!) {
       posts(
         first: $first
-        where: {
-          offsetPagination: { size: $first, offset: $offset }
-        }
+        where: { offsetPagination: { size: $first, offset: $offset } }
       ) {
         pageInfo {
           offsetPagination {
@@ -1037,6 +1067,131 @@ export async function previewByUriQuery(
   return data;
 }
 
+export async function siteSearchQuery(search: string, first = 50) {
+  const limit = Math.min(Math.max(1, first), 50);
+  const query = gql`
+    query SiteSearch($search: String!, $first: Int!) {
+      posts(
+        first: $first
+        where: { search: $search, orderby: { field: DATE, order: DESC } }
+      ) {
+        pageInfo {
+          hasNextPage
+        }
+        nodes {
+          databaseId
+          date
+          uri
+          title
+          excerpt
+          content
+          commentCount
+          viewCount
+          categories {
+            nodes {
+              name
+              uri
+            }
+          }
+          tags {
+            nodes {
+              name
+              uri
+            }
+          }
+          featuredImage {
+            node {
+              sourceUrl
+            }
+          }
+        }
+      }
+      pages(
+        first: $first
+        where: { search: $search, orderby: { field: DATE, order: DESC } }
+      ) {
+        pageInfo {
+          hasNextPage
+        }
+        nodes {
+          databaseId
+          date
+          uri
+          title
+          content
+          commentCount
+          featuredImage {
+            node {
+              sourceUrl
+            }
+          }
+        }
+      }
+      comments(
+        first: $first
+        where: { search: $search, order: DESC, statusIn: [APPROVE] }
+      ) {
+        pageInfo {
+          hasNextPage
+        }
+        nodes {
+          databaseId
+          date
+          dateGmt
+          uri
+          content
+          author {
+            node {
+              name
+            }
+          }
+          commentedOn {
+            node {
+              ... on Post {
+                title
+                uri
+              }
+              ... on Page {
+                title
+                uri
+              }
+            }
+          }
+        }
+      }
+      tags(first: $first, where: { search: $search }) {
+        pageInfo {
+          hasNextPage
+        }
+        nodes {
+          databaseId
+          name
+          uri
+          count
+          description
+        }
+      }
+      categories(first: $first, where: { search: $search }) {
+        pageInfo {
+          hasNextPage
+        }
+        nodes {
+          databaseId
+          name
+          uri
+          count
+          description
+        }
+      }
+    }
+  `;
+  const { data } = await client.query({
+    query,
+    variables: { search, first: limit },
+  });
+  return data;
+}
+
 // Theme "阅读增强" settings bridged from WP options via RootQuery.maltoseSettings.
 export async function maltoseSettingsQuery() {
   const query = gql`
@@ -1048,6 +1203,57 @@ export async function maltoseSettingsQuery() {
         previewWpm
         previewCacheTtl
         previewRecent
+      }
+    }
+  `;
+  const { data } = await client.query({ query, variables: {} });
+  return data;
+}
+
+// Site-level config bridged from WP options (social links + blog owner) and
+// announcement posts (CPT maltose_announcement, ADR-0043). Both are kept OUT
+// of layoutQuery on purpose: their GraphQL fields only exist after the WP
+// theme ships the matching registrations, and a missing field would fail the
+// whole layout query (menu + site identity). These fail soft instead.
+export async function siteConfigQuery() {
+  const query = gql`
+    query SiteConfig {
+      siteConfig {
+        socialLinks {
+          label
+          url
+          iconType
+          icon
+        }
+        owner {
+          name
+          description
+          avatar {
+            url
+          }
+          url
+        }
+      }
+    }
+  `;
+  const { data } = await client.query({ query, variables: {} });
+  return data;
+}
+
+export async function announcementsQuery() {
+  const query = gql`
+    query Announcements {
+      maltoseAnnouncements(
+        first: 30
+        where: { status: PUBLISH, orderby: { field: DATE, order: DESC } }
+      ) {
+        nodes {
+          id
+          date
+          modified
+          content(format: RENDERED)
+          sticky
+        }
       }
     }
   `;
@@ -1218,7 +1424,12 @@ export function countContentWords(html: string): number {
 export async function warmCache(): Promise<void> {
   const jobs: Promise<unknown>[] = [
     layoutQuery(),
-    megaQuery({ sidebarPosts: 5, recentComments: 5, randomFirst: 30, includeSticky: true }),
+    megaQuery({
+      sidebarPosts: 5,
+      recentComments: 5,
+      randomFirst: 30,
+      includeSticky: true,
+    }),
     homePagePostsQuery(10, 0),
     getTimelineStats(),
     getTotalComments(),

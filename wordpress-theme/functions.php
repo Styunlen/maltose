@@ -22,6 +22,10 @@ require_once $theme_dir . '/includes/class-email-otp.php';
 require_once $theme_dir . '/includes/class-change-username.php';
 require_once $theme_dir . '/includes/class-data-registry.php';
 require_once $theme_dir . '/includes/class-block-reference.php';
+require_once $theme_dir . '/includes/class-announcements.php';
+require_once $theme_dir . '/includes/class-site-config.php';
+require_once $theme_dir . '/includes/class-rest-controller.php';
+require_once $theme_dir . '/includes/class-admin-app.php';
 
 add_action('init', [AstroPressSignatureVerifier::class, 'init']);
 add_action('graphql_register_types', [AstroPressAgentPublic::class, 'register']);
@@ -39,6 +43,8 @@ add_action('graphql_register_types', [MaltoseEmailOtp::class, 'register']);
 add_action('graphql_register_types', [MaltoseChangeUsername::class, 'register']);
 add_action('graphql_register_types', [MaltoseBlockReference::class, 'register']);
 add_action('graphql_register_types', [MaltoseBlockReference::class, 'registerRebind']);
+add_action('graphql_register_types', [MaltoseAnnouncements::class, 'register']);
+add_action('graphql_register_types', [MaltoseSiteConfig::class, 'register']);
 
 // 记录最近登录时间（password / Authentik / OTP 统一走 wp_login hook；
 // OTP 路径在 verifyEmailOtp 内已单独记录，此处覆盖其余登录方式）。
@@ -48,10 +54,18 @@ add_action('wp_login', static function ($user_login, $user) {
     }
 }, 10, 2);
 add_action('save_post', [MaltosePostViews::class, 'onSavePost']);
-add_action('admin_menu', [MaltoseAdminSettings::class, 'addAdminMenu']);
+// React admin app (ADR-0044): top-level menu + REST controller replace the
+// legacy "设置 → Maltose" options pages. Only the add_options_page menu
+// registration is removed; the settings sanitizers, admin_post handlers
+// (uninstall/export/import/cleanup/migrate as compatibility fallbacks) and the
+// switch-theme notice stay registered.
 add_action('admin_init', [MaltoseAdminSettings::class, 'init']);
 add_action('switch_theme', [MaltoseAdminSettings::class, 'onSwitchTheme']);
+add_action('init', [MaltoseAdminApp::class, 'init']);
+add_action('rest_api_init', [MaltoseRestController::class, 'registerRoutes']);
 add_action('init', [MaltoseDataRegistry::class, 'init']);
+add_action('init', [MaltoseAnnouncements::class, 'init']);
+add_action('admin_init', [MaltoseSiteConfig::class, 'init']);
 // OTP 账号改密后重分类为正常用户（ADR-0036 P2）：移除标记，卸载时不再列为候选删除。
 add_action('after_password_reset', [MaltoseEmailOtp::class, 'onPasswordChanged']);
 add_action('profile_update', [MaltoseEmailOtp::class, 'onPasswordChanged']);

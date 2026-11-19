@@ -23,6 +23,7 @@ import { ReplyPopupModal } from "@/components/comment/ReplyPopupModal";
 // Client-side markdown rendering for dynamic comment refresh
 import { marked } from "marked";
 import DOMPurify from "dompurify";
+import { scrollToElement } from "@/lib/scroll";
 
 interface Props {
   comments: any[];
@@ -103,7 +104,10 @@ export default function CommentSection({
       if (!host) return;
       const clientId = (host as HTMLElement).dataset.blockId;
       if (!clientId) return;
-      const snippet = (host.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
+      const snippet = (host.textContent ?? "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 80);
       e.preventDefault();
       fetch("/api/comments/rebind", {
         method: "POST",
@@ -330,8 +334,7 @@ export default function CommentSection({
     // Scroll to editor
     setTimeout(() => {
       const editor = document.querySelector(".markdown-editor-wrapper");
-      if (editor)
-        editor.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (editor) scrollToElement(editor, { block: "center" });
     }, 100);
   }, []);
 
@@ -350,7 +353,7 @@ export default function CommentSection({
 
     if (!isContainerInViewport) {
       // 容器不在视口中 → 滚动整个页面让目标居中
-      t.scrollIntoView({ behavior: "smooth", block: "center" });
+      scrollToElement(t, { block: "center" });
     } else {
       // 容器已在视口中 → 只滚动容器让目标居中
       const targetRect = t.getBoundingClientRect();
@@ -368,344 +371,355 @@ export default function CommentSection({
   }, []);
 
   const scrollToBlock = React.useCallback((clientId: string) => {
-    const el = document.querySelector<HTMLElement>(`[data-block-id="${clientId}"]`);
+    const el = document.querySelector<HTMLElement>(
+      `[data-block-id="${clientId}"]`,
+    );
     if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    scrollToElement(el, { block: "center" });
     el.classList.add("block-ref-highlight");
     setTimeout(() => el.classList.remove("block-ref-highlight"), 2000);
   }, []);
 
   return (
     <CommentTooltipProvider>
-    <ErrorBoundary>
-    <section
-      id="comments-section"
-      className="comments-section-global"
-      style={{
-        width: "100%",
-        ...(rebinding
-          ? { outline: "2px dashed var(--primary)", outlineOffset: "4px" }
-          : {}),
-        maxWidth: 800,
-        margin: "5rem auto 0",
-        padding: "1.5rem 1.25rem",
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius)",
-      }}
-    >
-      {rebinding && (
-        <div
-          className="chat-rebind-banner"
+      <ErrorBoundary>
+        <section
+          id="comments-section"
+          className="comments-section-global"
           style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "0.75rem",
-            marginBottom: "1rem",
-            padding: "0.6rem 0.9rem",
-            borderRadius: "calc(var(--radius) - 4px)",
-            background: "color-mix(in oklch, var(--primary) 12%, transparent)",
-            border: "1px solid color-mix(in oklch, var(--primary) 35%, transparent)",
+            width: "100%",
+            ...(rebinding
+              ? { outline: "2px dashed var(--primary)", outlineOffset: "4px" }
+              : {}),
+            maxWidth: 800,
+            margin: "5rem auto 0",
+            padding: "1.5rem 1.25rem",
+            background: "var(--card)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius)",
           }}
         >
-          <span style={{ fontSize: "0.85rem" }}>
-            请点击正文中要绑定到的段落（虚线高亮处）
-          </span>
-          <button
-            type="button"
-            onClick={cancelRebind}
-            style={{
-              border: "none",
-              background: "transparent",
-              color: "var(--muted-foreground)",
-              cursor: "pointer",
-              fontSize: "0.8rem",
-              textDecoration: "underline",
-            }}
-          >
-            取消
-          </button>
-        </div>
-      )}
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "1.25rem",
-          paddingBottom: "0.75rem",
-          borderBottom: "1px solid var(--border)",
-        }}
-      >
-        <span
-          style={{
-            fontSize: "1rem",
-            fontWeight: 700,
-            color: "var(--foreground)",
-          }}
-        >
-          💬 评论 ({liveCount})
-        </span>
-        <span style={{ fontSize: "1rem", opacity: 0.5 }} aria-hidden>
-          ✿
-        </span>
-      </div>
-
-      {/* List */}
-      {sorted.length > 0 ? (
-        <div
-          ref={scrollRef}
-          id="chat-scroll"
-          style={{
-            maxHeight: 600,
-            overflowY: "auto",
-            scrollBehavior: "smooth",
-          }}
-        >
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}
-          >
-            {groupByAuthor(sorted).map((group, gi) => (
-                <MessageGroup key={`group-${gi}`}>
-                  {group.map((c, ci) => (
-                    <ChatBubble
-                      key={c.id}
-                      comment={c}
-                      onReply={openPopup}
-                      onStartReply={(id, name) => {
-                        cancelEdit();
-                        startReply(id, name);
-                      }}
-                      onMention={scrollTo}
-                      showAvatar={ci === 0}
-                      isOwn={
-                        (currentUserId != null &&
-                          c.author?.node?.databaseId === currentUserId) ||
-                        (!!user?.email && c.author?.node?.email === user.email)
-                      }
-                      isOwner={
-                        siteOwnerUserIds?.includes(c.author?.node?.databaseId) ??
-                        false
-                      }
-                      isOrphan={
-                        !!c.blockReference?.clientId &&
-                        !(blockClientIds ?? []).includes(c.blockReference.clientId)
-                      }
-                      canRebind={
-                        currentUserId != null &&
-                        c.author?.node?.databaseId === currentUserId
-                      }
-                      currentUserIsOwner={
-                        currentUserId != null &&
-                        (siteOwnerUserIds ?? []).includes(currentUserId)
-                      }
-                      onRebind={startRebind}
-                      onBlockRefClick={scrollToBlock}
-                      editing={isEditing(c.id, "main")}
-                      onEdit={(commentId) => onEditRequest(commentId, "main")}
-                      onEditSave={(commentId, md) => {
-                        setLocalComments((prev) =>
-                          prev.map((cc: any) =>
-                            cc.id === commentId
-                              ? { ...cc, content: renderMd(md) }
-                              : cc,
-                          ),
-                        );
-                        cancelEdit();
-                      }}
-                      onEditCancel={cancelEdit}
-                      onDelete={(commentId) => setDeleteTarget(commentId)}
-                    />
-                  ))}
-                </MessageGroup>
-              ))}
-          </div>
-        </div>
-      ) : (
-        <div style={{ textAlign: "center", padding: "2rem 1rem" }}>
-          <p
-            style={{
-              fontSize: "1rem",
-              fontWeight: 600,
-              color: "var(--muted-foreground)",
-            }}
-          >
-            还没有评论呢 ~ 快来抢沙发吧 🛋️
-          </p>
-        </div>
-      )}
-
-      {/* ─── Comment Form ─── */}
-      <div
-        style={{
-          marginTop: "1rem",
-          paddingTop: "1rem",
-          borderTop: "1px solid var(--border)",
-        }}
-      >
-        {isOpen ? (
-          user ? (
-            postDatabaseId != null && (
-              <CommentComposer
-                postDatabaseId={postDatabaseId}
-                parent={parentId}
-                replyTargetName={replyingTo}
-                onCancelReply={() => {
-                  setParentId(null);
-                  setReplyingTo(null);
-                }}
-                onPosted={() => {
-                  setLiveCount((c) => c + 1);
-                  setParentId(null);
-                  setReplyingTo(null);
-                }}
-              />
-            )
-          ) : (
-            <div style={{ textAlign: "center" }}>
+          {rebinding && (
+            <div
+              className="chat-rebind-banner"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "0.75rem",
+                marginBottom: "1rem",
+                padding: "0.6rem 0.9rem",
+                borderRadius: "calc(var(--radius) - 4px)",
+                background:
+                  "color-mix(in oklch, var(--primary) 12%, transparent)",
+                border:
+                  "1px solid color-mix(in oklch, var(--primary) 35%, transparent)",
+              }}
+            >
+              <span style={{ fontSize: "0.85rem" }}>
+                请点击正文中要绑定到的段落（虚线高亮处）
+              </span>
               <button
                 type="button"
-                onClick={() => {
-                  const loginHref = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
-                  window.location.href = loginHref;
-                }}
+                onClick={cancelRebind}
                 style={{
-                  padding: "0.45rem 1.2rem",
-                  fontSize: "0.85rem",
-                  fontWeight: 700,
-                  color: "#000",
-                  background: "var(--primary)",
                   border: "none",
-                  borderRadius: 9999,
+                  background: "transparent",
+                  color: "var(--muted-foreground)",
                   cursor: "pointer",
+                  fontSize: "0.8rem",
+                  textDecoration: "underline",
                 }}
               >
-                登录后评论
+                取消
               </button>
             </div>
-          )
-        ) : (
-          <p
+          )}
+          {/* Header */}
+          <div
             style={{
-              textAlign: "center",
-              fontSize: "0.9rem",
-              fontWeight: 600,
-              color: "var(--muted-foreground)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: "1.25rem",
+              paddingBottom: "0.75rem",
+              borderBottom: "1px solid var(--border)",
             }}
           >
-            📕 评论已关闭
-          </p>
-        )}
-      </div>
+            <span
+              style={{
+                fontSize: "1rem",
+                fontWeight: 700,
+                color: "var(--foreground)",
+              }}
+            >
+              💬 评论 ({liveCount})
+            </span>
+            <span style={{ fontSize: "1rem", opacity: 0.5 }} aria-hidden>
+              ✿
+            </span>
+          </div>
 
-      {/* Popup */}
-      {popup && (
-        <ReplyPopupModal
-          parentDbId={popup.parentDbId}
-          children={
-            popup.childrenIds
-              .map((id) => commentMap.get(id))
-              .filter(Boolean) as FlatComment[]
-          }
-          commentMap={commentMap}
-          onClose={requestClosePopup}
-          onReplyToComment={(id, name) => {
-            cancelEdit();
-            setPopup(null);
-            startReply(id, name);
-          }}
-          onMentionClick={scrollTo}
-          isEditing={isEditing}
-          onEditRequest={onEditRequest}
-          onEditSave={(commentId, md) => {
-            setLocalComments((prev) =>
-              prev.map((cc: any) =>
-                cc.id === commentId
-                  ? { ...cc, content: renderMd(md) }
-                  : cc,
-              ),
-            );
-            cancelEdit();
-          }}
-          onEditCancel={cancelEdit}
-          currentUserId={currentUserId}
-          siteOwnerUserIds={siteOwnerUserIds}
-          blockClientIds={blockClientIds}
-          onRebind={startRebind}
-          onBlockRefClick={scrollToBlock}
-          onDeleteComment={(dbId) => {
-            const c = localComments.find(
-              (cc: any) => String(cc.databaseId) === dbId,
-            );
-            if (c) setDeleteTarget(c.id);
-          }}
-        />
-      )}
+          {/* List */}
+          {sorted.length > 0 ? (
+            <div
+              ref={scrollRef}
+              id="chat-scroll"
+              data-lenis-prevent
+              style={{
+                maxHeight: 600,
+                overflowY: "auto",
+                scrollBehavior: "smooth",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.25rem",
+                }}
+              >
+                {groupByAuthor(sorted).map((group, gi) => (
+                  <MessageGroup key={`group-${gi}`}>
+                    {group.map((c, ci) => (
+                      <ChatBubble
+                        key={c.id}
+                        comment={c}
+                        onReply={openPopup}
+                        onStartReply={(id, name) => {
+                          cancelEdit();
+                          startReply(id, name);
+                        }}
+                        onMention={scrollTo}
+                        showAvatar={ci === 0}
+                        isOwn={
+                          (currentUserId != null &&
+                            c.author?.node?.databaseId === currentUserId) ||
+                          (!!user?.email &&
+                            c.author?.node?.email === user.email)
+                        }
+                        isOwner={
+                          siteOwnerUserIds?.includes(
+                            c.author?.node?.databaseId,
+                          ) ?? false
+                        }
+                        isOrphan={
+                          !!c.blockReference?.clientId &&
+                          !(blockClientIds ?? []).includes(
+                            c.blockReference.clientId,
+                          )
+                        }
+                        canRebind={
+                          currentUserId != null &&
+                          c.author?.node?.databaseId === currentUserId
+                        }
+                        currentUserIsOwner={
+                          currentUserId != null &&
+                          (siteOwnerUserIds ?? []).includes(currentUserId)
+                        }
+                        onRebind={startRebind}
+                        onBlockRefClick={scrollToBlock}
+                        editing={isEditing(c.id, "main")}
+                        onEdit={(commentId) => onEditRequest(commentId, "main")}
+                        onEditSave={(commentId, md) => {
+                          setLocalComments((prev) =>
+                            prev.map((cc: any) =>
+                              cc.id === commentId
+                                ? { ...cc, content: renderMd(md) }
+                                : cc,
+                            ),
+                          );
+                          cancelEdit();
+                        }}
+                        onEditCancel={cancelEdit}
+                        onDelete={(commentId) => setDeleteTarget(commentId)}
+                      />
+                    ))}
+                  </MessageGroup>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div style={{ textAlign: "center", padding: "2rem 1rem" }}>
+              <p
+                style={{
+                  fontSize: "1rem",
+                  fontWeight: 600,
+                  color: "var(--muted-foreground)",
+                }}
+              >
+                还没有评论呢 ~ 快来抢沙发吧 🛋️
+              </p>
+            </div>
+          )}
 
-      {/* 编辑切换确认（主区/弹窗跨作用域丢弃草稿） */}
-      <ConfirmDialog
-        open={pendingEdit !== null}
-        onOpenChange={(o) => {
-          if (!o) setPendingEdit(null);
-        }}
-        title="丢弃未保存的编辑？"
-        description="当前有一条评论正在编辑中。切换编辑目标将丢弃其未保存的内容。"
-        confirmLabel="丢弃并切换"
-        cancelLabel="取消"
-        onConfirm={() => {
-          if (!pendingEdit) return;
-          const { id, scope } = pendingEdit;
-          setPendingEdit(null);
-          startEdit(id, scope);
-        }}
-      />
+          {/* ─── Comment Form ─── */}
+          <div
+            style={{
+              marginTop: "1rem",
+              paddingTop: "1rem",
+              borderTop: "1px solid var(--border)",
+            }}
+          >
+            {isOpen ? (
+              user ? (
+                postDatabaseId != null && (
+                  <CommentComposer
+                    postDatabaseId={postDatabaseId}
+                    parent={parentId}
+                    replyTargetName={replyingTo}
+                    onCancelReply={() => {
+                      setParentId(null);
+                      setReplyingTo(null);
+                    }}
+                    onPosted={() => {
+                      setLiveCount((c) => c + 1);
+                      setParentId(null);
+                      setReplyingTo(null);
+                    }}
+                  />
+                )
+              ) : (
+                <div style={{ textAlign: "center" }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const loginHref = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
+                      window.location.href = loginHref;
+                    }}
+                    style={{
+                      padding: "0.45rem 1.2rem",
+                      fontSize: "0.85rem",
+                      fontWeight: 700,
+                      color: "#000",
+                      background: "var(--primary)",
+                      border: "none",
+                      borderRadius: 9999,
+                      cursor: "pointer",
+                    }}
+                  >
+                    登录后评论
+                  </button>
+                </div>
+              )
+            ) : (
+              <p
+                style={{
+                  textAlign: "center",
+                  fontSize: "0.9rem",
+                  fontWeight: 600,
+                  color: "var(--muted-foreground)",
+                }}
+              >
+                📕 评论已关闭
+              </p>
+            )}
+          </div>
 
-      {/* 弹窗关闭确认（弹窗内有编辑态） */}
-      <ConfirmDialog
-        open={pendingPopupClose}
-        onOpenChange={(o) => {
-          if (!o) setPendingPopupClose(false);
-        }}
-        title="关闭弹窗？"
-        description="当前有正在编辑的评论，关闭弹窗将丢弃未保存的内容。"
-        confirmLabel="关闭并丢弃"
-        cancelLabel="取消"
-        onConfirm={() => {
-          setPendingPopupClose(false);
-          cancelEdit();
-          setPopup(null);
-        }}
-      />
+          {/* Popup */}
+          {popup && (
+            <ReplyPopupModal
+              parentDbId={popup.parentDbId}
+              children={
+                popup.childrenIds
+                  .map((id) => commentMap.get(id))
+                  .filter(Boolean) as FlatComment[]
+              }
+              commentMap={commentMap}
+              onClose={requestClosePopup}
+              onReplyToComment={(id, name) => {
+                cancelEdit();
+                setPopup(null);
+                startReply(id, name);
+              }}
+              onMentionClick={scrollTo}
+              isEditing={isEditing}
+              onEditRequest={onEditRequest}
+              onEditSave={(commentId, md) => {
+                setLocalComments((prev) =>
+                  prev.map((cc: any) =>
+                    cc.id === commentId ? { ...cc, content: renderMd(md) } : cc,
+                  ),
+                );
+                cancelEdit();
+              }}
+              onEditCancel={cancelEdit}
+              currentUserId={currentUserId}
+              siteOwnerUserIds={siteOwnerUserIds}
+              blockClientIds={blockClientIds}
+              onRebind={startRebind}
+              onBlockRefClick={scrollToBlock}
+              onDeleteComment={(dbId) => {
+                const c = localComments.find(
+                  (cc: any) => String(cc.databaseId) === dbId,
+                );
+                if (c) setDeleteTarget(c.id);
+              }}
+            />
+          )}
 
-      <ConfirmDialog
-        open={deleteTarget !== null}
-        onOpenChange={(o) => {
-          if (!o) setDeleteTarget(null);
-        }}
-        title="删除评论"
-        description="确定要删除此评论吗？删除后不可恢复。"
-        confirmLabel="删除"
-        cancelLabel="取消"
-        onConfirm={async () => {
-          if (!deleteTarget) return;
-          const res = await fetch("/api/comments/delete", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ commentId: deleteTarget }),
-          });
-          if (res.ok) {
-            setLocalComments((prev) =>
-              prev.filter((cc: any) => cc.id !== deleteTarget),
-            );
-            setLiveCount((c) => Math.max(0, c - 1));
-          }
-          setDeleteTarget(null);
-        }}
-      />
-    </section>
-    </ErrorBoundary>
+          {/* 编辑切换确认（主区/弹窗跨作用域丢弃草稿） */}
+          <ConfirmDialog
+            open={pendingEdit !== null}
+            onOpenChange={(o) => {
+              if (!o) setPendingEdit(null);
+            }}
+            title="丢弃未保存的编辑？"
+            description="当前有一条评论正在编辑中。切换编辑目标将丢弃其未保存的内容。"
+            confirmLabel="丢弃并切换"
+            cancelLabel="取消"
+            onConfirm={() => {
+              if (!pendingEdit) return;
+              const { id, scope } = pendingEdit;
+              setPendingEdit(null);
+              startEdit(id, scope);
+            }}
+          />
+
+          {/* 弹窗关闭确认（弹窗内有编辑态） */}
+          <ConfirmDialog
+            open={pendingPopupClose}
+            onOpenChange={(o) => {
+              if (!o) setPendingPopupClose(false);
+            }}
+            title="关闭弹窗？"
+            description="当前有正在编辑的评论，关闭弹窗将丢弃未保存的内容。"
+            confirmLabel="关闭并丢弃"
+            cancelLabel="取消"
+            onConfirm={() => {
+              setPendingPopupClose(false);
+              cancelEdit();
+              setPopup(null);
+            }}
+          />
+
+          <ConfirmDialog
+            open={deleteTarget !== null}
+            onOpenChange={(o) => {
+              if (!o) setDeleteTarget(null);
+            }}
+            title="删除评论"
+            description="确定要删除此评论吗？删除后不可恢复。"
+            confirmLabel="删除"
+            cancelLabel="取消"
+            onConfirm={async () => {
+              if (!deleteTarget) return;
+              const res = await fetch("/api/comments/delete", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ commentId: deleteTarget }),
+              });
+              if (res.ok) {
+                setLocalComments((prev) =>
+                  prev.filter((cc: any) => cc.id !== deleteTarget),
+                );
+                setLiveCount((c) => Math.max(0, c - 1));
+              }
+              setDeleteTarget(null);
+            }}
+          />
+        </section>
+      </ErrorBoundary>
     </CommentTooltipProvider>
   );
 }

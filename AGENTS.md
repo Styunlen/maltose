@@ -16,6 +16,16 @@ Five canonical labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-f
 
 Single-context: `CONTEXT.md` at the root + ADRs in `docs/adr/` + glossary in `docs/glossary/`. See `docs/agents/domain.md`.
 
+## Workspace boundary (MANDATORY)
+
+- **Stay inside the repository.** Every file read/write — including temporary
+  files, downloads, scratch scripts, and logs — must live under the current
+  working directory. Use `.omo/tmp/` for scratch files. Never use `/tmp`,
+  `$HOME`, or any other out-of-repo path unless the user explicitly asks.
+- If a task genuinely needs an out-of-repo path, **stop and ask first**.
+- Long-lived dev/build/preview commands should run in the tmux session the user
+  is watching (currently `maltose`) so the user can see the output live.
+
 ## Release gate (MANDATORY)
 
 **Never commit, or push to any remote (GitHub origin), without explicit human approval first.**

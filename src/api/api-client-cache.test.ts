@@ -139,4 +139,13 @@ describe("api client cache wiring (ADR-0029)", () => {
     // Two distinct keys → two network round-trips.
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it("site-wide search flows through the shared LruLink cache", async () => {
+    const { siteSearchQuery } = await import("./api");
+    await siteSearchQuery("mint", 10);
+    await siteSearchQuery("mint", 10);
+    await siteSearchQuery("mint", 20);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });

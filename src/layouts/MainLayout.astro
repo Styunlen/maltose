@@ -4,25 +4,56 @@ import "@/styles/global.scss";
 import { ClientRouter } from "astro:transitions";
 import SiteFooter from "../components/SiteFooter.astro";
 import LayoutShell from "./LayoutShell";
-import {
-  layoutQuery,
-} from "@api/api.ts";
+import { announcementsQuery, layoutQuery, siteConfigQuery } from "@api/api.ts";
 import { logger } from "@/lib/logger";
 
 let primaryMenu: any = null;
 let generalSettings: any = { title: "AstroPress", url: "", description: "" };
-const { title, description, sidebarData = null } = Astro.props;
+let siteConfig: any = null;
+let announcements: any = null;
+const {
+  title,
+  description,
+  sidebarData = null,
+  robots = null,
+  sidebarStartsAfterIntro = false,
+} = Astro.props;
 
 try {
   // Layout-level query: only site chrome (menu + site identity) needed by
   // every page. Homepage-only sidebar content (posts/comments/tags/archive)
   // is fetched by index.astro and passed down via the sidebarData prop (see
   // ADR-0013: layout vs page data separation).
-  const data = await layoutQuery();
-  primaryMenu = data.menus?.nodes?.[0] ?? null;
-  if (data.generalSettings) generalSettings = data.generalSettings;
+  //
+  // siteConfig (social links + blog owner) and announcements (ADR-0043) are
+  // queried in parallel but fail soft: until the WP theme ships their GraphQL
+  // fields, the layout query (menu + site identity) must keep working.
+  const [layout, siteCfg, anns] = await Promise.allSettled([
+    layoutQuery(),
+    siteConfigQuery(),
+    announcementsQuery(),
+  ]);
+  if (layout.status === "fulfilled") {
+    primaryMenu = layout.value.menus?.nodes?.[0] ?? null;
+    if (layout.value.generalSettings)
+      generalSettings = layout.value.generalSettings;
+  } else {
+    logger.warn(
+      { err: layout.reason, module: "MainLayout" },
+      "Layout query failed, using fallback",
+    );
+  }
+  if (siteCfg.status === "fulfilled") {
+    siteConfig = siteCfg.value.siteConfig ?? null;
+  }
+  if (anns.status === "fulfilled") {
+    announcements = anns.value.maltoseAnnouncements?.nodes ?? null;
+  }
 } catch (err) {
-  logger.warn({ err, module: "MainLayout" }, "Layout query failed, using fallback");
+  logger.warn(
+    { err, module: "MainLayout" },
+    "Layout query failed, using fallback",
+  );
 }
 
 const pageTitle = `${title} | ${generalSettings.title}`;
@@ -57,6 +88,7 @@ const pageTitle = `${title} | ${generalSettings.title}`;
     <meta name="generator" content={Astro.generator} />
     <title>{`${title} | ${generalSettings.title}`}</title>
     <meta name="description" content={description} />
+    {robots && <meta name="robots" content={robots} />}
     {/* canonical 去掉查询参数（如 ?page=N、?x=），分页页指向自身路径 */}
     <link rel="canonical" href={Astro.url.origin + Astro.url.pathname} />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -77,13 +109,54 @@ const pageTitle = `${title} | ${generalSettings.title}`;
         document.documentElement.classList.toggle("dark", dark);
       })();
     </script>
+    <script is:inline>
+      // Restore MC avatar visibility before hydration so a hidden avatar never flashes.
+      (() => {
+        let hidden = false;
+        try {
+          hidden =
+            localStorage.getItem("maltose:mc-avatar-visible") === "hidden";
+        } catch {
+          hidden = false;
+        }
+        document.documentElement.dataset.mcAvatar = hidden
+          ? "hidden"
+          : "visible";
+      })();
+    </script>
+    <script is:inline>
+      // Homepage-effects preference mirrored onto <html> before islands
+      // hydrate. The settings switch updates it at runtime via the
+      // maltose:home-effects event.
+      (() => {
+        let enabled = true;
+        try {
+          enabled = localStorage.getItem("maltose:home-effects") !== "disabled";
+        } catch {
+          enabled = true;
+        }
+        document.documentElement.dataset.maltoseHomeEffects = enabled
+          ? "on"
+          : "off";
+      })();
+    </script>
     <ClientRouter fallback="swap" />
   </head>
   <body>
+    {
+      sidebarStartsAfterIntro && (
+        <div class="homepage-intro" data-homepage-intro>
+          <slot name="before-shell" />
+        </div>
+      )
+    }
     <LayoutShell
       menu={primaryMenu}
       generalSettings={generalSettings}
       sidebarData={sidebarData}
+      siteConfig={siteConfig}
+      announcements={announcements}
+      sidebarStartsAfterIntro={sidebarStartsAfterIntro}
       initialUser={Astro.locals.user ?? null}
       pathname={Astro.url.pathname}
       client:load
@@ -108,7 +181,10 @@ const pageTitle = `${title} | ${generalSettings.title}`;
   // Observe <html>, not <body>: ClientRouter swaps the whole body element on
   // navigation, which would detach an observer attached to the old body node.
   const observer = new MutationObserver(() => instance.update());
-  observer.observe(document.documentElement, { childList: true, subtree: true });
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+  });
 
   document.addEventListener("astro:page-load", () => instance.update());
 
@@ -117,10 +193,15 @@ const pageTitle = `${title} | ${generalSettings.title}`;
   // router animates the scroll-to-top, then drop the class after the page
   // settles so ordinary programmatic scrolls stay instant.
   document.addEventListener("astro:before-preparation", () => {
+    // Native smooth scrolling would fight the site-wide Lenis (ADR-0041).
+    if (window.__lenis) return;
     document.documentElement.classList.add("smooth-scroll");
   });
   document.addEventListener("astro:page-load", () => {
-    setTimeout(() => document.documentElement.classList.remove("smooth-scroll"), 500);
+    setTimeout(
+      () => document.documentElement.classList.remove("smooth-scroll"),
+      500,
+    );
   });
 
   // Navigation progress bar: ClientRouter fetches the next page's SSR HTML
@@ -132,10 +213,15 @@ const pageTitle = `${title} | ${generalSettings.title}`;
   const navProgress = (() => {
     let raf = 0;
     let progress = 0;
-    const find = () =>
-      Array.from(document.querySelectorAll("div")).find(
-        (d) => d.style.position === "fixed" && d.style.height === "2px" && d.style.zIndex === "9999",
-      ) as HTMLElement | undefined;
+    const find = () => {
+      const element = Array.from(document.querySelectorAll("div")).find(
+        (d) =>
+          d.style.position === "fixed" &&
+          d.style.height === "2px" &&
+          d.style.zIndex === "9999",
+      );
+      return element instanceof HTMLElement ? element : undefined;
+    };
     const tick = () => {
       progress = progress + (0.9 - progress) * 0.15;
       const el = find();
@@ -186,17 +272,31 @@ const pageTitle = `${title} | ${generalSettings.title}`;
   document.addEventListener("astro:page-load", applyTheme);
 </script>
 
+<script>
+  import { initSmoothScroll } from "../scripts/smooth-scroll";
+
+  initSmoothScroll();
+</script>
+
 <style>
   html,
   body {
     overflow-x: clip;
   }
   body {
-    font-family: "Nunito", "MiSans", "PingFang SC", "Hiragino Sans GB",
-      "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+    font-family:
+      "Nunito", "MiSans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+      "Noto Sans SC", system-ui, sans-serif;
     font-size: 18px;
     /* Subtle dot grid — kept light so prose stays readable; dark mode dims it. */
     background-image: radial-gradient(var(--border) 1px, transparent 1px);
     background-size: 24px 24px;
+  }
+  .homepage-intro {
+    position: relative;
+    width: 100%;
+  }
+  html[data-mc-avatar="hidden"] [data-mc-avatar-root] {
+    display: none !important;
   }
 </style>

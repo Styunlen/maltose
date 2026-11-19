@@ -22,6 +22,7 @@ import { CommentTooltipProvider } from "@/components/comment/CommentTooltipProvi
 // Client-side markdown rendering for dynamic comment refresh
 import { marked } from "marked";
 import DOMPurify from "dompurify";
+import { scrollToElement } from "@/lib/scroll";
 
 interface ParagraphCommentsProps {
   comments: any[];
@@ -127,12 +128,15 @@ export default function ParagraphComments({
         .catch(() => {});
     };
     window.addEventListener("maltose:comment-posted", onRefresh);
-    return () => window.removeEventListener("maltose:comment-posted", onRefresh);
+    return () =>
+      window.removeEventListener("maltose:comment-posted", onRefresh);
   }, [postUri]);
 
   React.useEffect(() => {
     const onTriggerClick = (e: MouseEvent) => {
-      const trigger = (e.target as HTMLElement).closest(".block-comment-trigger");
+      const trigger = (e.target as HTMLElement).closest(
+        ".block-comment-trigger",
+      );
       if (!trigger) return;
       e.preventDefault();
       e.stopPropagation();
@@ -216,7 +220,10 @@ export default function ParagraphComments({
       if (!host) return;
       const clientId = (host as HTMLElement).dataset.blockId;
       if (!clientId) return;
-      const snippet = (host.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
+      const snippet = (host.textContent ?? "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 80);
       e.preventDefault();
       fetch("/api/comments/rebind", {
         method: "POST",
@@ -320,9 +327,11 @@ export default function ParagraphComments({
   }, []);
 
   const scrollToBlock = React.useCallback((clientId: string) => {
-    const el = document.querySelector<HTMLElement>(`[data-block-id="${clientId}"]`);
+    const el = document.querySelector<HTMLElement>(
+      `[data-block-id="${clientId}"]`,
+    );
     if (!el) return;
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    scrollToElement(el, { block: "center" });
     el.classList.add("block-ref-highlight");
     setTimeout(() => el.classList.remove("block-ref-highlight"), 2000);
   }, []);
@@ -369,91 +378,91 @@ export default function ParagraphComments({
 
   return (
     <CommentTooltipProvider>
-    <div data-paragraph-comments-root>
-      {activeBlockId && (
-        <ParagraphCommentPanel
-          key={activeBlockId}
-          blockId={activeBlockId}
-          comments={flatBlockComments}
-          commentMap={commentMap}
-          canComment={canComment}
-          loginUrl={loginUrl}
-          onClose={requestClosePanel}
-          postDatabaseId={postDatabaseId}
-          currentUserId={currentUserId}
-          siteOwnerUserIds={siteOwnerUserIds}
-          blockClientIds={blockClientIds}
-          onRebind={startRebind}
-          onBlockRefClick={scrollToBlock}
-          onMention={onMention}
-          onEditRequest={onEditRequest}
-          isEditing={isEditing}
-          onEditSave={onEditSave}
-          onEditCancel={cancelEdit}
-          onDelete={onDelete}
+      <div data-paragraph-comments-root>
+        {activeBlockId && (
+          <ParagraphCommentPanel
+            key={activeBlockId}
+            blockId={activeBlockId}
+            comments={flatBlockComments}
+            commentMap={commentMap}
+            canComment={canComment}
+            loginUrl={loginUrl}
+            onClose={requestClosePanel}
+            postDatabaseId={postDatabaseId}
+            currentUserId={currentUserId}
+            siteOwnerUserIds={siteOwnerUserIds}
+            blockClientIds={blockClientIds}
+            onRebind={startRebind}
+            onBlockRefClick={scrollToBlock}
+            onMention={onMention}
+            onEditRequest={onEditRequest}
+            isEditing={isEditing}
+            onEditSave={onEditSave}
+            onEditCancel={cancelEdit}
+            onDelete={onDelete}
+          />
+        )}
+
+        {/* 编辑切换确认（丢弃未保存的草稿） */}
+        <ConfirmDialog
+          open={pendingEdit !== null}
+          onOpenChange={(o) => {
+            if (!o) setPendingEdit(null);
+          }}
+          title="丢弃未保存的编辑？"
+          description="当前有一条评论正在编辑中。切换编辑目标将丢弃其未保存的内容。"
+          confirmLabel="丢弃并切换"
+          cancelLabel="取消"
+          onConfirm={() => {
+            if (!pendingEdit) return;
+            setPendingEdit(null);
+            startEdit(pendingEdit, "panel");
+          }}
         />
-      )}
 
-      {/* 编辑切换确认（丢弃未保存的草稿） */}
-      <ConfirmDialog
-        open={pendingEdit !== null}
-        onOpenChange={(o) => {
-          if (!o) setPendingEdit(null);
-        }}
-        title="丢弃未保存的编辑？"
-        description="当前有一条评论正在编辑中。切换编辑目标将丢弃其未保存的内容。"
-        confirmLabel="丢弃并切换"
-        cancelLabel="取消"
-        onConfirm={() => {
-          if (!pendingEdit) return;
-          setPendingEdit(null);
-          startEdit(pendingEdit, "panel");
-        }}
-      />
+        {/* 段落面板关闭确认（面板内有编辑态） */}
+        <ConfirmDialog
+          open={confirmClose}
+          onOpenChange={(o) => {
+            if (!o) setConfirmClose(false);
+          }}
+          title="关闭段落评论？"
+          description="当前有正在编辑的评论，关闭将丢弃未保存的内容。"
+          confirmLabel="关闭并丢弃"
+          cancelLabel="取消"
+          onConfirm={() => {
+            setConfirmClose(false);
+            cancelEdit();
+            cancelRebind();
+            setActiveBlockId(null);
+          }}
+        />
 
-      {/* 段落面板关闭确认（面板内有编辑态） */}
-      <ConfirmDialog
-        open={confirmClose}
-        onOpenChange={(o) => {
-          if (!o) setConfirmClose(false);
-        }}
-        title="关闭段落评论？"
-        description="当前有正在编辑的评论，关闭将丢弃未保存的内容。"
-        confirmLabel="关闭并丢弃"
-        cancelLabel="取消"
-        onConfirm={() => {
-          setConfirmClose(false);
-          cancelEdit();
-          cancelRebind();
-          setActiveBlockId(null);
-        }}
-      />
-
-      <ConfirmDialog
-        open={deleteTarget !== null}
-        onOpenChange={(o) => {
-          if (!o) setDeleteTarget(null);
-        }}
-        title="删除评论"
-        description="确定要删除此评论吗？删除后不可恢复。"
-        confirmLabel="删除"
-        cancelLabel="取消"
-        onConfirm={async () => {
-          if (!deleteTarget) return;
-          const res = await fetch("/api/comments/delete", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ commentId: deleteTarget }),
-          });
-          if (res.ok) {
-            setComments((prev) =>
-              prev.filter((c: any) => c.id !== deleteTarget),
-            );
-          }
-          setDeleteTarget(null);
-        }}
-      />
-    </div>
+        <ConfirmDialog
+          open={deleteTarget !== null}
+          onOpenChange={(o) => {
+            if (!o) setDeleteTarget(null);
+          }}
+          title="删除评论"
+          description="确定要删除此评论吗？删除后不可恢复。"
+          confirmLabel="删除"
+          cancelLabel="取消"
+          onConfirm={async () => {
+            if (!deleteTarget) return;
+            const res = await fetch("/api/comments/delete", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ commentId: deleteTarget }),
+            });
+            if (res.ok) {
+              setComments((prev) =>
+                prev.filter((c: any) => c.id !== deleteTarget),
+              );
+            }
+            setDeleteTarget(null);
+          }}
+        />
+      </div>
     </CommentTooltipProvider>
   );
 }
@@ -498,7 +507,10 @@ function ParagraphCommentPanel({
   onDelete: (commentId: string) => void;
 }) {
   const [pos, setPos] = React.useState<{ top: number } | null>(null);
-  const [replyTarget, setReplyTarget] = React.useState<{ id: number; name: string } | null>(null);
+  const [replyTarget, setReplyTarget] = React.useState<{
+    id: number;
+    name: string;
+  } | null>(null);
   // Sub-reply popup: when a comment with children has its "↳ N" chip clicked,
   // open the shared ReplyPopupModal (same behaviour as the footer section).
   const [subReply, setSubReply] = React.useState<{
@@ -511,7 +523,9 @@ function ParagraphCommentPanel({
   } | null>(null);
 
   React.useLayoutEffect(() => {
-    const host = document.querySelector<HTMLElement>(`[data-block-id="${blockId}"]`);
+    const host = document.querySelector<HTMLElement>(
+      `[data-block-id="${blockId}"]`,
+    );
     if (host) {
       const rect = host.getBoundingClientRect();
       setPos({ top: rect.bottom + window.scrollY + 8 });
@@ -519,10 +533,14 @@ function ParagraphCommentPanel({
   }, [blockId]);
 
   React.useEffect(() => {
-    const host = document.querySelector<HTMLElement>(`[data-block-id="${blockId}"]`);
+    const host = document.querySelector<HTMLElement>(
+      `[data-block-id="${blockId}"]`,
+    );
     // Exclude the affordance button (trigger/count) from the snippet text.
     const clone = host?.cloneNode(true) as HTMLElement | null;
-    clone?.querySelectorAll(".block-comment-trigger").forEach((el) => el.remove());
+    clone
+      ?.querySelectorAll(".block-comment-trigger")
+      .forEach((el) => el.remove());
     const raw = clone?.textContent?.replace(/\s+/g, " ").trim() ?? "";
     setBlockRef({ clientId: blockId, snippet: raw.slice(0, 80) });
   }, [blockId]);
@@ -538,98 +556,118 @@ function ParagraphCommentPanel({
   // on a React node desyncs the virtual DOM on re-render).
   return createPortal(
     <>
-    <div className="paragraph-comment-panel paragraph-comment-panel--floating" style={{ top: pos.top }} data-block-comment-panel>
-      <div className="paragraph-comment-panel__head">
-        <span className="paragraph-comment-panel__title">这段的评论</span>
-        <span className="paragraph-comment-panel__count">{comments.length}</span>
-        <button
-          type="button"
-          className="paragraph-comment-panel__close"
-          onClick={onClose}
-          aria-label="关闭"
-        >
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-            <path d="M18 6 6 18M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-      {comments.length === 0 ? (
-        <p className="paragraph-comment-panel__empty">还没有评论，来说两句？</p>
-      ) : (
-        <ul className="paragraph-comment-panel__list">
-          {groupByAuthor(comments).map((group, gi) => (
-            <li key={`panel-group-${gi}`} className="paragraph-comment-item">
-              <MessageGroup>
-                {group.map((c, ci) => (
-                  <ChatBubble
-                    key={c.id}
-                    comment={c}
-                    onReply={(id, name, childrenIds) => {
-                      const parent = commentMap.get(id);
-                      if (!parent) return;
-                      setSubReply({
-                        parent,
-                        children: childrenIds
-                          .map((cid) => commentMap.get(cid))
-                          .filter(Boolean) as FlatComment[],
-                      });
-                    }}
-                    onStartReply={(id, name) => startReply(id, name)}
-                    onMention={onMention}
-                    showAvatar={ci === 0}
-                    isOwn={
-                      currentUserId != null &&
-                      c.author?.node?.databaseId === currentUserId
-                    }
-                    isOwner={
-                      siteOwnerUserIds?.includes(c.author?.node?.databaseId) ??
-                      false
-                    }
-                    isOrphan={
-                      !!c.blockReference?.clientId &&
-                      !(blockClientIds ?? []).includes(c.blockReference.clientId)
-                    }
-                    canRebind={
-                      currentUserId != null &&
-                      c.author?.node?.databaseId === currentUserId
-                    }
-                    currentUserIsOwner={
-                      currentUserId != null &&
-                      (siteOwnerUserIds ?? []).includes(currentUserId)
-                    }
-                    onRebind={onRebind}
-                    onBlockRefClick={onBlockRefClick}
-                    editing={isEditing(c.id, "panel")}
-                    onEdit={(id) => onEditRequest(id)}
-                    onEditSave={onEditSave}
-                    onEditCancel={onEditCancel}
-                    onDelete={onDelete}
-                  />
-                ))}
-              </MessageGroup>
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="paragraph-comment-panel__compose">
-        {canComment ? (
-          <CommentComposer
-            postDatabaseId={postDatabaseId}
-            blockReference={blockRef}
-            parent={replyTarget?.id}
-            replyTargetName={replyTarget?.name}
-            onCancelReply={() => setReplyTarget(null)}
-            onPosted={() => onClose()}
-            variant="panel"
-            minHeight={120}
-          />
+      <div
+        className="paragraph-comment-panel paragraph-comment-panel--floating"
+        style={{ top: pos.top }}
+        data-block-comment-panel
+      >
+        <div className="paragraph-comment-panel__head">
+          <span className="paragraph-comment-panel__title">这段的评论</span>
+          <span className="paragraph-comment-panel__count">
+            {comments.length}
+          </span>
+          <button
+            type="button"
+            className="paragraph-comment-panel__close"
+            onClick={onClose}
+            aria-label="关闭"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        {comments.length === 0 ? (
+          <p className="paragraph-comment-panel__empty">
+            还没有评论，来说两句？
+          </p>
         ) : (
-          <a className="paragraph-comment-panel__cta" href={loginUrl}>
-             登录后评论
-          </a>
+          <ul className="paragraph-comment-panel__list">
+            {groupByAuthor(comments).map((group, gi) => (
+              <li key={`panel-group-${gi}`} className="paragraph-comment-item">
+                <MessageGroup>
+                  {group.map((c, ci) => (
+                    <ChatBubble
+                      key={c.id}
+                      comment={c}
+                      onReply={(id, name, childrenIds) => {
+                        const parent = commentMap.get(id);
+                        if (!parent) return;
+                        setSubReply({
+                          parent,
+                          children: childrenIds
+                            .map((cid) => commentMap.get(cid))
+                            .filter(Boolean) as FlatComment[],
+                        });
+                      }}
+                      onStartReply={(id, name) => startReply(id, name)}
+                      onMention={onMention}
+                      showAvatar={ci === 0}
+                      isOwn={
+                        currentUserId != null &&
+                        c.author?.node?.databaseId === currentUserId
+                      }
+                      isOwner={
+                        siteOwnerUserIds?.includes(
+                          c.author?.node?.databaseId,
+                        ) ?? false
+                      }
+                      isOrphan={
+                        !!c.blockReference?.clientId &&
+                        !(blockClientIds ?? []).includes(
+                          c.blockReference.clientId,
+                        )
+                      }
+                      canRebind={
+                        currentUserId != null &&
+                        c.author?.node?.databaseId === currentUserId
+                      }
+                      currentUserIsOwner={
+                        currentUserId != null &&
+                        (siteOwnerUserIds ?? []).includes(currentUserId)
+                      }
+                      onRebind={onRebind}
+                      onBlockRefClick={onBlockRefClick}
+                      editing={isEditing(c.id, "panel")}
+                      onEdit={(id) => onEditRequest(id)}
+                      onEditSave={onEditSave}
+                      onEditCancel={onEditCancel}
+                      onDelete={onDelete}
+                    />
+                  ))}
+                </MessageGroup>
+              </li>
+            ))}
+          </ul>
         )}
+        <div className="paragraph-comment-panel__compose">
+          {canComment ? (
+            <CommentComposer
+              postDatabaseId={postDatabaseId}
+              blockReference={blockRef}
+              parent={replyTarget?.id}
+              replyTargetName={replyTarget?.name}
+              onCancelReply={() => setReplyTarget(null)}
+              onPosted={() => onClose()}
+              variant="panel"
+              minHeight={120}
+            />
+          ) : (
+            <a className="paragraph-comment-panel__cta" href={loginUrl}>
+              登录后评论
+            </a>
+          )}
+        </div>
       </div>
-    </div>
       {subReply && (
         <ReplyPopupModal
           parentDbId={subReply.parent.databaseId}
@@ -660,4 +698,3 @@ function ParagraphCommentPanel({
     document.body,
   );
 }
-

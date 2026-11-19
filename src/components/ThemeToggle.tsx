@@ -21,28 +21,40 @@ function getInitialTheme(): Theme {
  * first paint to avoid a flash of the wrong theme.
  */
 export default function ThemeToggle() {
-  const [theme, setTheme] = React.useState<Theme>(getInitialTheme);
+  const [mounted, setMounted] = React.useState(false);
+  const [theme, setTheme] = React.useState<Theme>("light");
 
   React.useEffect(() => {
+    setTheme(getInitialTheme());
+    setMounted(true);
+  }, []);
+
+  React.useEffect(() => {
+    if (!mounted) return;
     document.documentElement.classList.toggle("dark", theme === "dark");
     window.localStorage.setItem("theme", theme);
-  }, [theme]);
+  }, [mounted, theme]);
 
   const toggle = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
+  const label =
+    theme === "dark" ? "切换到浅色模式" : "切换到深色模式";
+  const title = theme === "dark" ? "浅色模式" : "深色模式";
 
   return (
     <Button
       variant="ghost"
       size="icon"
-      className="h-8 w-8 rounded-xl hover:bg-primary/20 hover:text-primary transition-all duration-200"
+      className="size-8 rounded-xl hover:bg-primary/20 hover:text-primary transition-all duration-200"
       onClick={toggle}
-      aria-label={theme === "dark" ? "切换到浅色模式" : "切换到深色模式"}
-      title={theme === "dark" ? "浅色模式" : "深色模式"}
+      aria-label={mounted ? label : "切换主题"}
+      title={mounted ? title : "切换主题"}
     >
-      {theme === "dark" ? (
-        <Sun className="size-4" />
+      {!mounted ? (
+        <Moon data-icon="inline-start" className="opacity-0" />
+      ) : theme === "dark" ? (
+        <Sun data-icon="inline-start" />
       ) : (
-        <Moon className="size-4" />
+        <Moon data-icon="inline-start" />
       )}
     </Button>
   );

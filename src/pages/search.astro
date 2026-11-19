@@ -1,0 +1,203 @@
+---
+import MainLayout from "@/layouts/MainLayout.astro";
+import { siteSearchQuery } from "@api/api";
+import {
+  SEARCH_TYPES,
+  SEARCH_TYPE_LABELS,
+  canonicalSearchPath,
+  highlightSearchText,
+  normalizeSearchQuery,
+  normalizeSiteSearchData,
+  paginateSearchResults,
+  parseSearchTypes,
+  type SearchType,
+} from "@/lib/search";
+import { logger } from "@/lib/logger";
+
+export const prerender = false;
+
+const perPage = 10;
+const rawQuery = Astro.url.searchParams.get("q");
+const query = normalizeSearchQuery(rawQuery);
+const selectedTypes = parseSearchTypes(Astro.url.searchParams.getAll("type"));
+const pageParam = Number.parseInt(Astro.url.searchParams.get("page") || "1", 10);
+const currentPage = Number.isFinite(pageParam) ? Math.max(1, pageParam) : 1;
+const canonicalPath = canonicalSearchPath(query, selectedTypes, currentPage);
+
+if (Astro.url.pathname + Astro.url.search !== canonicalPath) {
+  return Astro.redirect(canonicalPath, 302);
+}
+
+let results = paginateSearchResults([], selectedTypes, currentPage, perPage);
+let hasError = false;
+
+if (query) {
+  try {
+    const data = await siteSearchQuery(query, 50);
+    const items = normalizeSiteSearchData(data, query);
+    results = paginateSearchResults(items, selectedTypes, currentPage, perPage);
+  } catch (err) {
+    logger.warn({ err, module: "SearchPage" }, "Site search query failed");
+    hasError = true;
+  }
+}
+
+if (query && !hasError && currentPage !== results.page) {
+  return Astro.redirect(canonicalSearchPath(query, selectedTypes, results.page), 302);
+}
+
+const selectedSet = new Set<SearchType>(selectedTypes);
+const title = query ? `搜索：${query}` : "站内搜索";
+const description = query
+  ? `“${query}”的站内搜索结果`
+  : "搜索文章、页面、评论、标签和分类。";
+
+function pageUrl(page: number): string {
+  return canonicalSearchPath(query, selectedTypes, page);
+}
+---
+
+<MainLayout title={title} description={description} robots={Astro.url.search ? "noindex,follow" : "index,follow"}>
+  <section class="search-shell" aria-labelledby="search-title">
+    <div class="search-hero">
+      <p class="eyebrow">SITE-WIDE INDEX</p>
+      <h1 id="search-title">站内搜索</h1>
+      <p class="hero-copy">从一个缓存查询中查找文章、页面、评论、标签和分类。</p>
+      <form class="search-form" method="get" action="/search">
+        <label class="sr-only" for="q">搜索关键词</label>
+        <input id="q" name="q" value={query} placeholder="搜索文章、评论或标签……" autocomplete="off" />
+        {selectedTypes.length < SEARCH_TYPES.length && selectedTypes.map((type) => <input type="hidden" name="type" value={type} />)}
+        <button type="submit">搜索</button>
+      </form>
+    </div>
+
+    <form class="type-filters" method="get" action="/search">
+      {query && <input type="hidden" name="q" value={query} />}
+      <fieldset>
+        <legend>筛选结果类型</legend>
+        <div class="type-options">
+          {SEARCH_TYPES.map((type) => (
+            <label class={`type-chip ${selectedSet.has(type) ? "active" : ""}`}>
+              <input type="checkbox" name="type" value={type} checked={selectedSet.has(type)} />
+              <span>{SEARCH_TYPE_LABELS[type]}</span>
+              {query && <strong>{results.groups.find((group) => group.type === type)?.total ?? 0}</strong>}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <button class="filter-submit" type="submit">应用筛选</button>
+    </form>
+
+    {!query && (
+      <div class="empty-state">
+        <h2>从一个关键词开始</h2>
+        <p>可以先选择类型再搜索。搜索结果页不会进入公共搜索索引。</p>
+      </div>
+    )}
+
+    {hasError && (
+      <div class="empty-state error">
+        <h2>搜索暂时不可用</h2>
+        <p>缓存的 GraphQL 查询失败，请稍后重试。</p>
+      </div>
+    )}
+
+    {query && !hasError && results.total === 0 && (
+      <div class="empty-state">
+        <h2>没有找到“{query}”的结果</h2>
+        <p>可以减少关键词，或扩大结果类型筛选范围。</p>
+      </div>
+    )}
+
+    {query && !hasError && results.total > 0 && (
+      <>
+        <div class="result-summary">
+          <span>找到 {results.total} 条结果（每类最多加载 50 条）</span>
+          <span>第 {results.page} / {results.totalPages} 页</span>
+        </div>
+
+        <div class="result-groups">
+          {results.groups.filter((group) => group.items.length > 0).map((group) => (
+            <section class="result-group" aria-labelledby={`group-${group.type}`}>
+              <div class="group-heading">
+                <h2 id={`group-${group.type}`}>{group.label}</h2>
+                <span>{group.total} total</span>
+              </div>
+              <div class="result-list">
+                {group.items.map((item) => (
+                  <article class={`result-card result-${item.type}`}>
+                    <div class="result-kicker">
+                      <span>{SEARCH_TYPE_LABELS[item.type].slice(0, -1)}</span>
+                      {item.count !== undefined && <span>{item.count} 条关联内容</span>}
+                    </div>
+                    <h3><a href={item.url}>{item.title}</a></h3>
+                    {item.snippet && <p set:html={highlightSearchText(item.snippet, query)} />}
+                    {item.type === "comment" && item.parentUrl && item.parentTitle && (
+                      <a class="parent-link" href={item.parentUrl}>所属文章：{item.parentTitle}</a>
+                    )}
+                  </article>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+
+        {results.totalPages > 1 && (
+          <nav class="search-pagination" aria-label="Search pagination">
+            <a class={results.page <= 1 ? "disabled" : ""} href={results.page > 1 ? pageUrl(results.page - 1) : undefined}>上一页</a>
+            <span>{results.page} / {results.totalPages}</span>
+            <a class={results.page >= results.totalPages ? "disabled" : ""} href={results.page < results.totalPages ? pageUrl(results.page + 1) : undefined}>下一页</a>
+          </nav>
+        )}
+      </>
+    )}
+  </section>
+</MainLayout>
+
+<style>
+  .search-shell { margin-top: 1.5rem; display: grid; gap: 1rem; }
+  .search-hero { position: relative; overflow: hidden; padding: 1.25rem; border: 1px solid var(--border); border-radius: calc(var(--radius) + 8px); background: linear-gradient(135deg, color-mix(in oklch, var(--primary), transparent 84%), var(--card)); }
+  .search-hero::after { content: ""; position: absolute; right: -4rem; top: -4rem; width: 12rem; height: 12rem; border-radius: 50%; background: color-mix(in oklch, var(--primary), transparent 72%); filter: blur(10px); }
+  .eyebrow { margin: 0 0 0.35rem; font: 700 0.75rem/1 "JetBrains Mono", monospace; letter-spacing: 0.08em; text-transform: uppercase; color: var(--mint-700); }
+  h1 { margin: 0; font-size: clamp(2rem, 6vw, 4rem); line-height: 0.95; letter-spacing: -0.06em; }
+  .hero-copy { max-width: 42rem; margin: 0.8rem 0 0; color: var(--muted-foreground); }
+  .search-form { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.6rem; margin-top: 1.2rem; }
+  .search-form input[type="text"], .search-form input[name="q"] { min-width: 0; padding: 0.85rem 1rem; color: var(--foreground); background: var(--background); border: 1px solid var(--border); border-radius: var(--radius); outline: none; }
+  .search-form input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary), transparent 78%); }
+  .search-form button, .search-pagination a { padding: 0.85rem 1rem; font-weight: 800; color: #000; background: var(--primary); border: 1px solid var(--primary); border-radius: var(--radius); text-decoration: none; }
+  .type-filters { display: flex; align-items: end; gap: 0.75rem; flex-wrap: wrap; padding: 0.85rem 1rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); }
+  .type-filters fieldset { min-width: 0; flex: 1; border: 0; margin: 0; padding: 0; }
+  .type-filters legend { margin-bottom: 0.5rem; color: var(--muted-foreground); font-size: 0.8rem; font-weight: 800; }
+  .type-options { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .type-chip { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.45rem 0.75rem; color: var(--muted-foreground); border: 1px solid var(--border); border-radius: 999px; background: var(--background); cursor: pointer; transition: transform 0.16s ease, border-color 0.16s ease, background-color 0.16s ease; }
+  .type-chip:hover { transform: translateY(-1px); border-color: var(--primary); }
+  .type-chip:has(input:checked) { color: #000; background: var(--primary); border-color: var(--primary); }
+  .type-chip input { position: absolute; opacity: 0; pointer-events: none; }
+  .type-chip input:focus-visible + span { outline: 2px solid var(--ring); outline-offset: 3px; border-radius: 0.15rem; }
+  .type-chip strong { font-size: 0.75rem; }
+  .filter-submit { padding: 0.55rem 0.85rem; font-weight: 800; color: #000; background: var(--primary); border: 1px solid var(--primary); border-radius: var(--radius); cursor: pointer; }
+  .empty-state, .result-summary, .result-group { padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); }
+  .empty-state h2 { margin: 0 0 0.35rem; }
+  .empty-state p { margin: 0; color: var(--muted-foreground); }
+  .empty-state.error { border-color: var(--coral-500); }
+  .result-summary { display: flex; justify-content: space-between; gap: 1rem; color: var(--muted-foreground); font-weight: 700; }
+  .result-groups { display: grid; gap: 1rem; }
+  .group-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 0.75rem; }
+  .group-heading h2 { margin: 0; font-size: 1.2rem; }
+  .group-heading span { color: var(--muted-foreground); font-size: 0.85rem; }
+  .result-list { display: grid; gap: 0.65rem; }
+  .result-card { padding: 0.9rem; border: 1px solid var(--border); border-radius: var(--radius); background: color-mix(in oklch, var(--card), var(--primary) 2%); }
+  .result-card h3 { margin: 0.25rem 0 0; font-size: 1.05rem; }
+  .result-card h3 a { color: var(--foreground); text-decoration: none; }
+  .result-card h3 a:hover { color: var(--primary); }
+  .result-card p { margin: 0.45rem 0 0; color: var(--muted-foreground); line-height: 1.65; }
+  .result-card :global(mark) { padding: 0 0.15em; color: #000; background: var(--accent); border-radius: 0.2em; }
+  .result-kicker { display: flex; gap: 0.5rem; flex-wrap: wrap; color: var(--mint-700); font: 700 0.72rem/1.2 "JetBrains Mono", monospace; text-transform: uppercase; }
+  .parent-link { display: inline-flex; margin-top: 0.55rem; color: var(--mint-700); font-size: 0.88rem; text-decoration: none; }
+  .parent-link:hover { text-decoration: underline; }
+  .search-pagination { display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin-top: 0.5rem; }
+  .search-pagination span { color: var(--muted-foreground); font-weight: 800; }
+  .search-pagination a.disabled { opacity: 0.35; pointer-events: none; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+  @media (max-width: 640px) { .search-form { grid-template-columns: 1fr; } .result-summary { flex-direction: column; } }
+</style>

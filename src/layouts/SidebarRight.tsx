@@ -24,15 +24,22 @@ import {
 } from "@/components/animate-ui/radix/dropdown-menu";
 import {
   BadgeCheck,
+  Archive,
+  BarChart3,
   Bell,
+  CalendarDays,
+  ChevronDown,
   ChevronsUpDown,
   CreditCard,
+  FolderOpen,
   LogOut,
   MessageSquare,
   Sparkles,
+  Tags,
   UserRound,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { scrollToElement } from "@/lib/scroll";
 import {
   Select,
   SelectContent,
@@ -42,6 +49,8 @@ import {
 } from "@/components/ui/select";
 import { emitter } from "@/lib/mitt";
 import { formatCommentTime, formatPostDate } from "@lib/time";
+import { setRightRailOpen, useRightRailOpen } from "@/lib/right-rail-store";
+import { MotionHighlight } from "@/components/animate-ui/effects/motion-highlight";
 
 interface SidebarRightProps {
   menu?: {
@@ -67,11 +76,48 @@ function getPageType(pathname?: string): "home" | "article" | "other" | "" {
   // SSR can't see window.location, so the pathname comes from Astro props.
   // Falling back to "" made SSR render the skeleton while the client picked a
   // real sidebar — a hydration mismatch (ul vs div) every page load.
-  const path = pathname ?? (typeof window !== "undefined" ? window.location.pathname : "");
+  const path =
+    pathname ?? (typeof window !== "undefined" ? window.location.pathname : "");
   if (!path) return "";
   if (/^(\/?$|\/index\.html$|\/archives\/post-tag\/)/.test(path)) return "home";
   if (path.match(/^\/[^/]+\/[^/]+/)) return "article";
   return "other";
+}
+
+/* ─── RailSection: collapsible group inside the right rail (ADR-0043) ─── */
+function RailSection({
+  title,
+  icon,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  // Controlled (not <details>) on purpose: the native details element
+  // misbehaves during React hydration inside the rail, breaking the
+  // MotionHighlight provider tree.
+  const [open, setOpen] = React.useState(defaultOpen);
+
+  return (
+    <section className="rail-section border-b border-border/30 last:border-b-0">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        className="flex w-full cursor-pointer items-center gap-2 px-3 py-2.5 text-[0.65rem] font-bold tracking-wider uppercase text-sidebar-foreground/60 transition-colors hover:text-primary"
+      >
+        {icon}
+        <span className="flex-1 text-left">{title}</span>
+        <ChevronDown
+          className={`size-3.5 transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+      {open && <div className="pb-2">{children}</div>}
+    </section>
+  );
 }
 
 /* ─── NavUser ─── */
@@ -483,7 +529,9 @@ function CategoryList({
     }
   }
   // Parent categories (those that have children in the data)
-  const parents = categories.filter((c) => (c.children?.nodes?.length ?? 0) > 0);
+  const parents = categories.filter(
+    (c) => (c.children?.nodes?.length ?? 0) > 0,
+  );
   // Top-level categories without children (leaf roots)
   const roots = categories.filter(
     (c) => !c.parent?.node?.name && (c.children?.nodes?.length ?? 0) === 0,
@@ -562,11 +610,7 @@ function CategoryList({
   );
 }
 
-function ArchiveList({
-  posts,
-}: {
-  posts: { date: string }[];
-}) {
+function ArchiveList({ posts }: { posts: { date: string }[] }) {
   const archives = React.useMemo(() => buildArchive(posts), [posts]);
   if (archives.length === 0) return null;
   return (
@@ -766,7 +810,7 @@ function useToc(pathname?: string) {
     if (!article) return;
     const headings = article.querySelectorAll("h1, h2, h3, h4, h5, h6");
     if (headings[index]) {
-      headings[index].scrollIntoView({ behavior: "smooth", block: "center" });
+      scrollToElement(headings[index], { block: "center" });
     }
   }, []);
 
@@ -869,7 +913,10 @@ function ArticleToc({ pathname }: { pathname?: string }) {
       <SidebarGroupLabel className="font-bold tracking-wider uppercase text-[0.65rem] text-sidebar-foreground/60">
         文章目录
       </SidebarGroupLabel>
-      <div className="px-2 max-h-64 overflow-y-auto custom-scrollbar">
+      <div
+        data-lenis-prevent
+        className="px-2 max-h-64 overflow-y-auto custom-scrollbar"
+      >
         <TocRenderer
           items={toc}
           activeIndex={activeIndex}
@@ -902,8 +949,7 @@ function ArticleComments({ pathname }: { pathname?: string }) {
         <button
           type="button"
           onClick={() => {
-            document.getElementById("comments-section")?.scrollIntoView({
-              behavior: "smooth",
+            scrollToElement(document.getElementById("comments-section"), {
               block: "center",
             });
           }}
@@ -942,7 +988,10 @@ function SidebarSkeleton() {
           </div>
         </div>
       </SidebarHeader>
-      <SidebarContent className="overflow-y-auto space-y-4 px-3 py-4">
+      <SidebarContent
+        data-lenis-prevent
+        className="overflow-y-auto space-y-4 px-3 py-4"
+      >
         <Skeleton className="h-40 w-full rounded-lg" />
         <Skeleton className="h-4 w-16 rounded" />
         <Skeleton className="h-2.5 w-full rounded" />
@@ -1018,19 +1067,41 @@ function HomepageSidebar({
 }) {
   return (
     <>
-      <SidebarHeader className="h-16 border-b border-sidebar-border">
-        <NavUser />
-      </SidebarHeader>
-      <SidebarContent className="overflow-y-auto custom-scrollbar">
-        <CalendarWidget />
-        <SiteStats sidebarData={sidebarData} />
-        <TabsSection
-          posts={sidebarData?.posts || []}
-          comments={sidebarData?.comments || []}
-        />
-        <CategoryList categories={sidebarData?.categories || []} />
-        <TagCloud tags={sidebarData?.tags || []} />
-        <ArchiveList posts={sidebarData?.archivePosts || []} />
+      <SidebarContent
+        data-lenis-prevent
+        className="custom-scrollbar overflow-y-auto"
+      >
+        <RailSection title="登录" icon={<UserRound className="size-3.5" />}>
+          <NavUser />
+        </RailSection>
+        <RailSection title="日历" icon={<CalendarDays className="size-3.5" />}>
+          <CalendarWidget />
+        </RailSection>
+        <RailSection title="网站统计" icon={<BarChart3 className="size-3.5" />}>
+          <SiteStats sidebarData={sidebarData} />
+        </RailSection>
+        <RailSection
+          title="动态"
+          icon={<MessageSquare className="size-3.5" />}
+          defaultOpen
+        >
+          <TabsSection
+            posts={sidebarData?.posts || []}
+            comments={sidebarData?.comments || []}
+          />
+        </RailSection>
+        <RailSection
+          title="文章分类"
+          icon={<FolderOpen className="size-3.5" />}
+        >
+          <CategoryList categories={sidebarData?.categories || []} />
+        </RailSection>
+        <RailSection title="标签云" icon={<Tags className="size-3.5" />}>
+          <TagCloud tags={sidebarData?.tags || []} />
+        </RailSection>
+        <RailSection title="文章归档" icon={<Archive className="size-3.5" />}>
+          <ArchiveList posts={sidebarData?.archivePosts || []} />
+        </RailSection>
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border p-2">
         <p className="text-center text-[0.65rem] text-sidebar-foreground/40">
@@ -1048,7 +1119,10 @@ function ArticleSidebar({ pathname }: { pathname?: string }) {
       <SidebarHeader className="h-16 border-b border-sidebar-border">
         <NavUser />
       </SidebarHeader>
-      <SidebarContent className="overflow-y-auto custom-scrollbar">
+      <SidebarContent
+        data-lenis-prevent
+        className="overflow-y-auto custom-scrollbar"
+      >
         <ArticleToc pathname={pathname} />
         <ArticleComments pathname={pathname} />
       </SidebarContent>
@@ -1064,28 +1138,79 @@ export default function SidebarRight({
   pathname,
 }: SidebarRightProps & { pathname?: string }) {
   const pageType = getPageType(pathname);
+  const railOpen = useRightRailOpen();
+
+  // Esc closes the overlay rail (1280–1536px, ADR-0043).
+  React.useEffect(() => {
+    if (!railOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setRightRailOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [railOpen]);
+
+  const railContent =
+    pageType === "" ? (
+      <SidebarSkeleton />
+    ) : pageType === "article" ? (
+      <ArticleSidebar pathname={pathname} />
+    ) : pageType === "home" ? (
+      <HomepageSidebar menu={menu} sidebarData={sidebarData} />
+    ) : (
+      <ArticleSidebar pathname={pathname} />
+    );
 
   return (
-    <Sidebar
-      side="right"
-      collapsible="icon"
-      className="fixed right-0 top-(--header-height) w-(--sidebar-width) h-[calc(100svh-var(--header-height))]! xl:hidden 2xl:flex"
-      suppressHydrationWarning
-    >
-      {pageType === "" && <SidebarSkeleton />}
-      {pageType === "article" && <ArticleSidebar pathname={pathname} />}
-      {pageType === "home" && (
-        <HomepageSidebar menu={menu} sidebarData={sidebarData} />
+    <>
+      <Sidebar
+        side="right"
+        collapsible="icon"
+        glass
+        wrapperClassName="hidden 2xl:block"
+        className="top-(--header-height) h-[calc(100svh-var(--header-height))]! [opacity:var(--rail-opacity)] [pointer-events:var(--rail-pe)]"
+        suppressHydrationWarning
+      >
+        {railContent}
+        <style>
+          {`
+          .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+          .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+          .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 9999px; }
+          .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+          /* RailSection owns the group title; hide the duplicated inner labels. */
+          .rail-section [data-slot="sidebar-group-label"] { display: none; }
+        `}
+        </style>
+      </Sidebar>
+
+      {/* Overlay rail for 1280–1536px: opened from the header toggle. */}
+      {railOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-black/45 xl:hidden 2xl:hidden"
+            onClick={() => setRightRailOpen(false)}
+            aria-hidden
+          />
+          <div
+            role="dialog"
+            aria-label="右侧栏"
+            className="fixed top-(--header-height) right-0 z-50 hidden h-[calc(100svh-var(--header-height))] w-(--sidebar-width) flex-col border-l border-border/40 bg-sidebar/80 backdrop-blur-[18px] backdrop-saturate-125 xl:flex 2xl:hidden"
+          >
+            {/* The overlay lives outside the Sidebar's MotionHighlight, so it
+                provides its own for the shared SidebarMenu* content. */}
+            <MotionHighlight
+              hover
+              controlledItems
+              mode="parent"
+              forceUpdateBounds
+              containerClassName="flex size-full flex-col"
+            >
+              {railContent}
+            </MotionHighlight>
+          </div>
+        </>
       )}
-      {pageType === "other" && <ArticleSidebar pathname={pathname} />}
-      <style>
-        {`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 9999px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--primary); }
-      `}
-      </style>
-    </Sidebar>
+    </>
   );
 }

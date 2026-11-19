@@ -253,6 +253,7 @@ export default function CoreCode({ block, className }: BlockRendererProps) {
             className="w-full max-w-full overflow-hidden" // Added max-w-full
           >
             <div
+              data-lenis-prevent-horizontal
               className={cn(
                 "relative w-full p-4 text-sm font-mono leading-relaxed",
                 // Remove overflow-x-auto from here and handle wrapping specifically

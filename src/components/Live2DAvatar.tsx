@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { IdleAnimation, SkinViewer, SwimAnimation } from "skinview3d";
+import type { IdleAnimation, SkinViewer } from "skinview3d";
+
+type Skinview3dModule = typeof import("skinview3d");
 
 // MC 皮肤 3D 看板娘（见 ADR-0027）。
 // 使用 skinview3d（bs-community，three.js 驱动）——相比早期用的
@@ -158,6 +160,7 @@ export default function Live2DAvatar() {
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const rootRef = React.useRef<HTMLDivElement>(null);
   const viewerRef = React.useRef<SkinViewer | null>(null);
+  const skinview3dRef = React.useRef<Skinview3dModule | null>(null);
   // 看板娘始终展开（无收起功能），expanded 固定 true 供 effect 守卫使用
   const expanded = true;
   // 相对锚点（right-4 bottom-4）的拖拽偏移量，通过 transform: translate 应用
@@ -183,14 +186,18 @@ export default function Live2DAvatar() {
           setOffset({ x: parsed.x, y: parsed.y });
         }
       }
-    } catch {}
+    } catch (error) {
+      void error;
+    }
   }, []);
   // 位置持久化：offset 变化（拖拽/游泳提交/恢复）写回 sessionStorage
   React.useEffect(() => {
     if (!restoredRef.current) return;
     try {
       sessionStorage.setItem(AVATAR_OFFSET_KEY, JSON.stringify(offset));
-    } catch {}
+    } catch (error) {
+      void error;
+    }
   }, [offset]);
   // 游动屏幕位移（px）：游动期间叠加到容器 transform，让整个看板娘在屏幕上移动
   const [swimOffset, setSwimOffset] = React.useState({ x: 0, y: 0 });
@@ -232,42 +239,88 @@ export default function Live2DAvatar() {
   React.useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !expanded) return;
-    const viewer = new SkinViewer({
-      canvas,
-      skin: SKIN_URL, // 静态资源，浏览器缓存后快速加载
-      width: 180,
-      height: 180,
-      pixelRatio: "match-device",
-    });
-    // 只转头（眼睛跟随），禁用拖拽旋转（OrbitControls）避免与看板娘移动冲突
-    viewer.controls.enabled = false;
-    // 游泳方向同步：把 playerObject 的 Euler 顺序改为 YXZ（tilt 先、yaw 后），
-    // 这样 yaw 能扫过长轴（头-脚）朝向，使角色侧身朝游泳方向游（而非永远朝相机）。
-    // 注：animation setter 的 rotation.set(0,0,0) 不重置 order，切换动画不受影响。
-    viewer.playerObject.rotation.order = "YXZ";
-    // idle 动画：IdleAnimation 提供手臂自然摆动 + 披风微动；叠加自定义呼吸
-    // （position.y 浮动 + 缩放模拟胸腔），由库统一驱动进度/速度/暂停。
-    // 跟随中（followingRef）呼吸幅度减半，避免转头+浮动叠加杂乱。
-    const idle = new IdleAnimation();
-    idle.addAnimation((player, progress) => {
-      // progress 由库按秒推进（speed=1 时 progress≈elapsed 秒），
-      // 用 BREATHE_SPEED 控制呼吸角频率（rad/s）：progress * BREATHE_SPEED 即相位。
-      const t = progress * BREATHE_SPEED;
-      const following = followingRef.current;
-      const amp = following ? BREATHE_AMP * BREATHE_FOLLOW_FACTOR : BREATHE_AMP;
-      const scale = following ? BREATHE_SCALE * BREATHE_FOLLOW_FACTOR : BREATHE_SCALE;
-      player.position.y = Math.sin(t) * amp;
-      player.scale.setScalar(1 + Math.sin(t) * scale);
-    });
-    viewer.animation = idle;
-    // 保存 idle 实例供游动状态机切换（游动时切走、返回时切回）
-    swimRef.current.idle = idle;
-    viewerRef.current = viewer;
+    let disposed = false;
+    void import("skinview3d")
+      .then((skinview3d) => {
+        if (disposed || !canvasRef.current || !expanded) return;
+        skinview3dRef.current = skinview3d;
+        const viewer = new skinview3d.SkinViewer({
+          canvas: canvasRef.current,
+          skin: SKIN_URL, // 静态资源，浏览器缓存后快速加载
+          width: 180,
+          height: 180,
+          pixelRatio: Math.min(window.devicePixelRatio || 1, 1.5),
+        });
+        // 只转头（眼睛跟随），禁用拖拽旋转（OrbitControls）避免与看板娘移动冲突
+        viewer.controls.enabled = false;
+        // 游泳方向同步：把 playerObject 的 Euler 顺序改为 YXZ（tilt 先、yaw 后），
+        // 这样 yaw 能扫过长轴（头-脚）朝向，使角色侧身朝游泳方向游（而非永远朝相机）。
+        // 注：animation setter 的 rotation.set(0,0,0) 不重置 order，切换动画不受影响。
+        viewer.playerObject.rotation.order = "YXZ";
+        // idle 动画：IdleAnimation 提供手臂自然摆动 + 披风微动；叠加自定义呼吸
+        // （position.y 浮动 + 缩放模拟胸腔），由库统一驱动进度/速度/暂停。
+        // 跟随中（followingRef）呼吸幅度减半，避免转头+浮动叠加杂乱。
+        const idle = new skinview3d.IdleAnimation();
+        idle.addAnimation((player, progress) => {
+          // progress 由库按秒推进（speed=1 时 progress≈elapsed 秒），
+          // 用 BREATHE_SPEED 控制呼吸角频率（rad/s）：progress * BREATHE_SPEED 即相位。
+          const t = progress * BREATHE_SPEED;
+          const following = followingRef.current;
+          const amp = following
+            ? BREATHE_AMP * BREATHE_FOLLOW_FACTOR
+            : BREATHE_AMP;
+          const scale = following
+            ? BREATHE_SCALE * BREATHE_FOLLOW_FACTOR
+            : BREATHE_SCALE;
+          player.position.y = Math.sin(t) * amp;
+          player.scale.setScalar(1 + Math.sin(t) * scale);
+        });
+        viewer.animation = idle;
+        // 保存 idle 实例供游动状态机切换（游动时切走、返回时切回）
+        swimRef.current.idle = idle;
+        viewer.renderPaused = document.hidden;
+        viewerRef.current = viewer;
+      })
+      .catch((error) => {
+        void error;
+      });
     return () => {
-      viewer.dispose();
+      disposed = true;
+      viewerRef.current?.dispose();
       viewerRef.current = null;
+      skinview3dRef.current = null;
       swimRef.current.idle = null;
       swimRef.current.phase = "idle";
+    };
+  }, [expanded]);
+
+  // 页面不可见或看板娘不在视口时暂停 WebGL 渲染，避免空转耗电。
+  React.useEffect(() => {
+    if (!expanded) return;
+    const root = rootRef.current;
+    if (!root) return;
+
+    let inView = true;
+    const apply = () => {
+      const viewer = viewerRef.current;
+      if (viewer && !viewer.disposed) {
+        viewer.renderPaused = document.hidden || !inView;
+      }
+    };
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        inView = entry?.isIntersecting ?? true;
+        apply();
+      },
+      { threshold: 0 },
+    );
+    io.observe(root);
+    document.addEventListener("visibilitychange", apply);
+    apply();
+
+    return () => {
+      io.disconnect();
+      document.removeEventListener("visibilitychange", apply);
     };
   }, [expanded]);
 
@@ -282,6 +335,10 @@ export default function Live2DAvatar() {
     let targetYaw = 0;
     let targetPitch = 0;
     const step = () => {
+      if (document.hidden) {
+        raf = 0;
+        return;
+      }
       const viewer = viewerRef.current;
       if (!viewer) {
         raf = requestAnimationFrame(step);
@@ -317,12 +374,18 @@ export default function Live2DAvatar() {
       const dy = e.clientY - cy;
       [targetYaw, targetPitch] = computeFollowAngles(dx, dy);
       // 同步跟随标记给呼吸动画（IdleAnimation 读取以减弱幅度）
-      followingRef.current = Math.abs(targetYaw) > 0.01 || Math.abs(targetPitch) > 0.01;
+      followingRef.current =
+        Math.abs(targetYaw) > 0.01 || Math.abs(targetPitch) > 0.01;
     };
     window.addEventListener("mousemove", onMouseMove);
+    const onVisible = () => {
+      if (!document.hidden && !raf) raf = requestAnimationFrame(step);
+    };
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("visibilitychange", onVisible);
       followingRef.current = false;
     };
   }, [expanded]);
@@ -351,21 +414,29 @@ export default function Live2DAvatar() {
       s.angle = angle;
       // 随机游动距离：屏幕对角线长度的 25%-100%（随分辨率动态调整）
       const diagonal = Math.hypot(vw, vh);
-      const ratio = SWIM_DIST_MIN_RATIO + Math.random() * (SWIM_DIST_MAX_RATIO - SWIM_DIST_MIN_RATIO);
+      const ratio =
+        SWIM_DIST_MIN_RATIO +
+        Math.random() * (SWIM_DIST_MAX_RATIO - SWIM_DIST_MIN_RATIO);
       const dist = diagonal * ratio;
       s.dist = dist;
       // 速度恒定：时长 = 距离 / 速度
       s.swimMs = Math.round(dist / SWIM_SPEED);
       // 预计算反弹轨迹（含起点），rAF 循环只按进度采样
-      s.path = simulateSwimPath({ x: offsetRef.current.x, y: offsetRef.current.y }, angle, dist, bounds);
+      s.path = simulateSwimPath(
+        { x: offsetRef.current.x, y: offsetRef.current.y },
+        angle,
+        dist,
+        bounds,
+      );
       s.phase = "turn-in";
       s.start = performance.now();
       const viewer = viewerRef.current;
-      if (!viewer) return;
+      const skinview3d = skinview3dRef.current;
+      if (!viewer || !skinview3d) return;
       // 切到 SwimAnimation：自带下沉 + 前倾 + 划水 + 踢腿。
       // 划水调速：游动期间固定完成 SWIM_STROKES 轮划水，使划水节奏与
       // 容器移动时长同步（progress 增量 = 轮数×周期，speed 缩放之）。
-      const swim = new SwimAnimation();
+      const swim = new skinview3d.SwimAnimation();
       swim.speed = (SWIM_STROKES * SWIM_STROKE_PERIOD) / (s.swimMs / 1000);
       viewer.animation = swim;
     };
@@ -384,7 +455,8 @@ export default function Live2DAvatar() {
           case "turn-in": {
             // 转身：ease yaw 到初始游泳方向的侧身朝向（±π/2）。
             // rotation.x 交给 SwimAnimation 的俯冲动画（进入阶段），不抢写。
-            const yawTarget = Math.cos(s.angle) >= 0 ? Math.PI / 2 : -Math.PI / 2;
+            const yawTarget =
+              Math.cos(s.angle) >= 0 ? Math.PI / 2 : -Math.PI / 2;
             player.rotation.y += (yawTarget - player.rotation.y) * ROT_SNAP;
             if (elapsed >= TURN_MS) {
               s.phase = "swimming";
@@ -400,7 +472,8 @@ export default function Live2DAvatar() {
             }
             // 按 eased 进度采样反弹路径（线性插值相邻采样点）
             const p = Math.min(1, elapsed / s.swimMs);
-            const eased = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+            const eased =
+              p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
             const idx = eased * (path.points.length - 1);
             const i = Math.min(Math.floor(idx), path.points.length - 2);
             const frac = idx - i;
@@ -428,7 +501,10 @@ export default function Live2DAvatar() {
             if (elapsed >= s.swimMs) {
               // 永久位移：反弹轨迹终点累加到 offset（刷新页面才恢复默认右下角）。
               // 容器定位到新 offset（swimOffset 从 final 归零 = 停终点，无瞬移）。
-              setOffset((prev) => ({ x: prev.x + path.final.x, y: prev.y + path.final.y }));
+              setOffset((prev) => ({
+                x: prev.x + path.final.x,
+                y: prev.y + path.final.y,
+              }));
               setSwimOffset({ x: 0, y: 0 });
               s.phase = "return";
               s.start = now;
@@ -459,7 +535,9 @@ export default function Live2DAvatar() {
     // 触发链：随机间隔后掷骰子，概率取决于跟随/空闲状态
     const scheduleNext = () => {
       const s = swimRef.current;
-      const interval = SWIM_MIN_INTERVAL + Math.random() * (SWIM_MAX_INTERVAL - SWIM_MIN_INTERVAL);
+      const interval =
+        SWIM_MIN_INTERVAL +
+        Math.random() * (SWIM_MAX_INTERVAL - SWIM_MIN_INTERVAL);
       timer = window.setTimeout(() => {
         const now = performance.now();
         // 仅在空闲 + 非拖拽 + 冷却结束 + 非隐藏标签页时判定
@@ -469,7 +547,9 @@ export default function Live2DAvatar() {
           now >= s.cooldownUntil &&
           !document.hidden
         ) {
-          const prob = followingRef.current ? SWIM_PROB_FOLLOWING : SWIM_PROB_IDLE;
+          const prob = followingRef.current
+            ? SWIM_PROB_FOLLOWING
+            : SWIM_PROB_IDLE;
           if (Math.random() < prob) startSwim();
         }
         scheduleNext();
@@ -566,7 +646,10 @@ export default function Live2DAvatar() {
       drag.width,
       drag.height,
     );
-    const clamped = clampToBounds({ x: drag.baseX + dx, y: drag.baseY + dy }, bounds);
+    const clamped = clampToBounds(
+      { x: drag.baseX + dx, y: drag.baseY + dy },
+      bounds,
+    );
     setOffset(clamped);
   };
 
@@ -584,6 +667,7 @@ export default function Live2DAvatar() {
   return (
     <div
       ref={rootRef}
+      data-mc-avatar-root
       className="fixed bottom-4 right-4 z-[60] hidden lg:block"
       style={{
         transform: `translate(${offset.x + swimOffset.x}px, ${offset.y + swimOffset.y}px)`,

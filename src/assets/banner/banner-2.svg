@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <linearGradient id="b2-base" x1="0" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#0a0d1c"/>
+      <stop offset="0.5" stop-color="#111a30"/>
+      <stop offset="1" stop-color="#0b1220"/>
+    </linearGradient>
+    <linearGradient id="b2-aurora" x1="0" y1="0.2" x2="1" y2="0.75">
+      <stop offset="0" stop-color="#2bd4c4" stop-opacity="0"/>
+      <stop offset="0.3" stop-color="#2bd4c4" stop-opacity="0.22"/>
+      <stop offset="0.52" stop-color="#6f7fd4" stop-opacity="0.24"/>
+      <stop offset="0.74" stop-color="#90fadc" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#90fadc" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="b2-glow-top" cx="0.8" cy="0.14" r="0.66">
+      <stop offset="0" stop-color="#6fb6ff" stop-opacity="0.36"/>
+      <stop offset="0.5" stop-color="#3a5fa8" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#3a5fa8" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="b2-glow-bottom" cx="0.2" cy="0.88" r="0.6">
+      <stop offset="0" stop-color="#00f0a0" stop-opacity="0.3"/>
+      <stop offset="0.5" stop-color="#00f0a0" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#00f0a0" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="b2-vignette" cx="0.5" cy="0.46" r="0.8">
+      <stop offset="0.6" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.52"/>
+    </radialGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#b2-base)"/>
+  <rect width="1920" height="1080" fill="url(#b2-aurora)"/>
+  <rect width="1920" height="1080" fill="url(#b2-glow-top)"/>
+  <rect width="1920" height="1080" fill="url(#b2-glow-bottom)"/>
+  <rect width="1920" height="1080" fill="url(#b2-vignette)"/>
+</svg>

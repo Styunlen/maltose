@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { ArrowUp } from "lucide-react";
+import { scrollToTop } from "@/lib/scroll";
 
 // z-[70] 高于看板娘（z-[60]）；桌面端看板娘 h-44 + bottom-4 ≈196px，
 // 按钮用 lg:bottom-52（208px）避开，移动端看板娘隐藏、按钮回到底部。
@@ -29,10 +30,7 @@ export default function BackToTop() {
   }, []);
 
   const handleClick = () => {
-    const reduced =
-      window.matchMedia &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    window.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" });
+    scrollToTop();
   };
 
   return (

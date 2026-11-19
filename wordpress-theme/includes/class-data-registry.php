@@ -24,6 +24,7 @@ class MaltoseDataRegistry {
     const MEDIUM_OPTION       = 'option';
     const MEDIUM_TRANSIENT    = 'transient';
     const MEDIUM_FILE         = 'file';
+    const MEDIUM_POST_TYPE    = 'post_type';
 
     const CLEAN_CLEAN = 'clean';
     const CLEAN_ASK   = 'ask';
@@ -131,6 +132,38 @@ class MaltoseDataRegistry {
             'exportable' => false,
             'label' => 'OTP 验证码/节流 (transient: maltose_otp_*)',
         ]);
+
+        // 公告内容（CPT）：卸载时整类型删除（含置顶 meta）。
+        self::register([
+            'key' => 'maltose_announcement',
+            'medium' => self::MEDIUM_POST_TYPE,
+            'cleanup' => self::CLEAN_CLEAN,
+            'exportable' => true,
+            'label' => '公告内容 (post_type: maltose_announcement)',
+        ]);
+        // 公告置顶标记：随公告 posts 删除（post_type 清理已含 meta），无需单独导出。
+        self::register([
+            'key' => 'maltose_sticky',
+            'medium' => self::MEDIUM_POST_META,
+            'cleanup' => self::CLEAN_CLEAN,
+            'exportable' => false,
+            'label' => '公告置顶标记 (post_meta: maltose_sticky)',
+        ]);
+        // 社交链接（JSON）与博主账号：options，卸载时删除，可导出。
+        self::register([
+            'key' => 'maltose_social_links',
+            'medium' => self::MEDIUM_OPTION,
+            'cleanup' => self::CLEAN_CLEAN,
+            'exportable' => true,
+            'label' => '社交链接 (option: maltose_social_links)',
+        ]);
+        self::register([
+            'key' => 'maltose_owner_user_ids',
+            'medium' => self::MEDIUM_OPTION,
+            'cleanup' => self::CLEAN_CLEAN,
+            'exportable' => true,
+            'label' => '博主账号 (option: maltose_owner_user_ids)',
+        ]);
     }
 
     public static function items(): array {
@@ -145,6 +178,15 @@ class MaltoseDataRegistry {
         return array_filter(self::$items, static fn($d) => $d['cleanup'] === $cleanup);
     }
 
+    /** Count rows for one registered item (public wrapper for admin UIs). */
+    public static function countFor(string $key): int {
+        $def = self::$items[$key] ?? null;
+        if (!$def) {
+            return 0;
+        }
+        return self::countItem($key, $def);
+    }
+
     public static function exportable(): array {
         return array_filter(self::$items, static fn($d) => $d['exportable']);
     }
@@ -154,7 +196,7 @@ class MaltoseDataRegistry {
      * $categories 为 key 列表；null = 全部 exportable。
      */
     public static function export(?array $categories = null): array {
-        $result = ['exported_at' => gmdate('c'), 'theme' => 'maltose', 'schema' => 1, 'data' => []];
+        $result = ['exported_at' => gmdate('c'), 'theme' => 'maltose', 'schema' => 2, 'data' => []];
         $items = $categories === null ? self::exportable() : array_intersect_key(self::exportable(), array_flip($categories));
         foreach ($items as $key => $def) {
             $result['data'][$key] = self::readItem($key, $def);
@@ -167,6 +209,10 @@ class MaltoseDataRegistry {
         $items = $categories === null ? self::$items : array_intersect_key(self::$items, array_flip($categories));
         $deleted = [];
         foreach ($items as $key => $def) {
+            // Never delete entries explicitly registered as "keep".
+            if ($def['cleanup'] === self::CLEAN_KEEP) {
+                continue;
+            }
             $count = self::deleteItem($key, $def);
             if ($count > 0) {
                 $deleted[$key] = $count;
@@ -236,16 +282,35 @@ class MaltoseDataRegistry {
                 ));
                 return $rows;
             case self::MEDIUM_COMMENT_META:
-                $rows = $wpdb->get_col($wpdb->prepare(
-                    "SELECT meta_value FROM {$wpdb->commentmeta} WHERE meta_key = %s",
+                // Schema 2: keep comment_id so restore can put the value back
+                // on the right comment (schema 1 only stored meta_value).
+                $rows = $wpdb->get_results($wpdb->prepare(
+                    "SELECT comment_id, meta_value FROM {$wpdb->commentmeta} WHERE meta_key = %s",
                     $key
-                ));
-                return $rows;
+                ), ARRAY_A);
+                return array_map(static fn($r) => [
+                    'comment_id' => (int) $r['comment_id'],
+                    'meta_value' => $r['meta_value'],
+                ], $rows);
             case self::MEDIUM_TRANSIENT:
                 return get_transient($key);
             case self::MEDIUM_FILE:
                 $path = WP_CONTENT_DIR . '/uploads/' . $key;
                 return file_exists($path) ? ['size' => filesize($path), 'mtime' => filemtime($path)] : null;
+            case self::MEDIUM_POST_TYPE:
+                $posts = get_posts([
+                    'post_type'   => $key,
+                    'post_status' => 'any',
+                    'numberposts' => -1,
+                ]);
+                return array_map(static fn($p) => [
+                    'ID'           => (int) $p->ID,
+                    'post_title'   => $p->post_title,
+                    'post_content' => $p->post_content,
+                    'post_status'  => $p->post_status,
+                    'post_date'    => $p->post_date,
+                    'meta'         => get_post_meta($p->ID),
+                ], $posts);
             default:
                 return null;
         }
@@ -276,6 +341,9 @@ class MaltoseDataRegistry {
             case self::MEDIUM_FILE:
                 $path = WP_CONTENT_DIR . '/uploads/' . $key;
                 return file_exists($path) ? 1 : 0;
+            case self::MEDIUM_POST_TYPE:
+                $counts = wp_count_posts($key);
+                return is_object($counts) ? (int) array_sum((array) $counts) : 0;
             default:
                 return 0;
         }
@@ -320,6 +388,20 @@ class MaltoseDataRegistry {
                     return 1;
                 }
                 return 0;
+            case self::MEDIUM_POST_TYPE:
+                $posts = get_posts([
+                    'post_type'   => $key,
+                    'post_status' => 'any',
+                    'numberposts' => -1,
+                    'fields'      => 'ids',
+                ]);
+                $n = 0;
+                foreach ($posts as $postId) {
+                    if (wp_delete_post($postId, true)) {
+                        $n++;
+                    }
+                }
+                return $n;
             default:
                 return 0;
         }
@@ -353,7 +435,10 @@ class MaltoseDataRegistry {
             case self::MEDIUM_COMMENT_META:
                 $count = 0;
                 foreach ((array) $value as $row) {
-                    $decoded = json_decode($row['meta_value'] ?? '', true);
+                    $metaValue = is_array($row)
+                        ? (string) ($row['meta_value'] ?? '')
+                        : (string) $row;
+                    $decoded = json_decode($metaValue, true);
                     $clientId = is_array($decoded) ? ($decoded['clientId'] ?? '') : '';
                     if (!$clientId) {
                         throw new \Exception("block_ref 缺 clientId");
@@ -387,6 +472,53 @@ class MaltoseDataRegistry {
                         update_post_meta($postId, $key, $row['meta_value']);
                     } else {
                         add_post_meta($postId, $key, $row['meta_value']);
+                    }
+                    $count++;
+                }
+                return $count;
+            case self::MEDIUM_COMMENT_META:
+                $count = 0;
+                foreach ((array) $value as $row) {
+                    // Schema 1 exports were bare meta_value strings and cannot
+                    // be restored (the owning comment is unknown).
+                    if (!is_array($row)) {
+                        throw new \Exception("旧导出格式（schema 1）缺少评论 ID，无法恢复；请使用新版导出的文件");
+                    }
+                    $commentId = (int) ($row['comment_id'] ?? 0);
+                    if (!$commentId || !get_comment($commentId)) {
+                        continue;
+                    }
+                    $metaValue = (string) ($row['meta_value'] ?? '');
+                    if (get_comment_meta($commentId, $key, false)) {
+                        update_comment_meta($commentId, $key, $metaValue);
+                    } else {
+                        add_comment_meta($commentId, $key, $metaValue);
+                    }
+                    $count++;
+                }
+                return $count;
+            case self::MEDIUM_POST_TYPE:
+                $count = 0;
+                foreach ((array) $value as $row) {
+                    if (!is_array($row)) {
+                        continue;
+                    }
+                    $postId = wp_insert_post([
+                        'post_type'    => $key,
+                        'post_title'   => (string) ($row['post_title'] ?? ''),
+                        'post_content' => (string) ($row['post_content'] ?? ''),
+                        'post_status'  => (string) ($row['post_status'] ?? 'publish'),
+                        'post_date'    => (string) ($row['post_date'] ?? ''),
+                    ], true);
+                    if (is_wp_error($postId)) {
+                        continue;
+                    }
+                    if (!empty($row['meta']) && is_array($row['meta'])) {
+                        foreach ($row['meta'] as $metaKey => $metaValues) {
+                            foreach ((array) $metaValues as $metaValue) {
+                                add_post_meta($postId, $metaKey, maybe_unserialize($metaValue));
+                            }
+                        }
                     }
                     $count++;
                 }

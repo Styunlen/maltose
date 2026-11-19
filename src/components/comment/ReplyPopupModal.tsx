@@ -46,9 +46,13 @@ export function ReplyPopupModal({
   // Navigation stack: each entry is a focused comment plus its direct replies.
   // The bottom entry is the original parent from the main list; clicking a
   // reply's reaction pushes that reply and its children onto the stack.
-  const [stack, setStack] = React.useState<{ parent: FlatComment; children: FlatComment[] }[]>([
+  const [stack, setStack] = React.useState<
+    { parent: FlatComment; children: FlatComment[] }[]
+  >([
     {
-      parent: commentMap.get(parentDbId) ?? ({ databaseId: parentDbId } as FlatComment),
+      parent:
+        commentMap.get(parentDbId) ??
+        ({ databaseId: parentDbId } as FlatComment),
       children,
     },
   ]);
@@ -59,12 +63,16 @@ export function ReplyPopupModal({
   const pushLevel = (comment: FlatComment) => {
     const grandChildren = commentMap.get(comment.databaseId)?.children ?? [];
     if (grandChildren.length > 0) {
-      setStack((prev) => [...prev, { parent: comment, children: grandChildren }]);
+      setStack((prev) => [
+        ...prev,
+        { parent: comment, children: grandChildren },
+      ]);
     }
   };
 
   return (
     <div
+      className="reply-popup"
       style={{
         position: "fixed",
         inset: 0,
@@ -107,10 +115,24 @@ export function ReplyPopupModal({
             borderBottom: "1px solid var(--border)",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.4rem",
+              flexWrap: "wrap",
+            }}
+          >
             <span style={{ fontSize: "0.95rem", fontWeight: 700 }}>回复</span>
             {stack.map((lvl, i) => (
-              <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
+              <span
+                key={i}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.3rem",
+                }}
+              >
                 <span style={{ color: "var(--muted-foreground)" }}>/</span>
                 {i < stack.length - 1 ? (
                   <button
@@ -129,7 +151,13 @@ export function ReplyPopupModal({
                     {lvl.parent?.author?.node?.name || "回复"}
                   </button>
                 ) : (
-                  <span style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--muted-foreground)" }}>
+                  <span
+                    style={{
+                      fontSize: "0.8rem",
+                      fontWeight: 600,
+                      color: "var(--muted-foreground)",
+                    }}
+                  >
                     {lvl.parent?.author?.node?.name || "回复"}
                   </span>
                 )}
@@ -156,7 +184,10 @@ export function ReplyPopupModal({
             ✕
           </button>
         </div>
-        <div style={{ flex: 1, overflowY: "auto", padding: "0.75rem 1rem" }}>
+        <div
+          data-lenis-prevent
+          style={{ flex: 1, overflowY: "auto", padding: "0.75rem 1rem" }}
+        >
           {current.parent?.databaseId && (
             <div
               className="reply-popup-context"
@@ -178,7 +209,9 @@ export function ReplyPopupModal({
                   />
                 )}
                 <AvatarFallback>
-                  {current.parent.author?.node?.name?.charAt(0)?.toUpperCase() || "?"}
+                  {current.parent.author?.node?.name
+                    ?.charAt(0)
+                    ?.toUpperCase() || "?"}
                 </AvatarFallback>
               </Avatar>
               <div style={{ minWidth: 0, flex: 1 }}>
@@ -250,12 +283,15 @@ export function ReplyPopupModal({
                         c.author?.node?.databaseId === currentUserId
                       }
                       isOwner={
-                        siteOwnerUserIds?.includes(c.author?.node?.databaseId) ??
-                        false
+                        siteOwnerUserIds?.includes(
+                          c.author?.node?.databaseId,
+                        ) ?? false
                       }
                       isOrphan={
                         !!c.blockReference?.clientId &&
-                        !(blockClientIds ?? []).includes(c.blockReference.clientId)
+                        !(blockClientIds ?? []).includes(
+                          c.blockReference.clientId,
+                        )
                       }
                       canRebind={
                         currentUserId != null &&

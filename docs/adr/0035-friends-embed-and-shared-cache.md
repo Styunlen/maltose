@@ -21,6 +21,18 @@ Two problems on the `/friends` page:
 
 ## Decision
 
+### 0. Friend sources are merged before health checks
+
+When AstraHub is configured, the legacy `friends.json` feed remains visible. The
+two feeds are merged by a normalized URL, so a site present in both feeds is
+rendered as one card. The merged card keeps its AstraHub provenance and shows
+an `AstraHub` badge; legacy-only cards have no source badge. Health probing runs
+after merging, therefore each final card is checked once.
+
+The homepage also exposes a search entry after the hero and before sticky or
+popular content, so the existing `/search` experience is discoverable from the
+primary content area.
+
 ### 1. friends renders bare (no LayoutShell)
 
 `src/pages/friends.astro` no longer imports `MainLayout`. It renders a content

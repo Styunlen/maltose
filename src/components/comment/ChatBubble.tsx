@@ -151,15 +151,22 @@ export function ChatBubble({
                 <time dateTime={dateTime} className="chat-time chat-time--full">
                   {timeInfo.display}
                 </time>
-                <time dateTime={dateTime} className="chat-time chat-time--short">
+                <time
+                  dateTime={dateTime}
+                  className="chat-time chat-time--short"
+                >
                   {timeInfo.display}
                 </time>
               </span>
             </TooltipTrigger>
             <TooltipContent>
               <div className="flex flex-col items-center leading-tight">
-                <span className="text-[0.8rem] font-semibold">{timeInfo.title}</span>
-                <span className="text-[0.68rem] opacity-70">{timeInfo.relative}</span>
+                <span className="text-[0.8rem] font-semibold">
+                  {timeInfo.title}
+                </span>
+                <span className="text-[0.68rem] opacity-70">
+                  {timeInfo.relative}
+                </span>
               </div>
             </TooltipContent>
           </Tooltip>
@@ -263,7 +270,9 @@ export function ChatBubble({
               <path d="M17 4v16" />
               <path d="M19 4H9.5a4.5 4.5 0 0 0 0 9H13" />
             </svg>
-            <span className="chat-block-ref__text">{comment.blockReference.snippet}</span>
+            <span className="chat-block-ref__text">
+              {comment.blockReference.snippet}
+            </span>
           </div>
         )}
 
@@ -280,41 +289,44 @@ export function ChatBubble({
                 wordBreak: "break-word",
               }}
             >
-              <span className="chat-body-inline">
-                {comment.parentRenderedHtml &&
-                  comment.parentAuthorName &&
-                  comment.parentDatabaseId && (
+              {/* 父评论引用块必须放在 .chat-body-inline 之外：inline 容器内
+                  含 display:block 子元素会触发匿名块盒/盒分裂。移出后
+                  body-inline 内只剩 mention + 正文（inline），盒模型干净。 */}
+              {comment.parentRenderedHtml &&
+                comment.parentAuthorName &&
+                comment.parentDatabaseId && (
+                  <span
+                    className="chat-parent-quote cursor-pointer"
+                    title={comment.parentContent}
+                    onClick={() =>
+                      onMention(`chat-comment-${comment.parentDatabaseId}`)
+                    }
+                    onMouseEnter={() =>
+                      document
+                        .getElementById(
+                          `chat-comment-${comment.parentDatabaseId}`,
+                        )
+                        ?.classList.add("chat-highlight-hover")
+                    }
+                    onMouseLeave={() =>
+                      document
+                        .getElementById(
+                          `chat-comment-${comment.parentDatabaseId}`,
+                        )
+                        ?.classList.remove("chat-highlight-hover")
+                    }
+                  >
+                    {/* Full markdown render (already sanitized) clipped by
+                        CSS line-clamp; avoids mid-tag truncation. */}
                     <span
-                      className="chat-parent-quote cursor-pointer"
-                      title={comment.parentContent}
-                      onClick={() =>
-                        onMention(`chat-comment-${comment.parentDatabaseId}`)
-                      }
-                      onMouseEnter={() =>
-                        document
-                          .getElementById(
-                            `chat-comment-${comment.parentDatabaseId}`,
-                          )
-                          ?.classList.add("chat-highlight-hover")
-                      }
-                      onMouseLeave={() =>
-                        document
-                          .getElementById(
-                            `chat-comment-${comment.parentDatabaseId}`,
-                          )
-                          ?.classList.remove("chat-highlight-hover")
-                      }
-                    >
-                      {/* Full markdown render (already sanitized) clipped by
-                          CSS line-clamp; avoids mid-tag truncation. */}
-                      <span
-                        className="chat-parent-quote-content"
-                        dangerouslySetInnerHTML={{
-                          __html: comment.parentRenderedHtml,
-                        }}
-                      />
-                    </span>
-                  )}
+                      className="chat-parent-quote-content"
+                      dangerouslySetInnerHTML={{
+                        __html: comment.parentRenderedHtml,
+                      }}
+                    />
+                  </span>
+                )}
+              <span className="chat-body-inline">
                 {comment.parentAuthorName && comment.parentDatabaseId && (
                   <span
                     className={
@@ -343,9 +355,7 @@ export function ChatBubble({
                     @{comment.parentAuthorName}
                   </span>
                 )}
-                <span
-                  dangerouslySetInnerHTML={{ __html: comment.content }}
-                />
+                <span dangerouslySetInnerHTML={{ __html: comment.content }} />
               </span>
             </BubbleContent>
             {comment.children.length > 0 && (

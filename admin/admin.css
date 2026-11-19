@@ -1,0 +1,234 @@
+/* Maltose WP admin app styles (ADR-0044).
+ *
+ * Deliberately does NOT import Tailwind preflight/base: this stylesheet loads
+ * inside the WP admin where the admin's own CSS must keep working. Only the
+ * @theme tokens (mirrored from src/styles/tailwind.css) and utilities are
+ * emitted, and all app styles stay inside the #maltose-admin-root container.
+ */
+/* Layer design (ADR-0044):
+ *   layered   = properties/theme/base/components (LOW priority)
+ *   unlayered = utilities + our id-scoped form/heading resets (HIGH priority)
+ * Utilities must stay UNLAYERED: WP admin plugins ship unlayered Tailwind v3
+ * preflights whose `*,:before,:after { --tw-*: 0 }` rule would beat any
+ * layered utility at equal specificity (it reset translate/rotate/shadow
+ * variables and froze the switch knob). Unlayered utilities (0-1-0) out-rank
+ * that universal selector (0-0-0) and load after the plugin CSS. */
+@layer properties, theme, base, components;
+
+@import "tailwindcss/theme" layer(theme);
+@import "tailwindcss/utilities";
+
+/* Only scan the admin app for utilities — the Astro frontend lives in ../src
+   and its classes would bloat this bundle and could leak into the WP admin. */
+@source not "../src";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Local preflight: this stylesheet deliberately skips Tailwind's global
+   preflight (it would clobber the WP admin chrome), so neutralize the
+   browser UA defaults on form controls inside the app. Base layer keeps
+   utilities able to override (theme < base < utilities). */
+@layer base {
+  #maltose-admin-root button,
+  #maltose-admin-root input,
+  #maltose-admin-root select,
+  #maltose-admin-root textarea {
+    font: inherit;
+    color: inherit;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    text-shadow: none;
+    line-height: inherit;
+  }
+}
+
+/* Heading/list margins must be reset UNLAYERED: the WP admin ships id-scoped
+   unlayered rules (e.g. #wpbody h2) that beat any layered reset at equal
+   specificity. Unlayered + same id specificity + loaded later wins. */
+#maltose-admin-root h1,
+#maltose-admin-root h2,
+#maltose-admin-root h3,
+#maltose-admin-root h4,
+#maltose-admin-root h5,
+#maltose-admin-root h6,
+#maltose-admin-root p,
+#maltose-admin-root ul,
+#maltose-admin-root ol {
+  margin: 0;
+}
+
+/* Form-control base styles (UNLAYERED + ID-scoped): the WP admin ships its
+   own unlayered input/select rules which beat any layered utility (e.g. the
+   grey number-input border we saw). Unlayered author CSS with an ID selector
+   out-specifies them, and the id scope keeps it inside the app. Components
+   should only use layout utilities (size/flex/rounding via these defaults)
+   on form controls. */
+#maltose-admin-root input:not([type="checkbox"]):not([type="radio"]),
+#maltose-admin-root select,
+#maltose-admin-root textarea {
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  border-radius: var(--radius);
+  padding: 7px 12px;
+  box-shadow: none;
+  width: 100%;
+}
+#maltose-admin-root input:focus,
+#maltose-admin-root select:focus,
+#maltose-admin-root textarea:focus {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--ring) 30%, transparent);
+  outline: none;
+}
+#maltose-admin-root input[type="checkbox"],
+#maltose-admin-root input[type="radio"] {
+  width: 1rem;
+  height: 1rem;
+  margin: 0 0.25rem 0 0;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-mint-50: var(--mint-50);
+  --color-mint-100: var(--mint-100);
+  --color-mint-200: var(--mint-200);
+  --color-mint-300: var(--mint-300);
+  --color-mint-400: var(--mint-400);
+  --color-mint-500: var(--mint-500);
+  --color-mint-600: var(--mint-600);
+  --color-mint-700: var(--mint-700);
+  --color-mint-800: var(--mint-800);
+  --color-mint-900: var(--mint-900);
+  --color-mint-950: var(--mint-950);
+}
+
+:root {
+  --mint-50: oklch(0.97 0.03 255);
+  --mint-100: oklch(0.93 0.05 255);
+  --mint-200: oklch(0.86 0.09 255);
+  --mint-300: oklch(0.78 0.12 255);
+  --mint-400: oklch(0.7 0.135 255);
+  --mint-500: oklch(0.62 0.14 255);
+  --mint-600: oklch(0.54 0.135 255);
+  --mint-700: oklch(0.46 0.12 255);
+  --mint-800: oklch(0.38 0.1 255);
+  --mint-900: oklch(0.29 0.07 255);
+  --mint-950: oklch(0.19 0.04 255);
+
+  --primary-color: #00f0a0;
+  --base-color-primarybg: #ffffff;
+  --base-color-secondbg: #f8f9fa;
+  --base-color-tertiarybg: #f5f6f7;
+  --base-color-white: #ffffff;
+  --base-color-deepgrey: #eff0f1;
+  --base-color-black: #000000;
+  --base-color-blackbtn: #000000;
+  --base-color-black-10: #0000001a;
+  --base-color-red: #ff465a;
+  --base-color-lightgreen: #90fadc;
+
+  --background: var(--base-color-primarybg);
+  --foreground: var(--base-color-black);
+  --card: var(--base-color-white);
+  --card-foreground: var(--base-color-black);
+  --popover: var(--base-color-white);
+  --popover-foreground: var(--base-color-black);
+  --primary: var(--primary-color);
+  --primary-foreground: var(--base-color-blackbtn);
+  --secondary: var(--base-color-tertiarybg);
+  --secondary-foreground: var(--base-color-black);
+  --muted: var(--base-color-secondbg);
+  --muted-foreground: color-mix(in oklch, var(--foreground) 60%, transparent);
+  --accent: var(--base-color-lightgreen);
+  --accent-foreground: var(--base-color-black);
+  --destructive: var(--base-color-red);
+  --destructive-foreground: #ffffff;
+  --border: var(--base-color-black-10);
+  --input: var(--base-color-deepgrey);
+  --ring: var(--primary-color);
+  --radius: 0.75rem;
+}
+
+.dark {
+  --base-color-primarybg: #232424;
+  --base-color-secondbg: #1f2020;
+  --base-color-tertiarybg: #1a1b1b;
+  --base-color-white: #ffffff0a;
+  --base-color-deepgrey: #ffffff0a;
+  --base-color-black: #d6d8d8;
+  --base-color-blackbtn: #ffffff26;
+  --base-color-black-10: #ffffff0f;
+  --base-color-lightgreen: #326450;
+
+  --background: var(--base-color-primarybg);
+  --foreground: var(--base-color-black);
+  --card: var(--base-color-white);
+  --card-foreground: var(--base-color-black);
+  --popover: var(--base-color-white);
+  --popover-foreground: var(--base-color-black);
+  --primary: var(--primary-color);
+  --primary-foreground: #000000;
+  --secondary: var(--base-color-tertiarybg);
+  --secondary-foreground: var(--base-color-black);
+  --muted: var(--base-color-secondbg);
+  --muted-foreground: color-mix(in oklch, var(--foreground) 60%, transparent);
+  --accent: var(--base-color-lightgreen);
+  --accent-foreground: var(--base-color-black);
+  --border: var(--base-color-black-10);
+  --input: var(--base-color-deepgrey);
+  --ring: var(--primary-color);
+}
+
+/* The app root fills the page area below the WP admin bar and isolates all
+   markup from the WP admin styles as much as practical. */
+#maltose-admin-root {
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--foreground);
+  /* Stay transparent over the WP admin canvas in light mode; paint the
+     brand background only when the app switches to its dark theme. */
+  background: transparent;
+  min-height: calc(100vh - 32px);
+  margin: -10px -20px 0;
+  padding: 24px 32px;
+  box-sizing: border-box;
+}
+#maltose-admin-root.dark {
+  background: var(--background);
+}
+#maltose-admin-root *,
+#maltose-admin-root *::before,
+#maltose-admin-root *::after {
+  box-sizing: border-box;
+}

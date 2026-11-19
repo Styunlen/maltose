@@ -26,3 +26,10 @@ skills-lock.json
 
 # playwright artifacts
 .playwright-mcp/
+
+# agent scratch space (plans, evidence, temp files)
+.omo/
+
+# local agent tooling / alternate package manager
+.claude/
+bun.lock

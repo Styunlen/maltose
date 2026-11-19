@@ -310,6 +310,115 @@ class MaltoseAdminSettings {
                 <?php submit_button('保存设置'); ?>
             </form>
 
+            <h2>站点配置</h2>
+            <form method="post" action="options.php" id="maltose-site-config-form">
+                <?php settings_fields(MaltoseSiteConfig::SETTINGS_GROUP); ?>
+                <?php $socialLinks = MaltoseSiteConfig::socialLinks(); ?>
+
+                <h3>社交链接</h3>
+                <p class="description" style="max-width:760px;">
+                    图标类型为「图片 URL」时，图标值填写完整图片地址（https://…，建议正方形，约 48×48）；
+                    为「iconify 图标代号」时填写 Iconify 图标名（如 <code>mdi:github</code>、<code>simple-icons:bilibili</code>），前端将渲染对应矢量图标。
+                </p>
+                <input type="hidden" name="<?php echo esc_attr(MaltoseSiteConfig::OPTION_SOCIAL_LINKS); ?>" id="maltose_social_links_json" value="<?php echo esc_attr(wp_json_encode($socialLinks, JSON_UNESCAPED_UNICODE)); ?>" />
+                <div id="maltose-social-rows" style="max-width:900px;">
+                    <?php foreach ($socialLinks as $link) : ?>
+                        <div class="maltose-social-row" data-key="<?php echo esc_attr((string) ($link['key'] ?? '')); ?>" style="display:flex;gap:8px;align-items:center;margin:6px 0;">
+                            <input type="text" class="maltose-social-label regular-text" placeholder="平台名（如 GitHub）" value="<?php echo esc_attr((string) ($link['label'] ?? '')); ?>" />
+                            <input type="url" class="maltose-social-url regular-text" placeholder="链接（https://…）" value="<?php echo esc_attr((string) ($link['url'] ?? '')); ?>" />
+                            <select class="maltose-social-icon-type">
+                                <option value="url" <?php selected(($link['iconType'] ?? 'url'), 'url'); ?>>图片 URL</option>
+                                <option value="iconify" <?php selected(($link['iconType'] ?? 'url'), 'iconify'); ?>>iconify 图标代号</option>
+                            </select>
+                            <input type="text" class="maltose-social-icon regular-text" placeholder="图标值" value="<?php echo esc_attr((string) ($link['icon'] ?? '')); ?>" />
+                            <button type="button" class="button maltose-social-remove">删除</button>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+                <p><button type="button" class="button" id="maltose-social-add">添加链接</button></p>
+
+                <h3>博主账号</h3>
+                <p class="description">选中的用户将作为站点博主展示在侧栏作者卡与评论博主徽章中。</p>
+                <?php
+                $ownerIds = MaltoseSiteConfig::ownerUserIds();
+                $allUsers = get_users([
+                    'fields'  => ['ID', 'display_name', 'user_login', 'user_email'],
+                    'orderby' => 'display_name',
+                ]);
+                ?>
+                <?php if (empty($allUsers)) : ?>
+                    <p>当前站点暂无用户。</p>
+                <?php else : ?>
+                    <?php foreach ($allUsers as $u) : ?>
+                        <label style="display:block;margin:2px 0;">
+                            <input type="checkbox" name="<?php echo esc_attr(MaltoseSiteConfig::OPTION_OWNER_USER_IDS); ?>[]" value="<?php echo (int) $u->ID; ?>" <?php checked(in_array((int) $u->ID, $ownerIds, true)); ?> />
+                            <?php echo esc_html($u->display_name); ?>（<code><?php echo esc_html($u->user_login); ?></code>）
+                        </label>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+
+                <?php submit_button('保存站点配置'); ?>
+            </form>
+            <script>
+            (function () {
+                var container = document.getElementById('maltose-social-rows');
+                var jsonInput = document.getElementById('maltose_social_links_json');
+                var form = document.getElementById('maltose-site-config-form');
+                if (!container || !jsonInput || !form) { return; }
+
+                function esc(s) {
+                    return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+                        .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                }
+
+                function makeRow(key, data) {
+                    data = data || { label: '', url: '', iconType: 'url', icon: '' };
+                    var row = document.createElement('div');
+                    row.className = 'maltose-social-row';
+                    row.setAttribute('data-key', key);
+                    row.style.cssText = 'display:flex;gap:8px;align-items:center;margin:6px 0;';
+                    row.innerHTML =
+                        '<input type="text" class="maltose-social-label regular-text" placeholder="平台名（如 GitHub）" value="' + esc(data.label) + '" />' +
+                        '<input type="url" class="maltose-social-url regular-text" placeholder="链接（https://…）" value="' + esc(data.url) + '" />' +
+                        '<select class="maltose-social-icon-type">' +
+                        '  <option value="url"' + (data.iconType === 'iconify' ? '' : ' selected') + '>图片 URL</option>' +
+                        '  <option value="iconify"' + (data.iconType === 'iconify' ? ' selected' : '') + '>iconify 图标代号</option>' +
+                        '</select>' +
+                        '<input type="text" class="maltose-social-icon regular-text" placeholder="图标值" value="' + esc(data.icon) + '" />' +
+                        '<button type="button" class="button maltose-social-remove">删除</button>';
+                    return row;
+                }
+
+                container.addEventListener('click', function (e) {
+                    if (e.target && e.target.classList.contains('maltose-social-remove')) {
+                        var row = e.target.closest('.maltose-social-row');
+                        if (row) { row.remove(); }
+                    }
+                });
+
+                var addBtn = document.getElementById('maltose-social-add');
+                if (addBtn) {
+                    addBtn.addEventListener('click', function () {
+                        container.appendChild(makeRow('social-' + Date.now()));
+                    });
+                }
+
+                form.addEventListener('submit', function () {
+                    var rows = [];
+                    container.querySelectorAll('.maltose-social-row').forEach(function (row) {
+                        rows.push({
+                            key: row.getAttribute('data-key') || '',
+                            label: row.querySelector('.maltose-social-label').value.trim(),
+                            url: row.querySelector('.maltose-social-url').value.trim(),
+                            iconType: row.querySelector('.maltose-social-icon-type').value,
+                            icon: row.querySelector('.maltose-social-icon').value.trim()
+                        });
+                    });
+                    jsonInput.value = JSON.stringify(rows);
+                });
+            })();
+            </script>
+
             <hr />
             <h2>数据管理</h2>
             <p>
@@ -666,10 +775,11 @@ class MaltoseAdminSettings {
             return;
         }
         add_action('admin_notices', static function () {
-            $url = admin_url('options-general.php?page=maltose-uninstall');
+            // ADR-0044: the uninstall wizard now lives in the top-level admin app.
+            $url = admin_url('admin.php?page=maltose');
             echo '<div class="notice notice-warning"><p>'
                 . '你已离开 Maltose 主题，但仍有主题数据留在数据库中。'
-                . '请在 <a href="' . esc_url($url) . '">Maltose 数据卸载</a> 页面导出或清理。'
+                . '请在 <a href="' . esc_url($url) . '">Maltose 后台 → 卸载向导</a> 页面导出或清理。'
                 . '</p></div>';
         });
     }

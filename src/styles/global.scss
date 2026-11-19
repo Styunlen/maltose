@@ -55,7 +55,11 @@ img.lazy-img[src^="data:image/svg+xml;base64,PCEtLUFyZ29uTG9hZGluZy0tPg"] {
   width: 100%;
   max-height: 60vh;
   background-image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzgiIGhlaWdodD0iMzgiIHZpZXdCb3g9IjAgMCAzOCAzOCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiBzdHJva2U9IiM1ZTcyZTQiPgogICAgPGcgZmlsbD0ibm9uZSIgZmlsbC1ydWxlPSJldmVub2RkIj4KICAgICAgICA8ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxIDEpIiBzdHJva2Utd2lkdGg9IjIiPgogICAgICAgICAgICA8Y2lyY2xlIHN0cm9rZS1vcGFjaXR5PSIuNSIgY3g9IjE4IiBjeT0iMTgiIHI9IjE4Ii8+CiAgICAgICAgICAgIDxwYXRoIGQ9Ik0zNiAxOGMwLTkuOTQtOC4wNi0xOC0xOC0xOCI+CiAgICAgICAgICAgICAgICA8YW5pbWF0ZVRyYW5zZm9ybQogICAgICAgICAgICAgICAgICAgIGF0dHJpYnV0ZU5hbWU9InRyYW5zZm9ybSIKICAgICAgICAgICAgICAgICAgICB0eXBlPSJyb3RhdGUiCiAgICAgICAgICAgICAgICAgICAgZnJvbT0iMCAxOCAxOCIKICAgICAgICAgICAgICAgICAgICB0bz0iMzYwIDE4IDE4IgogICAgICAgICAgICAgICAgICAgIGR1cj0iMXMiCiAgICAgICAgICAgICAgICAgICAgcmVwZWF0Q291bnQ9ImluZGVmaW5pdGUiLz4KICAgICAgICAgICAgPC9wYXRoPgogICAgICAgIDwvZz4KICAgIDwvZz4KPC9zdmc+);
-  background-color: color-mix(in oklch, var(--muted-foreground) 10%, transparent);
+  background-color: color-mix(
+    in oklch,
+    var(--muted-foreground) 10%,
+    transparent
+  );
   background-repeat: no-repeat;
   background-position: 50% 50%;
 }
@@ -87,8 +91,13 @@ img.lazy-img[data-ll-status="loading"] {
   transition: all 0.3s ease;
 }
 
+// 评论区、段落评论浮动面板、子回复弹窗（.reply-popup）共享同一套聊天样式。
+// 弹窗是顶层 fixed 容器，不在前两者的 DOM 内 —— 务必列在这里，否则弹窗内
+// 的气泡背景/引用块/徽章/时间等定制样式全部失效（曾导致引用块变 inline、
+// 气泡背景透明）。
 #comments-section,
-.paragraph-comment-panel {
+.paragraph-comment-panel,
+.reply-popup {
   .chat-time--short {
     display: none;
   }
@@ -138,7 +147,9 @@ img.lazy-img[data-ll-status="loading"] {
   // 自己发的评论（data-align="end"）气泡背景是 --primary 亮绿。引用块用
   // 半透明白叠在亮绿上 → 柔和薄荷白底 + 黑字，对比度 16.5:1 且美观；
   // 深绿左边条呼应主题色，比透明混色（浅绿灰字）和深绿底白字都更好看。
-  .chat-bubble[data-align="end"] [data-slot="bubble-content"] .chat-parent-quote {
+  .chat-bubble[data-align="end"]
+    [data-slot="bubble-content"]
+    .chat-parent-quote {
     color: #000;
     background: color-mix(in oklch, #fff 55%, transparent);
     border-left-color: #008458;
@@ -146,7 +157,9 @@ img.lazy-img[data-ll-status="loading"] {
       background: color-mix(in oklch, #fff 70%, transparent);
     }
   }
-  .chat-bubble[data-align="end"] [data-slot="bubble-content"] .chat-parent-mention {
+  .chat-bubble[data-align="end"]
+    [data-slot="bubble-content"]
+    .chat-parent-mention {
     color: var(--primary-foreground);
   }
   // 自己发的评论（data-align="end"）背景是 primary 亮绿，
@@ -177,7 +190,9 @@ img.lazy-img[data-ll-status="loading"] {
       cursor: pointer;
       font-size: 0.72rem;
       font-weight: 500;
-      transition: background 0.2s ease, color 0.2s ease;
+      transition:
+        background 0.2s ease,
+        color 0.2s ease;
       &:hover {
         background: var(--border);
         color: var(--foreground);
@@ -396,6 +411,9 @@ img.lazy-img[data-ll-status="loading"] {
   // @ 提及时，@ 是 React 组件、内容走 dangerouslySetInnerHTML，两者并列。
   // wrapper inline 使 @ 与首行内容同行；仅第一个 <p> 转 inline 与 @ 环绕，
   // 其余段落保持块级，避免多段落粘连。
+  // 注意：父评论引用块（.chat-parent-quote，display:block）必须渲染在该
+  // wrapper **之外**（见 ChatBubble.tsx）——inline 容器不能含块级子元素，
+  // 否则会触发匿名块盒/盒分裂。
   .chat-body-inline {
     display: inline;
     > span:last-child > p:first-child {
@@ -457,13 +475,15 @@ img.lazy-img[data-ll-status="loading"] {
 // 顶层 dark 覆盖：不能写在 #comments-section 嵌套内（会编译成错误的后代
 // 选择器）。注意：这是 .scss（走 sass 编译），:global() 是 CSS Modules
 // 语法，sass 不认；dark 类挂在 <html> 上，所以用 html.dark 祖先选择器。
- html.dark #comments-section .chat-badge--owner,
- html.dark .paragraph-comment-panel .chat-badge--owner {
+html.dark #comments-section .chat-badge--owner,
+html.dark .paragraph-comment-panel .chat-badge--owner,
+html.dark .reply-popup .chat-badge--owner {
   background: var(--mint-900);
   color: var(--mint-300);
 }
 html.dark #comments-section .chat-badge--self,
-html.dark .paragraph-comment-panel .chat-badge--self {
+html.dark .paragraph-comment-panel .chat-badge--self,
+html.dark .reply-popup .chat-badge--self {
   background: color-mix(in oklch, var(--primary) 22%, transparent);
   color: var(--mint-300);
 }
@@ -472,7 +492,11 @@ html.dark .paragraph-comment-panel .chat-badge--self {
 // （暗色没变暗），但 --primary-foreground 解析为白 15%（--base-color-blackbtn
 // 暗色值），文字叠亮绿上对比度仅 ~1.3:1。固定为深色恢复对比（同亮色模式）。
 html.dark #comments-section .chat-bubble[data-align="end"] .cherry-markdown,
-html.dark .paragraph-comment-panel .chat-bubble[data-align="end"] .cherry-markdown {
+html.dark
+  .paragraph-comment-panel
+  .chat-bubble[data-align="end"]
+  .cherry-markdown,
+html.dark .reply-popup .chat-bubble[data-align="end"] .cherry-markdown {
   --md-heading-color: #000;
   --md-paragraph-color: #000;
   --md-link-color: #000;
@@ -495,12 +519,29 @@ html.dark .paragraph-comment-panel .chat-bubble[data-align="end"] .cherry-markdo
     color: #000;
   }
 }
-html.dark #comments-section .chat-bubble[data-align="end"] [data-slot="bubble-content"] a,
-html.dark .paragraph-comment-panel .chat-bubble[data-align="end"] [data-slot="bubble-content"] a {
+html.dark
+  #comments-section
+  .chat-bubble[data-align="end"]
+  [data-slot="bubble-content"]
+  a,
+html.dark
+  .paragraph-comment-panel
+  .chat-bubble[data-align="end"]
+  [data-slot="bubble-content"]
+  a,
+html.dark
+  .reply-popup
+  .chat-bubble[data-align="end"]
+  [data-slot="bubble-content"]
+  a {
   color: #000;
 }
 html.dark #comments-section .chat-bubble[data-align="end"] .chat-parent-mention,
-html.dark .paragraph-comment-panel .chat-bubble[data-align="end"] .chat-parent-mention {
+html.dark
+  .paragraph-comment-panel
+  .chat-bubble[data-align="end"]
+  .chat-parent-mention,
+html.dark .reply-popup .chat-bubble[data-align="end"] .chat-parent-mention {
   color: #000;
 }
 // 评论提交按钮同根因：--primary 亮绿底 + --primary-foreground 在暗色下是白 15%，
@@ -532,7 +573,9 @@ html.dark .paragraph-comment-form__submit {
   line-height: 1;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.18s ease, color 0.18s ease;
+  transition:
+    opacity 0.18s ease,
+    color 0.18s ease;
   z-index: 5;
 }
 
@@ -574,7 +617,9 @@ html.dark .paragraph-comment-form__submit {
      The chip must NOT be permanently visible (it would crowd every line end). */
   opacity: 0;
   transform: translateX(0.1em);
-  transition: opacity 0.18s ease, color 0.18s ease;
+  transition:
+    opacity 0.18s ease,
+    color 0.18s ease;
 }
 .block-comment-host--inline-tail:hover
   > .block-comment-anchor

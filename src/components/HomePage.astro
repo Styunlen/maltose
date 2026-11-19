@@ -72,10 +72,13 @@ Astro.response.headers.set("Cache-Control", "no-cache, must-revalidate");
   hasError ? (
     <MaintenancePage />
   ) : (
-    <MainLayout title={Astro.props.title ?? "Home Page"} sidebarData={sidebarData}>
-      <div style="margin-top: 1.5rem;">
-        <Hero />
-
+    <MainLayout
+      title={Astro.props.title ?? "Home Page"}
+      sidebarData={sidebarData}
+      sidebarStartsAfterIntro={currentPage === 1}
+    >
+      {currentPage === 1 && <Hero slot="before-shell" />}
+      <div class="home-page">
         {currentPage === 1 && <StickyCarousel posts={stickyPosts} />}
 
         {currentPage === 1 && <PopularPosts first={8} posts={popularPosts} />}
@@ -112,6 +115,10 @@ Astro.response.headers.set("Cache-Control", "no-cache, must-revalidate");
 }
 
 <style>
+  .home-page {
+    min-width: 0;
+  }
+
   .post-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr);

@@ -10,6 +10,7 @@ import {
   PaginationNext,
 } from "@/components/ui/pagination";
 import { emitter } from "@/lib/mitt";
+import { scrollToElement } from "@/lib/scroll";
 
 interface ArticlePaginationProps {
   totalPages: number;
@@ -30,10 +31,7 @@ export default function ArticlePagination({
       el.classList.toggle("active", el.id === `page-${n}`);
     });
 
-    target.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
+    scrollToElement(target, { block: "start" });
     setCurrent(n);
     history.pushState(null, "", `#page-${n}`);
     emitter.emit("article-page-changed", n);

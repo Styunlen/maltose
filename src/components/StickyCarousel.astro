@@ -120,27 +120,50 @@ const enrichedPosts = posts.map((p) => ({
 }
 
 <script data-astro-rerun>
-  const track = document.getElementById("sticky-carousel");
-  const dots = document.querySelectorAll("#carousel-dots .carousel-dot");
-  if (track && dots.length) {
-    let current = 0;
-    const total = dots.length;
-    const goTo = (index) => {
-      if (index < 0) index = total - 1;
-      if (index >= total) index = 0;
-      current = index;
-      track.style.transform = `translateX(-${current * 100}%)`;
-      dots.forEach((d, i) => d.classList.toggle("active", i === current));
-    };
-    dots.forEach((dot) => {
-      dot.addEventListener("click", () => goTo(parseInt(( dot as any)?.dataset.index || "0")));
-    });
-    let interval = setInterval(() => goTo(current + 1), 5000);
-    track.addEventListener("mouseenter", () => clearInterval(interval));
-    track.addEventListener("mouseleave", () => {
-      interval = setInterval(() => goTo(current + 1), 5000);
-    });
-  }
+  (() => {
+    const track = document.getElementById("sticky-carousel");
+    const dots = document.querySelectorAll("#carousel-dots .carousel-dot");
+    if (track instanceof HTMLElement && dots.length) {
+      let current = 0;
+      let interval = window.setInterval(() => goTo(current + 1), 5000);
+      const total = dots.length;
+
+      function goTo(index) {
+        if (index < 0) index = total - 1;
+        if (index >= total) index = 0;
+        current = index;
+        track.style.transform = `translateX(-${current * 100}%)`;
+        dots.forEach((dot, dotIndex) => dot.classList.toggle("active", dotIndex === current));
+      }
+
+      function onDotClick(event) {
+        const dot = event.currentTarget;
+        const index = dot instanceof HTMLElement ? dot.dataset.index : "0";
+        goTo(parseInt(index || "0"));
+      }
+
+      function onMouseEnter() {
+        window.clearInterval(interval);
+      }
+
+      function onMouseLeave() {
+        interval = window.setInterval(() => goTo(current + 1), 5000);
+      }
+
+      function cleanup() {
+        window.clearInterval(interval);
+        dots.forEach((dot) => dot.removeEventListener("click", onDotClick));
+        track.removeEventListener("mouseenter", onMouseEnter);
+        track.removeEventListener("mouseleave", onMouseLeave);
+        document.removeEventListener("astro:before-swap", cleanup);
+      }
+
+      dots.forEach((dot) => dot.addEventListener("click", onDotClick));
+      track.addEventListener("mouseenter", onMouseEnter);
+      track.addEventListener("mouseleave", onMouseLeave);
+      document.addEventListener("astro:before-swap", cleanup, { once: true });
+    }
+  })();
 </script>
 
 <style>

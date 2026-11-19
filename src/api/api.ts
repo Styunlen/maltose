@@ -1243,17 +1243,12 @@ export async function siteConfigQuery() {
 export async function announcementsQuery() {
   const query = gql`
     query Announcements {
-      maltoseAnnouncements(
-        first: 30
-        where: { status: PUBLISH, orderby: { field: DATE, order: DESC } }
-      ) {
-        nodes {
-          id
-          date
-          modified
-          content(format: RENDERED)
-          sticky
-        }
+      announcements(limit: 30) {
+        id
+        date
+        modified
+        content
+        sticky
       }
     }
   `;

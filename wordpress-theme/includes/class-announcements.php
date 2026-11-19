@@ -81,6 +81,55 @@ class MaltoseAnnouncements {
                 return $id ? (bool) get_post_meta($id, self::STICKY_META_KEY, true) : false;
             },
         ]);
+
+        // The CPT is registered as public => false / publicly_queryable => false,
+        // so WPGraphQL's auto-generated `maltoseAnnouncements` query returns an
+        // empty list for anonymous requests (non-public post types are filtered).
+        // Expose a dedicated RootQuery field instead — same bridging pattern as
+        // maltoseSettings / siteConfig — resolving through WP_Query directly.
+        register_graphql_object_type('MaltoseAnnouncementItem', [
+            'description' => __('站点公告条目（已发布）。', 'maltose'),
+            'fields'      => [
+                'id'       => ['type' => 'Int'],
+                'date'     => ['type' => 'String'],
+                'modified' => ['type' => 'String'],
+                'content'  => ['type' => 'String', 'description' => __('渲染后的 HTML。', 'maltose')],
+                'sticky'   => ['type' => 'Boolean'],
+            ],
+        ]);
+
+        register_graphql_field('RootQuery', 'announcements', [
+            'type'        => ['list_of' => 'MaltoseAnnouncementItem'],
+            'description' => __('已发布的站点公告（置顶优先，日期倒序）。', 'maltose'),
+            'args'        => [
+                'limit' => ['type' => 'Int', 'defaultValue' => 30],
+            ],
+            'resolve'     => static function ($root, array $args): array {
+                $limit = max(1, min((int) ($args['limit'] ?? 30), 100));
+                $posts = get_posts([
+                    'post_type'    => self::POST_TYPE,
+                    'post_status'  => 'publish',
+                    'numberposts'  => $limit,
+                    'orderby'      => 'date',
+                    'order'        => 'DESC',
+                ]);
+                $items = array_map(static function (\WP_Post $post): array {
+                    return [
+                        'id'       => (int) $post->ID,
+                        'date'     => $post->post_date_gmt,
+                        'modified' => $post->post_modified_gmt,
+                        'content'  => apply_filters('the_content', $post->post_content),
+                        'sticky'   => (bool) get_post_meta($post->ID, self::STICKY_META_KEY, true),
+                    ];
+                }, $posts);
+                usort(
+                    $items,
+                    static fn(array $a, array $b): int =>
+                        ($b['sticky'] <=> $a['sticky']) ?: strcmp($b['date'], $a['date'])
+                );
+                return $items;
+            },
+        ]);
     }
 
     /** 保存时：标题为空或仅自动前缀时，填入「公告 · 当前时间」。 */

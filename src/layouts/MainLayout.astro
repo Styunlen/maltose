@@ -47,7 +47,7 @@ try {
     siteConfig = siteCfg.value.siteConfig ?? null;
   }
   if (anns.status === "fulfilled") {
-    announcements = anns.value.maltoseAnnouncements?.nodes ?? null;
+    announcements = anns.value.announcements ?? null;
   }
 } catch (err) {
   logger.warn(
